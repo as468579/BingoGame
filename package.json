@@ -2,6 +2,6 @@
   "name": "bingo-room",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "start": "node server.js", "test": "node --test" },
+  "scripts": { "start": "node server.js", "check": "node scripts/check.cjs", "test": "node --test" },
   "engines": { "node": ">=22" }
 }
