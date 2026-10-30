@@ -6,6 +6,8 @@ import { RoomConnection } from './network/room-connection.js';
 import { EntryView } from './views/entry-view.js';
 import { RoomView } from './views/room-view.js';
 import { Notice } from './views/notice.js';
+import { LineNoticeView } from './views/line-notice-view.js';
+import { lineGains } from './state/line-progress.js';
 import { shuffledBoard } from './utils.js';
 
 export class BingoApp {
@@ -13,6 +15,7 @@ export class BingoApp {
     this.state = new GameState();
     this.session = new PlayerSession();
     this.notice = new Notice();
+    this.lineNotice = new LineNoticeView();
     this.notify = message => this.notice.show(message);
     this.api = new ApiClient({ session: this.session, getRoomCode: () => this.state.room?.code, notify: this.notify });
     this.connection = new RoomConnection({
@@ -35,7 +38,14 @@ export class BingoApp {
   }
 
   render() { if (this.state.room) this.view.render(this.state); }
-  update(snapshot) { if (this.state.accept(snapshot)) this.render(); }
+  update(snapshot) {
+    const previous = this.state.room;
+    if (!this.state.accept(snapshot)) return;
+    if (previous?.code !== snapshot.code || snapshot.phase === 'lobby' ||
+        snapshot.called.length < (previous?.called.length || 0)) this.lineNotice.clear();
+    this.render();
+    this.lineNotice.show(lineGains(previous, snapshot));
+  }
 
   async perform(callback) {
     if (this.state.busy) return;
@@ -63,6 +73,7 @@ export class BingoApp {
   }
 
   leave() {
+    this.lineNotice.clear();
     this.connection.close();
     this.state.leave();
     this.session.clearRoom();

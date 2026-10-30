@@ -18,6 +18,28 @@ function snapshot(overrides = {}) {
   };
 }
 
+test('line gains announce only a new room maximum, including tied leaders and wins', async () => {
+  const { lineGains } = await import('../public/js/state/line-progress.js');
+  const room = (revision, counts, phase = 'playing') => snapshot({ revision, phase,
+    players: counts.map((lines, i) => ({ id: String(i), name: `Player ${i}`, lines })) });
+  const before = room(1, [0, 1, 2]);
+  const after = room(2, [1, 3, 2]);
+  assert.deepEqual(lineGains(before, after).map(player => [player.id, player.lines]), [['1', 3]]);
+  assert.deepEqual(lineGains(before, room(2, [1, 2, 2])), []);
+  assert.deepEqual(lineGains(before, room(2, [3, 3, 2])).map(player => player.id), ['0', '1']);
+  assert.deepEqual(lineGains(room(1, [0, 0, 0]), room(2, [1, 0, 0])).map(player => player.id), ['0']);
+  assert.deepEqual(lineGains(after, after), []);
+  assert.deepEqual(lineGains(after, before), []);
+  assert.deepEqual(lineGains(null, after), []);
+  assert.deepEqual(lineGains(before, { ...after, code: 'OTHER' }), []);
+  assert.deepEqual(lineGains(before, { ...after, boardVersion: 1 }), []);
+  assert.deepEqual(lineGains(before, { ...after, phase: 'lobby' }), []);
+  assert.deepEqual(lineGains({ ...before, phase: 'lobby' }, after), []);
+  assert.equal(lineGains(before, room(3, [3, 1, 2], 'finished'))[0].lines, 3);
+  // A reverted gain can be announced again when the host confirms it again.
+  assert.equal(lineGains(before, after).length, 1);
+});
+
 test('client state ignores old snapshots, preserves drafts, and resets drafts on size changes', async () => {
   const { GameState } = await import('../public/js/state/game-state.js');
   const state = new GameState();
