@@ -2,6 +2,7 @@ import { $, element } from './dom.js';
 import { lineMeter } from './line-meter.js';
 
 function phaseText(room, me) {
+  if (room.activeCard) return '卡牌作答中，遊戲暫停；使用卡牌取代本回合選號，結束後換下一位。';
   if (room.phase === 'lobby') return me.ready ? `✓ 你已準備完成，等待房主開始（${room.size} × ${room.size}）。`
     : `填入 1～${room.size ** 2}，不重複排列，完成後按下準備。`;
   if (room.phase === 'finished') return '本局已結束，好運屬於每個參與的人！';
@@ -49,7 +50,7 @@ export class BoardView {
         cell.setAttribute('aria-pressed', String(isCovered));
         if (isCovered) cell.classList.add('marked');
         if (number === room.called.at(-1)) cell.classList.add('latest');
-        cell.disabled = busy || !connected || !mine || room.phase !== 'playing' || Boolean(room.pending) || room.turn !== me.id || marked.has(number) || isCovered;
+        cell.disabled = busy || !connected || Boolean(room.activeCard) || !mine || room.phase !== 'playing' || Boolean(room.pending) || room.turn !== me.id || marked.has(number) || isCovered;
         cell.onclick = () => this.actions.call(number);
       }
       return cell;

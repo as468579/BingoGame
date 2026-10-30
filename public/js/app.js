@@ -102,6 +102,10 @@ export class BingoApp {
 
   actions() {
     return {
+      useCard: cardId => this.command('cardUse', { cardId }),
+      answerCard: (cardSessionId, choice) => this.command('cardAnswer', { cardSessionId, choice }),
+      judgeCard: (cardSessionId, correct) => this.command('cardJudge', { cardSessionId, correct }),
+      finishCard: cardSessionId => this.command('cardFinish', { cardSessionId }),
       selectPlayer: id => { this.state.selected = id; this.render(); },
       editCell: (index, number) => { this.state.editCell(index, number); this.view.board.validate(this.state); },
       shuffle: () => {

@@ -110,6 +110,8 @@ flowchart TD
 
 ## 修改功能時的入口
 
+卡牌使用經由 `CardPreviewView` → 注入的 `useCard` action → `RoomService` → `domain/card-actions.js`，在房間建立 `activeCard`。`room-snapshot.js` 投影公開卡片與問題，再由 SSE 廣播；`SharedCardView` 顯示全房相同的作答或結果視窗。`activeCard` 存在時 `game-actions.js` 拒絕其他遊戲操作，只接受作答、房主判定與結束。題庫以 `domain/card-catalog.js` 為準；作答後進入 `review`，只有房主可透過 `cardJudge` 提交布林判定值，才進入 `result`。對錯以房主決定為準，不比對示範題的預設答案。示範卡消耗紀錄保存於玩家的 `usedDemoCards`，不與正式手牌混用。`GameHistory` 以整次卡牌使用為單位還原。
+
 - 調整連線與勝負：`domain/board.js`、`domain/game-actions.js`。
 - 改變玩家清單、排序或捲動：`public/js/views/players-view.js`。
 - 改盤面輸入與格子顯示：`public/js/views/board-view.js`。

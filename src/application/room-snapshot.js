@@ -3,14 +3,20 @@
 const { coveredLines } = require('../domain/board');
 const { canUndo } = require('../domain/game-history');
 const { isParticipant, participants } = require('../domain/participants');
+const { demoCards, publicCard } = require('../domain/card-catalog');
 
 // Explicitly project public fields; credentials and retry/history records never leave the server.
 function roomSnapshot(room, presence, viewerId) {
+  const viewer = room.players.find(player => player.id === viewerId);
+  const active = room.activeCard;
+  const card = active && demoCards.find(candidate => candidate.id === active.cardId);
   return {
     code: room.code, phase: room.phase, host: room.host, turn: room.turn,
     size: room.size || 5, goal: room.size || 5, boardVersion: room.boardVersion || 0,
     called: room.called, winners: room.winners, revision: room.revision,
     pending: room.pending || null, lastDecision: room.lastDecision || null,
+    availableDemoCards: viewer ? demoCards.filter(candidate => !viewer.usedDemoCards?.includes(candidate.id)).map(publicCard) : [],
+    activeCard: card ? { ...active, card: publicCard(card) } : null,
     canUndo: canUndo(room),
     lastScanAt: room.lastScanAt || null,
     lastScanRemovedCount: room.lastScanRemovedCount || 0,

@@ -16,7 +16,7 @@ export class HandDrawerView {
 
   render(state) {
     const key = `${state.room.code}:${state.playerId}`;
-    if (this.key !== key || (state.room.pending && state.me.id === state.room.host)) this.close();
+    if (this.key !== key || state.room.activeCard || (state.room.pending && state.me.id === state.room.host)) this.close();
     this.key = key;
     $('handDock').hidden = false;
     document.body.classList.add('has-hand-dock');

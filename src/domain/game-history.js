@@ -5,10 +5,10 @@ const { fail } = require('./errors');
 const { createCells } = require('./board');
 const { participants } = require('./participants');
 
-const REVERSIBLE_ACTIONS = new Set(['call', 'approve', 'reject', 'skip']);
+const REVERSIBLE_ACTIONS = new Set(['call', 'approve', 'reject', 'skip', 'cardUse']);
 
 function initialGameState(room) {
-  return { phase: 'playing', turn: participants(room)[0].id, called: [], winners: [], pending: null, lastDecision: null,
+  return { phase: 'playing', turn: participants(room)[0].id, called: [], winners: [], pending: null, lastDecision: null, activeCard: null,
     playerStates: structuredClone(room.roundStart || room.players.map(player => ({ id: player.id, cells: createCells(player.board), hand: [] }))) };
 }
 
@@ -16,7 +16,8 @@ function captureGameState(room) {
   return structuredClone({
     phase: room.phase, turn: room.turn, called: room.called, winners: room.winners,
     pending: room.pending || null, lastDecision: room.lastDecision || null,
-    playerStates: room.players.map(player => ({ id: player.id, cells: player.cells, hand: player.hand }))
+    activeCard: room.activeCard || null,
+    playerStates: room.players.map(player => ({ id: player.id, cells: player.cells, hand: player.hand, usedDemoCards: player.usedDemoCards || [] }))
   });
 }
 
@@ -34,13 +35,16 @@ function undoGame(room, revision) {
   const previous = room.history?.length ? room.history.pop() : initialGameState(room);
   const { playerStates, ...progress } = previous;
   Object.assign(room, progress);
+  room.activeCard = progress.activeCard || null;
   for (const player of room.players) {
     const saved = playerStates?.find(state => state.id === player.id);
     player.cells = saved ? structuredClone(saved.cells) : createCells(player.board, room.called);
     if (saved) player.hand = structuredClone(saved.hand);
+    player.usedDemoCards = structuredClone(saved?.usedDemoCards || []);
   }
   // Invalidate decisions sent by older tabs before this selection was restored.
   if (room.pending) room.pending.id = randomUUID();
+  if (room.activeCard) room.activeCard.id = randomUUID();
 }
 
 module.exports = { REVERSIBLE_ACTIONS, initialGameState, captureGameState, canUndo, undoGame };
