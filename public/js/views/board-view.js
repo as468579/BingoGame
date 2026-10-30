@@ -27,8 +27,7 @@ export class BoardView {
     const mine = target.id === me.id;
     const editing = mine && room.phase === 'lobby' && !me.ready;
     const size = room.size || 5;
-    $('boardOwner').textContent = mine ? 'YOUR BOARD' : 'FRIEND’S BOARD';
-    $('boardTitle').textContent = mine ? '我的幸運盤面' : `${target.name} 的盤面`;
+    $('boardTitle').textContent = mine ? '我 的盤面' : `${target.name} 的盤面`;
     $('lineCount').replaceChildren(element('strong', 'line-total', target.lines),
       element('span', 'line-goal', `/ ${room.goal} 條線`), lineMeter(target.lines, room.goal));
     $('phaseText').textContent = phaseText(room, me);
