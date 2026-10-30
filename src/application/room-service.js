@@ -5,6 +5,7 @@ const { fail } = require('../domain/errors');
 const { createRoom, joinRoom, authenticatePlayer } = require('../domain/room');
 const { applyGameAction } = require('../domain/game-actions');
 const { roomSnapshot } = require('./room-snapshot');
+const { restoreParticipant } = require('../domain/participants');
 
 class RoomService {
   constructor(repository, connections) {
@@ -18,10 +19,15 @@ class RoomService {
     return { room, player: authenticatePlayer(room, token) };
   }
 
-  snapshot(room) { return roomSnapshot(room, this.connections); }
+  snapshot(room, viewerId) { return roomSnapshot(room, this.connections, viewerId); }
 
   broadcast(room) {
-    this.connections.broadcast(room.players.map(player => player.id), this.snapshot(room));
+    this.connections.broadcast(room.players.map(player => player.id), viewerId => this.snapshot(room, viewerId));
+  }
+
+  connected(room, player) {
+    if (restoreParticipant(room, player)) this.repository.save();
+    this.broadcast(room);
   }
 
   execute(data) {
@@ -30,13 +36,13 @@ class RoomService {
     if (typeof requestId !== 'string' || requestId.length > 80 || !requestId) fail('缺少操作識別碼。');
     if (kind === 'create' || kind === 'join') return this.enter(data);
     const { room, player } = this.authenticate(String(data.code).toUpperCase(), token);
-    if (player.requests.includes(requestId)) return { room: this.snapshot(room), playerId: player.id };
+    if (player.requests.includes(requestId)) return { room: this.snapshot(room, player.id), playerId: player.id };
     applyGameAction(room, player, data, this.connections);
     player.requests.push(requestId);
     room.revision++;
     this.repository.save();
     this.broadcast(room);
-    return { room: this.snapshot(room), playerId: player.id };
+    return { room: this.snapshot(room, player.id), playerId: player.id };
   }
 
   enter(data) {
@@ -58,7 +64,7 @@ class RoomService {
     const player = joinRoom(room, name, data.token);
     this.repository.save();
     this.broadcast(room);
-    return { room: this.snapshot(room), playerId: player.id, token: player.token };
+    return { room: this.snapshot(room, player.id), playerId: player.id, token: player.token };
   }
 }
 

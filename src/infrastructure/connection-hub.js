@@ -20,8 +20,10 @@ class ConnectionHub {
   }
 
   broadcast(playerIds, snapshot) {
-    const data = `data: ${JSON.stringify(snapshot)}\n\n`;
-    for (const id of playerIds) for (const response of this.streams.get(id) || []) response.write(data);
+    for (const id of playerIds) {
+      const data = `data: ${JSON.stringify(typeof snapshot === 'function' ? snapshot(id) : snapshot)}\n\n`;
+      for (const response of this.streams.get(id) || []) response.write(data);
+    }
   }
 }
 

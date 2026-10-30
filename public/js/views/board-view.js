@@ -36,7 +36,8 @@ export class BoardView {
     $('board').setAttribute('aria-label', `${size} 乘 ${size} 賓果盤面`);
     const focused = document.activeElement?.dataset?.cell;
     const marked = new Set(room.called);
-    $('board').replaceChildren(...(editing ? draft : target.board).map((number, index) => {
+    const cells = editing ? draft.map(number => ({ number, isCovered: false })) : target.cells;
+    $('board').replaceChildren(...cells.map(({ number, isCovered }, index) => {
       const cell = element(editing ? 'input' : 'button', 'cell');
       cell.setAttribute('aria-label', `第 ${Math.floor(index / size) + 1} 列第 ${index % size + 1} 格，號碼 ${number}`);
       if (editing) {
@@ -45,9 +46,11 @@ export class BoardView {
         cell.oninput = () => this.actions.editCell(index, cell.value === '' ? 0 : Number(cell.value));
       } else {
         cell.textContent = number;
-        if (marked.has(number)) cell.classList.add('marked');
+        cell.dataset.covered = String(isCovered);
+        cell.setAttribute('aria-pressed', String(isCovered));
+        if (isCovered) cell.classList.add('marked');
         if (number === room.called.at(-1)) cell.classList.add('latest');
-        cell.disabled = busy || !connected || !mine || room.phase !== 'playing' || Boolean(room.pending) || room.turn !== me.id || marked.has(number);
+        cell.disabled = busy || !connected || !mine || room.phase !== 'playing' || Boolean(room.pending) || room.turn !== me.id || marked.has(number) || isCovered;
         cell.onclick = () => this.actions.call(number);
       }
       return cell;

@@ -12,6 +12,7 @@ export class GameState {
 
   get me() { return this.room?.players.find(player => player.id === this.playerId); }
   get target() { return this.room?.players.find(player => player.id === this.selected) || this.me; }
+  get hand() { return this.me?.hand || []; }
 
   accept(snapshot) {
     if (this.room?.code === snapshot.code && snapshot.revision < this.room.revision) return false;

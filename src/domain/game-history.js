@@ -2,31 +2,43 @@
 
 const { randomUUID } = require('node:crypto');
 const { fail } = require('./errors');
+const { createCells } = require('./board');
+const { participants } = require('./participants');
 
 const REVERSIBLE_ACTIONS = new Set(['call', 'approve', 'reject', 'skip']);
 
 function initialGameState(room) {
-  return { phase: 'playing', turn: room.players[0].id, called: [], winners: [], pending: null, lastDecision: null };
+  return { phase: 'playing', turn: participants(room)[0].id, called: [], winners: [], pending: null, lastDecision: null,
+    playerStates: structuredClone(room.roundStart || room.players.map(player => ({ id: player.id, cells: createCells(player.board), hand: [] }))) };
 }
 
 function captureGameState(room) {
   return structuredClone({
     phase: room.phase, turn: room.turn, called: room.called, winners: room.winners,
-    pending: room.pending || null, lastDecision: room.lastDecision || null
+    pending: room.pending || null, lastDecision: room.lastDecision || null,
+    playerStates: room.players.map(player => ({ id: player.id, cells: player.cells, hand: player.hand }))
   });
 }
 
 function canUndo(room) {
   if (room.history?.length) return true;
   return ['playing', 'finished'].includes(room.phase) && (room.phase === 'finished' || room.called.length > 0 ||
-    Boolean(room.pending) || Boolean(room.lastDecision) || room.winners.length > 0 || room.turn !== room.players[0].id);
+    Boolean(room.pending) || Boolean(room.lastDecision) || room.winners.length > 0 || room.turn !== participants(room)[0].id ||
+    room.players.some(player => player.cells?.some(cell => cell.isCovered)));
 }
 
 function undoGame(room, revision) {
   if (revision !== room.revision) fail('遊戲進度已更新，請查看最新狀態後再按上一步。', 409);
   if (!canUndo(room)) fail('已經回到本局剛開始，沒有更早的步驟。');
   // Old saves can lack early history. Preserve recorded steps, then restore the opening state.
-  Object.assign(room, room.history?.length ? room.history.pop() : initialGameState(room));
+  const previous = room.history?.length ? room.history.pop() : initialGameState(room);
+  const { playerStates, ...progress } = previous;
+  Object.assign(room, progress);
+  for (const player of room.players) {
+    const saved = playerStates?.find(state => state.id === player.id);
+    player.cells = saved ? structuredClone(saved.cells) : createCells(player.board, room.called);
+    if (saved) player.hand = structuredClone(saved.hand);
+  }
   // Invalidate decisions sent by older tabs before this selection was restored.
   if (room.pending) room.pending.id = randomUUID();
 }

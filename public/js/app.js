@@ -121,8 +121,11 @@ export class BingoApp {
       }),
       command: kind => this.perform(async () => {
         const result = await this.api.send(kind);
-        this.state.draftDirty = false;
+        if (kind !== 'scan') this.state.draftDirty = false;
         this.update(result.room);
+        if (kind === 'scan') {
+          this.notify(`掃描完成：已刪除 ${result.room.lastScanRemovedCount} 位離線玩家，目前 ${result.room.players.length} 人。`);
+        }
       }),
       leave: () => this.leave(),
       switchPlayer: () => this.switchPlayer()

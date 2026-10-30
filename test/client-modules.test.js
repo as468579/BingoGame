@@ -36,6 +36,15 @@ test('client state ignores old snapshots, preserves drafts, and resets drafts on
   assert.equal(state.target.id, 'me');
 });
 
+test('viewing another board never switches the current player hand', async () => {
+  const { GameState } = await import('../public/js/state/game-state.js');
+  const state = new GameState(); state.playerId = 'me';
+  state.accept(snapshot({ players: [{ id: 'me', board: [1], hand: [{ id: 'own-card' }] }, { id: 'other', board: [1], handCount: 2 }] }));
+  state.selected = 'other';
+  assert.equal(state.target.id, 'other');
+  assert.deepEqual(state.hand, [{ id: 'own-card' }]);
+});
+
 test('sessions migrate the old shared host once, keep separate tab identities and restore selected IDs', async () => {
   const { PlayerSession } = await import('../public/js/storage/player-session.js');
   const token = randomUUID();

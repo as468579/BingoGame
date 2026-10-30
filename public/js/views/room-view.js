@@ -4,6 +4,7 @@ import { BoardView } from './board-view.js';
 import { HostControlsView } from './host-controls-view.js';
 import { ApprovalView } from './approval-view.js';
 import { InvitationView } from './invitation-view.js';
+import { HandView } from './hand-view.js';
 
 export class RoomView {
   constructor(actions, address, notify, getState) {
@@ -12,6 +13,7 @@ export class RoomView {
     this.hostControls = new HostControlsView(actions);
     this.approval = new ApprovalView(actions);
     this.invitation = new InvitationView(address, notify, getState);
+    this.hand = new HandView();
     $('leave').onclick = actions.leave;
     $('switchPlayer').onclick = actions.switchPlayer;
   }
@@ -23,12 +25,14 @@ export class RoomView {
     $('game').hidden = false;
     $('leave').hidden = false;
     $('switchPlayer').hidden = false;
+    $('handPanel').hidden = false;
     $('roomCode').textContent = room.code;
     this.invitation.render(room, state.playerId);
     this.players.render(state);
     this.board.render(state);
     this.hostControls.render(state);
     this.approval.render(state);
+    this.hand.render(state);
     $('rulesText').textContent = `本局 ${room.size} × ${room.size}，數字 1～${room.size ** 2}。輪流選號，房主確認後同步標記。橫、直、斜皆可連線，先完成 ${room.goal} 條線獲勝，可同時獲勝。`;
     $('lastNumber').textContent = room.called.at(-1) || '—';
     $('history').replaceChildren(...room.called.map(number => element('span', '', number)));
@@ -44,6 +48,7 @@ export class RoomView {
     $('game').hidden = true;
     $('leave').hidden = true;
     $('switchPlayer').hidden = true;
+    $('handPanel').hidden = true;
     this.approval.close();
     $('connection').textContent = '● 尚未加入';
   }

@@ -30,7 +30,7 @@ function createRequestHandler(service, connections, publicDirectory) {
         });
         response.write('retry: 1500\n\n');
         const unsubscribe = connections.subscribe(player.id, response);
-        service.broadcast(room);
+        service.connected(room, player);
         request.once('close', () => { unsubscribe(); service.broadcast(room); });
         return;
       }

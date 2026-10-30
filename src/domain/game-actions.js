@@ -2,9 +2,26 @@
 
 const { randomUUID } = require('node:crypto');
 const { fail } = require('./errors');
-const { createBoard, boardValid, lines } = require('./board');
+const { createBoard, boardValid, createCells, coverNumber, clearCovers, coveredLines } = require('./board');
+const { createHand } = require('./hand');
 const { requireHost, advanceTurn } = require('./room');
 const { REVERSIBLE_ACTIONS, captureGameState, undoGame } = require('./game-history');
+const { participants } = require('./participants');
+
+function scan(room, player, data, presence) {
+  requireHost(room, player, '只有房主可以重新掃描玩家。');
+  if (room.phase !== 'lobby') fail('請在準備階段重新掃描玩家；遊戲中可略過離線玩家。');
+  const online = room.players.filter(candidate => candidate.id === player.id || presence.isOnline(candidate.id));
+  const removed = room.players.filter(candidate => !online.includes(candidate));
+  // Explicit host scan is the deletion boundary. A disconnect alone never removes data.
+  delete room.archivedPlayers;
+  room.players = online;
+  room.participantIds = online.map(candidate => candidate.id);
+  room.lastScanRemovedCount = removed.length;
+  room.history = [];
+  room.roundStart = null;
+  room.lastScanAt = Date.now();
+}
 
 function settings(room, player, data) {
   requireHost(room, player, '只有房主可以設定盤面尺寸。');
@@ -13,7 +30,12 @@ function settings(room, player, data) {
   if (data.size === (room.size || 5)) return;
   room.size = data.size;
   room.boardVersion = (room.boardVersion || 0) + 1;
-  room.players.forEach(candidate => { candidate.board = createBoard(data.size); candidate.ready = false; });
+  room.players.forEach(candidate => {
+    candidate.board = createBoard(data.size);
+    candidate.cells = createCells(candidate.board);
+    candidate.hand = createHand();
+    candidate.ready = false;
+  });
   clearRound(room);
 }
 
@@ -23,17 +45,20 @@ function board(room, player, data) {
   if ((data.boardVersion || 0) !== (room.boardVersion || 0)) fail('盤面尺寸已更新，請重新排列並準備。', 409);
   if (!boardValid(data.board, size)) fail(`請填入 1～${size ** 2}，每個數字只能出現一次。`);
   player.board = data.board;
+  player.cells = createCells(data.board);
   player.ready = Boolean(data.ready);
 }
 
 function start(room, player) {
   requireHost(room, player, '只有房主可以開始遊戲。');
   if (room.phase !== 'lobby') fail('遊戲已經開始。');
-  if (room.players.length < 2 || !room.players.every(candidate => candidate.ready)) {
-    fail('至少需要 2 位玩家，且所有玩家都必須準備完成。');
+  const roster = participants(room);
+  if (roster.length < 2 || !roster.every(candidate => candidate.ready)) {
+    fail('本局至少需要 2 位參與玩家，且參與玩家都必須準備完成。');
   }
   room.phase = 'playing';
-  room.turn = room.players[0].id;
+  room.turn = roster[0].id;
+  room.roundStart = captureGameState(room).playerStates;
 }
 
 function call(room, player, data) {
@@ -51,10 +76,13 @@ function decide(room, player, data) {
   if (room.phase !== 'playing' || !room.pending) fail('目前沒有待確認的號碼。');
   if (data.pendingId !== room.pending.id) fail('此選號已處理，請以最新畫面為準。', 409);
   room.lastDecision = { ...room.pending, approved: data.kind === 'approve' };
-  if (data.kind === 'approve') room.called.push(room.pending.number);
+  if (data.kind === 'approve') {
+    room.called.push(room.pending.number);
+    participants(room).forEach(candidate => coverNumber(candidate.cells, room.pending.number));
+  }
   room.pending = null;
   const size = room.size || 5;
-  room.winners = room.players.filter(candidate => lines(candidate.board, room.called) >= size).map(candidate => candidate.id);
+  room.winners = participants(room).filter(candidate => coveredLines(candidate.cells) >= size).map(candidate => candidate.id);
   if (room.winners.length || room.called.length === size ** 2) {
     room.phase = 'finished';
     room.turn = null;
@@ -80,16 +108,23 @@ function clearRound(room) {
   room.pending = null;
   room.lastDecision = null;
   room.history = [];
+  room.roundStart = null;
 }
 
 function reset(room, player) {
   requireHost(room, player, '只有房主可以開新局。');
   room.phase = 'lobby';
+  room.participantIds = null;
+  room.lastScanAt = null;
   clearRound(room);
-  room.players.forEach(candidate => { candidate.ready = false; });
+  room.players.forEach(candidate => {
+    candidate.ready = false;
+    clearCovers(candidate.cells);
+    candidate.hand = createHand();
+  });
 }
 
-const handlers = new Map(Object.entries({ settings, board, start, call, approve: decide, reject: decide, skip, undo, reset }));
+const handlers = new Map(Object.entries({ settings, board, start, call, approve: decide, reject: decide, skip, undo, reset, scan }));
 
 function applyGameAction(room, player, data, presence) {
   const handler = handlers.get(data.kind);

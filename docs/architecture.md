@@ -29,7 +29,10 @@ flowchart TD
 | `application/room-service.js` | 組織加入／恢復身分、權限驗證、重送去重、執行規則後存檔並廣播 | 操作 DOM、直接讀寫檔案 |
 | `application/room-snapshot.js` | 產生公開遊戲資料，排除憑證與操作紀錄 | 修改房間 |
 | `domain/room.js`、`player.js` | 建立資料、玩家加入、身分驗證與加入順序 | HTTP 與檔案 |
-| `domain/board.js` | 建立與驗證 N×N 盤面、計算橫直斜連線 | 玩家身分與網路 |
+| `domain/board.js` | 建立與驗證 N×N 盤面、控制每格覆蓋狀態、計算橫直斜連線 | 玩家身分與網路 |
+| `domain/hand.js` | 建立獨立手牌陣列、加入／移除卡牌實例 | 卡牌效果、抽牌與出牌規則 |
+| `domain/room-migration.js` | 為舊存檔補上格子狀態與手牌，保留既有覆蓋值 | 遊戲操作與存檔 IO |
+| `domain/participants.js` | 區分房間成員與本局名單，準備階段恢復參與 | 刪除玩家、TCP 連線偵測 |
 | `domain/game-actions.js` | 尺寸、準備、開始、選號、審核、略過、重開局 | 存檔與廣播 |
 | `domain/game-history.js` | 建立快照、撤回、舊存檔回到開局的相容行為 | 玩家連線 |
 | `infrastructure/json-room-repository.js` | 持有房間集合、讀檔、暫存檔替換寫入 | 遊戲規則 |
@@ -45,14 +48,23 @@ erDiagram
   ROOM ||--o| PENDING_SELECTION : awaits
   ROOM ||--o{ GAME_SNAPSHOT : history
   PLAYER ||--|| BOARD : owns
+  BOARD ||--|{ CELL : contains
+  PLAYER ||--o{ CARD_INSTANCE : holds
   PLAYER ||--o{ SSE_CONNECTION : connects
 ```
 
-- `Room.players` 的陣列順序決定選號順序。畫面排名只對副本排序，不能改寫此陣列。
+- `Room.players` 保存房間成員；`participantIds` 為掃描後本局參與的 UUID 清單，未設定時所有成員都參與。選號順序依 `Room.players` 原順序過濾本局名單，畫面排名只對副本排序，不能改寫此陣列。
+- `scan` 只允許房主在 lobby 操作。斷線本身只變更 ConnectionHub 的在線狀態，仍保留玩家資料；明確按下掃描才從 `players` 刪除離線者。房主與在線玩家保留；同步清除歷史、roundStart 及舊版 archivedPlayers，避免殘留被刪除玩家引用。操作存檔並遞增 revision。
+- `joinRoom()` 只會恢復仍在 `players` 的同 ID。被掃描刪除的 ID 再加入時建立全新 UUID、盤面及空手牌，舊憑證在重新加入前無法通過 API／SSE 驗證。無自動封存復原行為；開局後仍禁止新玩家加入。
 - `Player.name` 是玩家輸入的房間內 ID；`Player.id` 是內部 UUID。`Room.host`、`Room.turn`、`pending.playerId`、`winners` 都參照 UUID，避免名字顯示與排名影響規則。
 - `Player.token` 用於後續 API／SSE 驗證，只在建立或恢復該玩家時回傳。公開快照不包含它。
-- `Room.called` 是房主確認過的號碼。`pending` 尚未計分；確認後才加入 `called`。拒絕只推進回合。
-- `GameSnapshot` 只保存回合與遊戲進度，不複製玩家憑證、盤面或在線狀態。尺寸只能在 lobby 修改並清除歷史。
+- `Player.board` 仍是數字排列，保留編輯 API 相容性；`Player.cells` 是同順序的 `{ number, isCovered: boolean }` 陣列。`isCovered=true` 表示被蓋住（綠色標記），不是隱藏數字。`coverNumber(cells, number, false)` 可解除單一格子，且不影響其他玩家。
+- `Room.called` 是確認過的選號紀錄與禁止重複選號的依據，不是覆蓋狀態的唯一來源。`coveredLines(cells)` 和盤面樣式直接讀格子的 bool。舊 `lines(board, called)` 只保留為相容轉接函式。
+- `pending` 尚未計分；房主確認後才把號碼加入 `called` 並蓋住所有人的對應格子。拒絕不修改格子。之後其他功能可以獨立修改某位玩家的格子狀態。
+- `Player.hand` 是該玩家獨立持有的卡牌實例陣列，初始為空。`addToHand(player, cardData)` 產生唯一實例 ID 並加入，`removeFromHand(player, cardId)` 移除指定實例；兩者目前只供伺服器內部使用，不開放任意客戶端增減手牌。卡牌內容、數量上限、抽牌及出牌規則留待後續設計。
+- REST 與 SSE 都依接收者產生快照：所有玩家可見 `handCount`，只有本人資料會包含 `hand`，房主也看不到別人的手牌內容。前端 `HandView` 永遠顯示自己手牌，不跟隨所查看的盤面切換。
+- `GameSnapshot.playerStates` 保存每位玩家的格子及手牌深拷貝，撤回會還原，不包含憑證或在線狀態；開局另存 `roundStart` 供最早狀態復原。撤回舊歷史時若沒有 `playerStates`，以當時的選號紀錄推回格子；載入存檔時則只初始化缺少新欄位的舊玩家，不覆寫合法 bool。
+- 新建或改尺寸會建立未蓋住的格子；重新開局會解除所有覆蓋並清空手牌。尺寸只能在 lobby 修改並清除歷史。後續若加入開局發牌，應在建立 `roundStart` 前完成。
 - `Player.requests` 保留成功操作 ID；重送回傳現況，不重複修改。`Room.revision` 單調遞增，不隨撤回倒退。
 - 在線狀態來自 `ConnectionHub`，不寫入存檔；同玩家任一分頁仍連線即視為在線。
 
@@ -73,6 +85,7 @@ flowchart TD
   RoomView --> HostControlsView
   RoomView --> ApprovalView
   RoomView --> InvitationView
+  RoomView --> HandView
   InvitationView --> PublicAddress
   PlayersView --> LineMeter
   BoardView --> LineMeter
