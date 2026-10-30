@@ -40,6 +40,29 @@ test('line gains announce only a new room maximum, including tied leaders and wi
   assert.equal(lineGains(before, after).length, 1);
 });
 
+test('card preview requires an answer, consumes only local demo cards, and can restart', async () => {
+  const { CardPreview, demoCards } = await import('../public/js/state/card-preview.js');
+  const preview = new CardPreview();
+  preview.open('star');
+  assert.equal(preview.submit(), false);
+  preview.flip();
+  assert.equal(preview.submit(), false);
+  preview.choose(-1);
+  assert.equal(preview.choice, null);
+  preview.choose(1);
+  assert.equal(preview.submit(), true);
+  assert.equal(preview.correct, true);
+  assert.equal(preview.remaining.length, 2);
+  assert.equal(preview.submit(), false);
+  preview.open('shield'); preview.flip(); preview.choose(0); preview.submit();
+  assert.equal(preview.correct, false);
+  assert.equal(preview.remaining.length, 1);
+  assert.equal(demoCards.length, 3);
+  preview.reset();
+  assert.equal(preview.remaining.length, 3);
+  assert.equal(preview.selected, null);
+});
+
 test('client state ignores old snapshots, preserves drafts, and resets drafts on size changes', async () => {
   const { GameState } = await import('../public/js/state/game-state.js');
   const state = new GameState();
