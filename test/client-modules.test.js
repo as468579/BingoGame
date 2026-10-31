@@ -18,6 +18,47 @@ function snapshot(overrides = {}) {
   };
 }
 
+test('chalk lines follow horizontal, vertical and diagonal cell centers for every supported size', async () => {
+  const { completedBoardLines } = await import('../public/js/views/board-lines.js');
+  const { coveredLines } = require('../src/domain/board');
+  for (let size = 3; size <= 9; size++) {
+    const cells = Array.from({ length: size * size }, (_, index) => ({ number: index + 1, isCovered: false }));
+    const groups = [
+      { indices: Array.from({ length: size }, (_, i) => i), axis: 'row' },
+      { indices: Array.from({ length: size }, (_, i) => i * size), axis: 'column' },
+      { indices: Array.from({ length: size }, (_, i) => i * (size + 1)), axis: 'diagonal' },
+      { indices: Array.from({ length: size }, (_, i) => (i + 1) * (size - 1)), axis: 'reverse' }
+    ];
+    for (const { indices, axis } of groups) {
+      cells.forEach((cell, index) => { cell.isCovered = indices.includes(index); });
+      const lines = completedBoardLines(cells, size);
+      assert.equal(lines.length, 1, `${size}: ${axis}`);
+      assert.equal(lines.length, coveredLines(cells));
+      const first = 50 / size, last = 100 - first;
+      const line = lines[0];
+      if (axis === 'row') { assert.equal(line.y1, first); assert.equal(line.y2, first); }
+      if (axis === 'column') { assert.equal(line.x1, first); assert.equal(line.x2, first); }
+      if (axis === 'diagonal') { assert.equal(line.x1, line.y1); assert.equal(line.x2, line.y2); }
+      if (axis === 'reverse') { assert.ok(Math.abs(line.x1 - last) < 1e-10); assert.equal(line.y1, first); }
+    }
+    cells.forEach(cell => { cell.isCovered = true; });
+    assert.equal(completedBoardLines(cells, size).length, 2 * size + 2);
+  }
+});
+
+test('chalk lines disappear after undoing a cover and never infer marks from number values', async () => {
+  const { completedBoardLines } = await import('../public/js/views/board-lines.js');
+  const cells = Array.from({ length: 9 }, (_, i) => ({ number: 9 - i, isCovered: i < 3 }));
+  const original = structuredClone(cells);
+  assert.equal(completedBoardLines(cells, 3).length, 1);
+  assert.deepEqual(cells, original);
+  cells[1].isCovered = false;
+  assert.deepEqual(completedBoardLines(cells, 3), []);
+  cells[1].isCovered = 'true';
+  assert.deepEqual(completedBoardLines(cells, 3), []);
+  assert.deepEqual(completedBoardLines(cells, 4), []);
+});
+
 test('line gains announce only a new room maximum, including tied leaders and wins', async () => {
   const { lineGains } = await import('../public/js/state/line-progress.js');
   const room = (revision, counts, phase = 'playing') => snapshot({ revision, phase,

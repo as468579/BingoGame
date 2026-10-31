@@ -25,7 +25,7 @@ test('module assets are served and private files and invalid actions remain inac
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    for (const file of ['/', '/join', '/client.js', '/js/app.js', '/js/views/players-view.js', '/style.css']) {
+    for (const file of ['/', '/join', '/client.js', '/js/app.js', '/js/views/players-view.js', '/js/views/board-lines.js', '/style.css', '/chalkboard.css']) {
       const response = await fetch(base + file);
       assert.equal(response.status, 200, file);
       assert.ok(response.headers.get('content-security-policy'));

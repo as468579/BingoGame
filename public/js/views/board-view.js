@@ -1,5 +1,6 @@
 import { $, element } from './dom.js';
 import { lineMeter } from './line-meter.js';
+import { renderBoardLines } from './board-lines.js';
 
 function phaseText(room, me) {
   if (room.activeCard) return '卡牌作答中，遊戲暫停；使用卡牌取代本回合選號，結束後換下一位。';
@@ -33,12 +34,14 @@ export class BoardView {
       element('span', 'line-goal', `/ ${room.goal} 條線`), lineMeter(target.lines, room.goal));
     $('phaseText').textContent = phaseText(room, me);
     $('board').dataset.size = size;
+    $('board').dataset.phase = room.phase;
     $('board').setAttribute('aria-label', `${size} 乘 ${size} 賓果盤面`);
     const focused = document.activeElement?.dataset?.cell;
     const marked = new Set(room.called);
     const cells = editing ? draft.map(number => ({ number, isCovered: false })) : target.cells;
     $('board').replaceChildren(...cells.map(({ number, isCovered }, index) => {
       const cell = element(editing ? 'input' : 'button', 'cell');
+      cell.dataset.column = index % size % 5;
       cell.setAttribute('aria-label', `第 ${Math.floor(index / size) + 1} 列第 ${index % size + 1} 格，號碼 ${number}`);
       if (editing) {
         Object.assign(cell, { type: 'number', min: '1', max: size ** 2, inputMode: 'numeric', value: number || '', disabled: busy });
@@ -55,6 +58,7 @@ export class BoardView {
       }
       return cell;
     }));
+    $('boardLines').replaceChildren(...(editing ? [] : renderBoardLines(cells, size)));
     if (editing && focused !== undefined) $('board').querySelector(`[data-cell="${focused}"]`)?.focus();
     if (editing) this.validate(state);
     $('editTools').hidden = !mine || room.phase !== 'lobby';
