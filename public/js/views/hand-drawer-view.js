@@ -15,6 +15,7 @@ export class HandDrawerView {
   }
 
   render(state) {
+    if (state.room.phase === 'finished') { this.hide(); return; }
     const key = `${state.room.code}:${state.playerId}`;
     if (this.key !== key || state.room.activeCard || (state.room.pending && state.me.id === state.room.host)) this.close();
     this.key = key;

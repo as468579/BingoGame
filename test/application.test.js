@@ -25,7 +25,7 @@ test('module assets are served and private files and invalid actions remain inac
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    for (const file of ['/', '/join', '/client.js', '/js/app.js', '/js/views/players-view.js', '/js/views/board-lines.js', '/style.css', '/chalkboard.css']) {
+    for (const file of ['/', '/join', '/client.js', '/js/app.js', '/js/views/players-view.js', '/js/views/board-lines.js', '/js/views/line-prizes-view.js', '/style.css', '/chalkboard.css', '/prizes.css']) {
       const response = await fetch(base + file);
       assert.equal(response.status, 200, file);
       assert.ok(response.headers.get('content-security-policy'));
@@ -33,7 +33,17 @@ test('module assets are served and private files and invalid actions remain inac
       assert.ok(body.length);
       if (file.endsWith('.js')) assert.match(response.headers.get('content-type'), /javascript/);
     }
-    for (const file of ['/data/rooms.json', '/server.js', '/js/missing.js', '/src/app.js', '/.git/config']) {
+    for (const item of ['突襲券', '紅色藥水', '活力藥水']) {
+      const prize = await fetch(base + `/assets/items/${item}.png`);
+      assert.equal(prize.status, 200);
+      assert.equal(prize.headers.get('content-type'), 'image/png');
+      assert.equal(prize.headers.get('x-content-type-options'), 'nosniff');
+      const bytes = Buffer.from(await prize.arrayBuffer());
+      assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    }
+    assert.equal((await fetch(base + '/assets/items/missing.png')).status, 404);
+    for (const file of ['/data/rooms.json', '/server.js', '/js/missing.js', '/src/app.js', '/.git/config',
+      '/assets/items/%ZZ.png', '/assets/items/%2e%2e%2f%2e%2e%2f%2e%2e%2fserver.js']) {
       assert.equal((await fetch(base + file)).status, 404, file);
     }
     const response = await fetch(base + '/api/action', { method: 'POST', body: '{broken' });

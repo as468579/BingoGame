@@ -56,7 +56,7 @@ test('room plus player ID restores across browsers, while different IDs remain i
   assert.equal(state.room.pending.playerId, guest.playerId);
   await send(randomUUID(), 'join', { code, name: 'NewID' }, 400);
 });
-for (let size = 3; size <= 9; size++) test(`${size}x${size} validates boards, counts lines, synchronizes players and uses ${size} lines to win`, async () => {
+for (let size = 3; size <= 9; size++) test(`${size}x${size} validates boards, counts lines, synchronizes players and uses ${size - 2} lines to win`, async () => {
   const a = randomUUID(), b = randomUUID();
   const first = await send(a, 'create', { name: '尺寸測試' }); const code = first.room.code;
   await send(b, 'join', { code, name: '第二位' });
@@ -64,7 +64,7 @@ for (let size = 3; size <= 9; size++) test(`${size}x${size} validates boards, co
   let state = await send(a, 'settings', { code, size });
   const boardVersion = state.room.boardVersion;
   const board = Array.from({ length: size ** 2 }, (_, i) => i + 1);
-  assert.equal(state.room.size, size); assert.equal(state.room.goal, size);
+  assert.equal(state.room.size, size); assert.equal(state.room.goal, size - 2);
   assert.ok(state.room.players.every(p => p.board.length === size ** 2 && !p.ready));
   assert.equal(lines(board, board), 2 * size + 2);
   assert.equal(lines(board, board.slice(0, size)), 1);
@@ -82,10 +82,11 @@ for (let size = 3; size <= 9; size++) test(`${size}x${size} validates boards, co
   while (state.room.phase === 'playing') {
     state = await send(state.room.turn === first.playerId ? a : b, 'call', { code, number });
     state = await send(a, 'approve', { code, pendingId: state.room.pending.id });
-    if (state.room.phase === 'playing') assert.ok(state.room.players.every(p => p.lines < size));
+    if (state.room.phase === 'playing') assert.ok(state.room.players.every(p => p.lines < size - 2));
     assert.ok(number++ <= size ** 2);
   }
-  assert.equal(state.room.winners.length, 2); assert.ok(state.room.players.every(p => p.lines >= size));
+  assert.equal(state.room.winners.length, 2); assert.ok(state.room.players.every(p => p.lines >= size - 2));
+  assert.equal(number - 1, size * (size - 2), 'row-by-row calls finish exactly at the new goal');
   const saved = JSON.parse(fs.readFileSync(path.join(directory, 'rooms.json')))[code];
   assert.equal(saved.size, size);
   state = await send(a, 'undo', { code, revision: state.room.revision });

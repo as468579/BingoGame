@@ -32,7 +32,13 @@ function mount(t) {
     'previewCardTitle', 'previewCardStep', 'previewCardContent', 'previewCardAction',
     'sharedCardDialog', 'sharedCardTitle', 'sharedCardStatus', 'sharedCardQuestion', 'sharedCardOptions',
     'sharedCardResult', 'answerSharedCard', 'finishSharedCard', 'judgeCardCorrect', 'judgeCardWrong',
-    'sharedCardSymbol', 'sharedCardDescription', 'sharedCardEffect'
+    'sharedCardSymbol', 'sharedCardDescription', 'sharedCardEffect',
+    'boardPrizeLayout', 'rowPrizes', 'columnPrizes', 'topLeftPrize', 'topRightPrize',
+    'rewardSummary', 'rewardSummaryTitle', 'rewardClaimCount', 'rewardSummaryList', 'lineNotices',
+    'boardSize', 'applySize', 'start', 'skip', 'reset', 'scan', 'rerollPrizes', 'undo',
+    'settingsPanel', 'sizeHint', 'hostTools', 'scanHint', 'shuffle', 'ready', 'board',
+    'boardTitle', 'lineCount', 'phaseText', 'boardLines', 'editTools', 'boardHint',
+    'gameResultsDialog', 'gameResultsList', 'closeGameResults', 'viewGameResults'
   ];
   const nodes = Object.fromEntries(ids.map(id => [id, new Node()]));
   const original = globalThis.document;
@@ -47,6 +53,136 @@ function mount(t) {
 function state(overrides = {}) {
   return { room: { code: 'ROOM01', host: 'host', pending: null }, playerId: 'host', me: { id: 'host' }, hand: [], ...overrides };
 }
+
+test('other boards show question marks before start regardless of readiness and reveal after start', async t => {
+  const nodes = mount(t);
+  const { BoardView } = await import('../public/js/views/board-view.js');
+  const view = new BoardView({});
+  for (const size of [3, 4, 5, 6, 7, 8, 9]) {
+    const cells = Array.from({ length: size ** 2 }, (_, i) => ({ number: i + 1, isCovered: false }));
+    const me = { id: 'me', ready: true, lines: 0, cells };
+    const target = { id: 'friend', name: 'Friend', ready: false, lines: 0, cells };
+    const s = { room: { size, goal: size - 2, phase: 'lobby', called: [], players: [me, target] }, me, target, connected: true };
+    for (const ready of [false, true]) {
+      target.ready = ready;
+      view.render(s);
+      assert.equal(nodes.board.children.length, size ** 2);
+      assert.ok(nodes.board.children.every(cell => cell.textContent === '?' && cell.disabled));
+      assert.ok(nodes.board.children.every(cell => /尚未公開/.test(cell.attributes['aria-label'])));
+      assert.equal(nodes.editTools.hidden, true);
+    }
+    view.render({ ...s, target: me });
+    assert.deepEqual(nodes.board.children.map(cell => cell.textContent), cells.map(cell => String(cell.number)));
+    for (const phase of ['playing', 'finished']) {
+      view.render({ ...s, room: { ...s.room, phase } });
+      assert.deepEqual(nodes.board.children.map(cell => cell.textContent), cells.map(cell => String(cell.number)));
+      if (phase === 'finished') {
+        assert.equal(nodes.phaseText.hidden, true);
+        assert.equal(nodes.phaseText.textContent, '');
+      }
+    }
+    view.render(s);
+    assert.ok(nodes.board.children.every(cell => cell.textContent === '?'));
+  }
+});
+
+test('reroll prize control is enabled only for the connected idle host before start', async t => {
+  const nodes = mount(t);
+  const { HostControlsView } = await import('../public/js/views/host-controls-view.js');
+  const commands = [];
+  const view = new HostControlsView({ command: kind => commands.push(kind) });
+  const s = { room: { host: 'host', phase: 'lobby', size: 3, goal: 1, players: [] }, me: { id: 'host' }, busy: false, connected: true };
+  view.render(s);
+  assert.equal(nodes.rerollPrizes.hidden, false);
+  assert.equal(nodes.rerollPrizes.disabled, false);
+  nodes.rerollPrizes.click();
+  assert.deepEqual(commands, ['rerollPrizes']);
+  for (const override of [{ busy: true }, { connected: false }]) {
+    view.render({ ...s, ...override });
+    assert.equal(nodes.rerollPrizes.disabled, true);
+  }
+  view.render({ ...s, me: { id: 'guest' } });
+  assert.equal(nodes.rerollPrizes.hidden, true);
+  for (const phase of ['playing', 'finished']) {
+    view.render({ ...s, room: { ...s.room, phase } });
+    assert.equal(nodes.rerollPrizes.hidden, true);
+  }
+});
+
+test('award notice names only the newly gained items and groups duplicate rewards', async t => {
+  const nodes = mount(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { LineNoticeView } = await import('../public/js/views/line-notice-view.js');
+  const view = new LineNoticeView();
+  view.show([]);
+  assert.equal(nodes.lineNotices.children.length, 0);
+  view.show([{ name: '玩家甲', lines: 3, rewards: [
+    { item: '傳送石' }, { item: '傳送石' }, { item: '護身符' }
+  ] }]);
+  const notice = nodes.lineNotices.children[0];
+  assert.equal(notice.children[0].textContent, '玩家甲 獲得了 傳送石 × 2、護身符 × 1！');
+  assert.equal(notice.children[1].attributes['aria-label'], '關閉獎品通知');
+  assert.doesNotMatch(notice.textContent, /條線/);
+  view.clear();
+  assert.equal(nodes.lineNotices.children.length, 0);
+});
+
+test('line prize view places each diagonal in its own corner and preserves row and column slots', async t => {
+  const nodes = mount(t);
+  const { LinePrizesView } = await import('../public/js/views/line-prizes-view.js');
+  const view = new LinePrizesView();
+  for (const size of [3, 5, 9]) {
+    const cells = Array.from({ length: size * size }, (_, index) => ({ isCovered: index % (size + 1) === 0 }));
+    view.render(cells, size, 'playing', [{ id: 'diagonal-0', item: '突襲券', claimedBy: 'me' }], 'me', [{ id: 'me', name: 'Me' }]);
+    assert.equal(nodes.topLeftPrize.children.length, 1);
+    assert.equal(nodes.topRightPrize.children.length, 1);
+    const left = nodes.topLeftPrize.children[0].children[0];
+    const right = nodes.topRightPrize.children[0].children[0];
+    assert.match(left.attributes['aria-label'], /左上至右下.*已取得/);
+    assert.match(right.attributes['aria-label'], /右上至左下.*尚未有人取得/);
+    assert.match(left.className, /is-earned/);
+    assert.equal(nodes.rowPrizes.children.length, size);
+    assert.equal(nodes.columnPrizes.children.length, size);
+    assert.equal(nodes.boardPrizeLayout.dataset.size, size);
+  }
+});
+
+test('reward summary aggregates identical items and automatically opens for final results', async t => {
+  const nodes = mount(t);
+  const { RewardsView, rewardTotals } = await import('../public/js/views/rewards-view.js');
+  const rewards = [{ id: 'row-0', item: '突襲券' }, { id: 'row-4', item: '突襲券' }, { id: 'column-0', item: '傳送石' }];
+  assert.deepEqual(rewardTotals(rewards), [{ item: '突襲券', count: 2 }, { item: '傳送石', count: 1 }]);
+  const room = { phase: 'finished', linePrizes: [
+    ...rewards.map(slot => ({ ...slot, claimedBy: 'a' })), { id: 'row-1', claimedBy: null }
+  ], players: [{ id: 'a', name: 'Alice', rewards }, { id: 'b', name: 'Bob', rewards: [] }] };
+  const view = new RewardsView(); view.render({ room });
+  assert.equal(nodes.rewardSummary.open, true);
+  assert.equal(nodes.rewardSummaryTitle.textContent, '本局獎勵結算');
+  assert.equal(nodes.rewardClaimCount.textContent, '3 / 4');
+  assert.match(nodes.rewardSummaryList.children[0].textContent, /Alice3 份突襲券× 2傳送石× 1/);
+  assert.match(nodes.rewardSummaryList.children[1].textContent, /Bob0 份尚未獲得獎品/);
+  assert.equal(nodes.gameResultsDialog.open, true);
+  assert.equal(nodes.gameResultsList.textContent, nodes.rewardSummaryList.textContent);
+  assert.equal(nodes.viewGameResults.hidden, false);
+  nodes.closeGameResults.click();
+  assert.equal(nodes.gameResultsDialog.open, false);
+  nodes.rewardSummary.open = false; view.render({ room });
+  assert.equal(nodes.rewardSummary.open, false);
+  assert.equal(nodes.gameResultsDialog.open, false);
+  nodes.viewGameResults.click();
+  assert.equal(nodes.gameResultsDialog.open, true);
+  view.render({ room: { ...room, phase: 'playing', linePrizes: [], players: [{ id: 'a', name: 'Alice', rewards: [] }] } });
+  assert.equal(nodes.rewardClaimCount.textContent, '0 / 0');
+  assert.doesNotMatch(nodes.rewardSummaryList.textContent, /突襲券/);
+  assert.equal(nodes.gameResultsDialog.open, false);
+  assert.equal(nodes.viewGameResults.hidden, true);
+  view.render({ room });
+  assert.equal(nodes.gameResultsDialog.open, true);
+  view.hide();
+  assert.equal(nodes.gameResultsDialog.open, false);
+  view.render({ room });
+  assert.equal(nodes.gameResultsDialog.open, true);
+});
 
 test('hand count includes visible preview cards and only shows empty text when all cards are gone', async t => {
   const nodes = mount(t);
@@ -164,6 +300,9 @@ test('drawer stays open on ordinary snapshots, closes for host approval, and cle
   assert.equal(nodes.handPanel.open, false);
   assert.equal(nodes.handDock.hidden, true);
   assert.equal(document.body.classList.contains('has-hand-dock'), false);
+  drawer.render(state({ room: { code: 'ROOM01', phase: 'finished', host: 'host' } }));
+  assert.equal(nodes.handDock.hidden, true);
+  assert.equal(nodes.handPanel.open, false);
 });
 
 test('card model ignores invalid choices and prevents used cards being played twice', async () => {

@@ -4,7 +4,7 @@ export class HostControlsView {
   constructor(actions) {
     $('boardSize').onchange = actions.settingsChanged;
     $('applySize').onclick = () => actions.applySize(Number($('boardSize').value));
-    for (const kind of ['start', 'skip', 'reset', 'scan']) $(kind).onclick = () => {
+    for (const kind of ['start', 'skip', 'reset', 'scan', 'rerollPrizes']) $(kind).onclick = () => {
       if (kind === 'reset' && !confirm('要結束目前這一局並讓所有玩家重新準備嗎？')) return;
       actions.command(kind);
     };
@@ -20,6 +20,8 @@ export class HostControlsView {
     $('applySize').disabled = busy || !connected;
     $('sizeHint').textContent = `目前 ${size} × ${size} · 數字 1～${size ** 2} · 先完成 ${room.goal} 條線獲勝`;
     $('hostTools').hidden = me.id !== room.host;
+    $('rerollPrizes').hidden = me.id !== room.host || room.phase !== 'lobby';
+    $('rerollPrizes').disabled = busy || !connected;
     const roster = room.players.filter(player => player.participating !== false);
     const readyCount = roster.filter(player => player.ready).length;
     $('start').hidden = room.phase !== 'lobby';

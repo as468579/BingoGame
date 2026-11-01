@@ -1,5 +1,9 @@
 'use strict';
 
+function winningLineGoal(size = 5) {
+  return size - 2;
+}
+
 function createBoard(size = 5) {
   return Array.from({ length: size ** 2 }, (_, index) => index + 1);
 }
@@ -43,4 +47,4 @@ function lines(board, called, size = Math.sqrt(board.length)) {
   return coveredLines(createCells(board, called), size);
 }
 
-module.exports = { createBoard, boardValid, createCells, coverNumber, clearCovers, coveredLines, lines };
+module.exports = { winningLineGoal, createBoard, boardValid, createCells, coverNumber, clearCovers, coveredLines, lines };

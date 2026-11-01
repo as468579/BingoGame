@@ -110,6 +110,8 @@ flowchart TD
 
 ## 修改功能時的入口
 
+獎品配置與得主由 `domain/line-prizes.js` 管理，`room.linePrizes` 為唯一權威紀錄。每個格子具有固定 ID、方向、位置、道具與唯一 `claimedBy`。房主確認號碼後，先更新所有格子的覆蓋狀態，再為未取得的獎品尋找第一位完成該線的玩家；同次完成時沿用房間加入順序。快照提供全房獎品得主及各玩家的 `rewards` 投影，前端 `LinePrizesView` 顯示歸屬，`RewardsView` 彙總道具數量。`GameHistory` 一併保存獎品池，撤回與重新開局不另行操作玩家背包，避免雙份紀錄失去同步。
+
 卡牌使用經由 `CardPreviewView` → 注入的 `useCard` action → `RoomService` → `domain/card-actions.js`，在房間建立 `activeCard`。`room-snapshot.js` 投影公開卡片與問題，再由 SSE 廣播；`SharedCardView` 顯示全房相同的作答或結果視窗。`activeCard` 存在時 `game-actions.js` 拒絕其他遊戲操作，只接受作答、房主判定與結束。題庫以 `domain/card-catalog.js` 為準；作答後進入 `review`，只有房主可透過 `cardJudge` 提交布林判定值，才進入 `result`。對錯以房主決定為準，不比對示範題的預設答案。示範卡消耗紀錄保存於玩家的 `usedDemoCards`，不與正式手牌混用。`GameHistory` 以整次卡牌使用為單位還原。
 
 - 調整連線與勝負：`domain/board.js`、`domain/game-actions.js`。

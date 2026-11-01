@@ -59,26 +59,72 @@ test('chalk lines disappear after undoing a cover and never infer marks from num
   assert.deepEqual(completedBoardLines(cells, 4), []);
 });
 
-test('line gains announce only a new room maximum, including tied leaders and wins', async () => {
-  const { lineGains } = await import('../public/js/state/line-progress.js');
-  const room = (revision, counts, phase = 'playing') => snapshot({ revision, phase,
-    players: counts.map((lines, i) => ({ id: String(i), name: `Player ${i}`, lines })) });
-  const before = room(1, [0, 1, 2]);
-  const after = room(2, [1, 3, 2]);
-  assert.deepEqual(lineGains(before, after).map(player => [player.id, player.lines]), [['1', 3]]);
-  assert.deepEqual(lineGains(before, room(2, [1, 2, 2])), []);
-  assert.deepEqual(lineGains(before, room(2, [3, 3, 2])).map(player => player.id), ['0', '1']);
-  assert.deepEqual(lineGains(room(1, [0, 0, 0]), room(2, [1, 0, 0])).map(player => player.id), ['0']);
-  assert.deepEqual(lineGains(after, after), []);
-  assert.deepEqual(lineGains(after, before), []);
-  assert.deepEqual(lineGains(null, after), []);
-  assert.deepEqual(lineGains(before, { ...after, code: 'OTHER' }), []);
-  assert.deepEqual(lineGains(before, { ...after, boardVersion: 1 }), []);
-  assert.deepEqual(lineGains(before, { ...after, phase: 'lobby' }), []);
-  assert.deepEqual(lineGains({ ...before, phase: 'lobby' }, after), []);
-  assert.equal(lineGains(before, room(3, [3, 1, 2], 'finished'))[0].lines, 3);
-  // A reverted gain can be announced again when the host confirms it again.
-  assert.equal(lineGains(before, after).length, 1);
+test('each row, column and diagonal has a stable prize that follows independent cover flags', async () => {
+  const { linePrizes, linePrizeItems } = await import('../public/js/views/line-prizes-view.js');
+  const { coveredLines } = require('../src/domain/board');
+  for (let size = 3; size <= 9; size++) {
+    const cells = Array.from({ length: size * size }, (_, index) => ({ number: index + 1, isCovered: false }));
+    const initial = linePrizes(cells, size);
+    assert.equal(initial.filter(slot => slot.kind === 'row').length, size);
+    assert.equal(initial.filter(slot => slot.kind === 'column').length, size);
+    assert.equal(initial.filter(slot => slot.kind === 'diagonal').length, 2);
+    assert.ok(initial.every(slot => !slot.completed && !slot.earned && linePrizeItems.includes(slot.item)));
+    for (let index = 0; index < size; index++) cells[index].isCovered = true;
+    const earned = linePrizes(cells, size);
+    assert.deepEqual(earned.filter(slot => slot.completed).map(slot => [slot.kind, slot.index]), [['row', 0]]);
+    assert.deepEqual(earned.map(slot => slot.item), initial.map(slot => slot.item));
+    cells.forEach(cell => { cell.isCovered = true; });
+    assert.equal(linePrizes(cells, size).filter(slot => slot.completed).length, coveredLines(cells));
+  }
+});
+
+test('prize availability follows the viewed board and undo, with no shared earned state', async () => {
+  const { linePrizes } = await import('../public/js/views/line-prizes-view.js');
+  const first = Array.from({ length: 9 }, (_, index) => ({ number: index + 1, isCovered: index % 4 === 0 }));
+  const second = first.map(cell => ({ ...cell, isCovered: false }));
+  const original = structuredClone(first);
+  assert.deepEqual(linePrizes(first, 3).filter(slot => slot.completed).map(slot => [slot.kind, slot.index]), [['diagonal', 0]]);
+  assert.ok(linePrizes(second, 3).every(slot => !slot.completed));
+  assert.deepEqual(first, original);
+  first[4].isCovered = false;
+  assert.ok(linePrizes(first, 3).every(slot => !slot.completed));
+  assert.deepEqual(linePrizes(first, 4), []);
+});
+
+test('a completed line does not imply a reward when another player already owns that slot', async () => {
+  const { linePrizes } = await import('../public/js/views/line-prizes-view.js');
+  const cells = Array.from({ length: 9 }, (_, index) => ({ isCovered: index < 3 }));
+  const pool = [{ id: 'row-0', item: '突襲券', claimedBy: 'first' }];
+  const late = linePrizes(cells, 3, pool, 'second')[0];
+  assert.equal(late.completed, true); assert.equal(late.earned, false); assert.equal(late.taken, true);
+  const owner = linePrizes(cells, 3, pool, 'first')[0];
+  assert.equal(owner.earned, true); assert.equal(owner.taken, false);
+});
+
+test('reward gains announce actual newly awarded prizes regardless of line ranking', async () => {
+  const { rewardGains } = await import('../public/js/state/line-progress.js');
+  const players = [{ id: 'a', name: 'A', lines: 3 }, { id: 'b', name: 'B', lines: 0 }];
+  const prizes = [{ id: 'row-0', item: '突襲券', claimedBy: 'a' },
+    { id: 'row-1', item: '傳送石', claimedBy: null }, { id: 'column-0', item: '傳送石', claimedBy: null }];
+  const before = snapshot({ phase: 'playing', players, linePrizes: prizes });
+  const after = snapshot({ revision: 2, phase: 'playing', players: [{ ...players[0], lines: 3 }, { ...players[1], lines: 1 }],
+    linePrizes: prizes.map((prize, i) => i ? { ...prize, claimedBy: 'b' } : prize) });
+  assert.deepEqual(rewardGains(before, after).map(p => [p.id, p.rewards.map(r => r.id)]), [['b', ['row-1', 'column-0']]]);
+  assert.deepEqual(rewardGains(after, after), []);
+  assert.deepEqual(rewardGains(after, before), []);
+  assert.deepEqual(rewardGains(null, after), []);
+  assert.deepEqual(rewardGains(before, { ...after, code: 'OTHER' }), []);
+  assert.deepEqual(rewardGains(before, { ...after, boardVersion: 1 }), []);
+  assert.deepEqual(rewardGains(before, { ...after, phase: 'lobby' }), []);
+  assert.deepEqual(rewardGains({ ...before, phase: 'lobby' }, after), []);
+  assert.equal(rewardGains(before, { ...after, phase: 'finished' })[0].rewards.length, 2);
+  // A completed line with no new prize ownership must stay silent.
+  assert.deepEqual(rewardGains(before, { ...after, linePrizes: prizes }), []);
+  assert.deepEqual(rewardGains({ ...before, linePrizes: [] }, after), []);
+  const simultaneous = { ...after, linePrizes: after.linePrizes.map((p, i) => i === 2 ? { ...p, claimedBy: 'a' } : p) };
+  assert.deepEqual(rewardGains(before, simultaneous).map(p => p.id), ['a', 'b']);
+  // Undo removes ownership; confirming the same prize again announces it again.
+  assert.deepEqual(rewardGains({ ...before, revision: 3 }, { ...after, revision: 4 }).map(p => p.id), ['b']);
 });
 
 test('card preview requires an answer, consumes only local demo cards, and can restart', async () => {

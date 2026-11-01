@@ -4,11 +4,13 @@ const { randomUUID } = require('node:crypto');
 const { fail } = require('./errors');
 const { createPlayer } = require('./player');
 const { participants, restoreParticipant } = require('./participants');
+const { createLinePrizes } = require('./line-prizes');
 
 function createRoom(code, createRequest) {
   return {
     code, createRequest, phase: 'lobby', players: [], host: null, called: [], turn: null,
-    winners: [], pending: null, lastDecision: null, history: [], size: 5, boardVersion: 0, revision: 0
+    winners: [], pending: null, lastDecision: null, history: [], size: 5, boardVersion: 0, revision: 0,
+    linePrizes: createLinePrizes(5)
   };
 }
 

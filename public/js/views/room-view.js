@@ -8,6 +8,7 @@ import { HandView } from './hand-view.js';
 import { CardPreviewView } from './card-preview-view.js';
 import { HandDrawerView } from './hand-drawer-view.js';
 import { SharedCardView } from './shared-card-view.js';
+import { RewardsView } from './rewards-view.js';
 
 export class RoomView {
   constructor(actions, address, notify, getState) {
@@ -20,6 +21,7 @@ export class RoomView {
     this.cardPreview = new CardPreviewView(count => this.hand.setPreviewCount(count), actions);
     this.handDrawer = new HandDrawerView();
     this.sharedCard = new SharedCardView(actions);
+    this.rewards = new RewardsView();
     $('leave').onclick = actions.leave;
     $('switchPlayer').onclick = actions.switchPlayer;
   }
@@ -29,6 +31,7 @@ export class RoomView {
     if (!me || !target) return;
     $('welcome').hidden = true;
     $('game').hidden = false;
+    $('game').dataset.phase = room.phase;
     $('leave').hidden = false;
     $('switchPlayer').hidden = false;
     $('handPanel').hidden = false;
@@ -42,6 +45,7 @@ export class RoomView {
     this.approval.render(state);
     this.hand.render(state);
     this.sharedCard.render(state);
+    this.rewards.render(state);
     $('rulesText').textContent = `本局 ${room.size} × ${room.size}，數字 1～${room.size ** 2}。輪流選號，房主確認後同步標記。橫、直、斜皆可連線，先完成 ${room.goal} 條線獲勝，可同時獲勝。`;
     $('lastNumber').textContent = room.called.at(-1) || '—';
     $('history').replaceChildren(...room.called.map(number => element('span', '', number)));
@@ -62,6 +66,7 @@ export class RoomView {
     this.cardPreview.close();
     this.handDrawer.hide();
     this.sharedCard.close();
+    this.rewards.hide();
     $('connection').textContent = '● 尚未加入';
   }
 }

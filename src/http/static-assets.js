@@ -4,12 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { fail } = require('../domain/errors');
 
-const CONTENT_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+const CONTENT_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
 
 function serveStatic(request, response, pathname, publicDirectory) {
+  try { pathname = decodeURIComponent(pathname); } catch { fail('找不到頁面。', 404); }
   const entry = ['/', '/join', '/join/'].includes(pathname) ? 'index.html' : pathname.slice(1);
   // Only public source assets are served. Data, credentials, dotfiles, and traversal stay inaccessible.
-  if (request.method !== 'GET' || (!/^[a-zA-Z0-9_/-]+\.(?:js|css)$/.test(entry) && entry !== 'index.html')) {
+  if (request.method !== 'GET' || (!/^(?:[a-zA-Z0-9_/-]+\.(?:js|css)|[\p{L}\p{N}_/-]+\.png)$/u.test(entry) && entry !== 'index.html')) {
     fail('找不到頁面。', 404);
   }
   const file = path.resolve(publicDirectory, entry);

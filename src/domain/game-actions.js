@@ -2,12 +2,13 @@
 
 const { randomUUID } = require('node:crypto');
 const { fail } = require('./errors');
-const { createBoard, boardValid, createCells, coverNumber, clearCovers, coveredLines } = require('./board');
+const { createBoard, boardValid, createCells, coverNumber, clearCovers, coveredLines, winningLineGoal } = require('./board');
 const { createHand } = require('./hand');
 const { requireHost, advanceTurn } = require('./room');
 const { REVERSIBLE_ACTIONS, captureGameState, undoGame } = require('./game-history');
 const { participants } = require('./participants');
 const { useCard, answerCard, judgeCard, finishCard } = require('./card-actions');
+const { createLinePrizes, ensureLinePrizes, awardLinePrizes } = require('./line-prizes');
 
 function scan(room, player, data, presence) {
   requireHost(room, player, '只有房主可以重新掃描玩家。');
@@ -22,6 +23,7 @@ function scan(room, player, data, presence) {
   room.history = [];
   room.roundStart = null;
   room.lastScanAt = Date.now();
+  ensureLinePrizes(room);
 }
 
 function settings(room, player, data) {
@@ -50,6 +52,12 @@ function board(room, player, data) {
   player.ready = Boolean(data.ready);
 }
 
+function rerollPrizes(room, player) {
+  requireHost(room, player, '只有房主可以重新隨機獎品。');
+  if (room.phase !== 'lobby') fail('只能在遊戲開始前重新隨機獎品。');
+  room.linePrizes = createLinePrizes(room.size || 5);
+}
+
 function start(room, player) {
   requireHost(room, player, '只有房主可以開始遊戲。');
   if (room.phase !== 'lobby') fail('遊戲已經開始。');
@@ -60,6 +68,8 @@ function start(room, player) {
   room.phase = 'playing';
   room.history = [];
   room.turn = roster[0].id;
+  ensureLinePrizes(room);
+  awardLinePrizes(room);
   room.roundStart = captureGameState(room).playerStates;
 }
 
@@ -81,10 +91,11 @@ function decide(room, player, data) {
   if (data.kind === 'approve') {
     room.called.push(room.pending.number);
     participants(room).forEach(candidate => coverNumber(candidate.cells, room.pending.number));
+    awardLinePrizes(room);
   }
   room.pending = null;
   const size = room.size || 5;
-  room.winners = participants(room).filter(candidate => coveredLines(candidate.cells) >= size).map(candidate => candidate.id);
+  room.winners = participants(room).filter(candidate => coveredLines(candidate.cells) >= winningLineGoal(size)).map(candidate => candidate.id);
   if (room.winners.length || room.called.length === size ** 2) {
     room.phase = 'finished';
     room.turn = null;
@@ -104,6 +115,7 @@ function undo(room, player, data) {
 }
 
 function clearRound(room) {
+  room.linePrizes = createLinePrizes(room.size || 5);
   room.activeCard = null;
   room.players.forEach(player => { player.usedDemoCards = []; });
   room.called = [];
@@ -128,7 +140,7 @@ function reset(room, player) {
   });
 }
 
-const handlers = new Map(Object.entries({ settings, board, start, call, approve: decide, reject: decide, skip, undo, reset, scan,
+const handlers = new Map(Object.entries({ settings, board, start, call, approve: decide, reject: decide, skip, undo, reset, scan, rerollPrizes,
   cardUse: useCard, cardAnswer: answerCard, cardJudge: judgeCard, cardFinish: finishCard }));
 
 function applyGameAction(room, player, data, presence) {

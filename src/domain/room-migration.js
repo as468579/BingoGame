@@ -2,6 +2,7 @@
 
 const { createCells } = require('./board');
 const { createHand } = require('./hand');
+const { migrateLinePrizes } = require('./line-prizes');
 
 function migrateRoom(room) {
   for (const player of [...room.players, ...(room.archivedPlayers || [])]) {
@@ -11,6 +12,7 @@ function migrateRoom(room) {
     if (!compatible) player.cells = createCells(player.board, room.called);
     if (!Array.isArray(player.hand)) player.hand = createHand();
   }
+  migrateLinePrizes(room);
   return room;
 }
 

@@ -7,7 +7,7 @@ import { EntryView } from './views/entry-view.js';
 import { RoomView } from './views/room-view.js';
 import { Notice } from './views/notice.js';
 import { LineNoticeView } from './views/line-notice-view.js';
-import { lineGains } from './state/line-progress.js';
+import { rewardGains } from './state/line-progress.js';
 import { shuffledBoard } from './utils.js';
 
 export class BingoApp {
@@ -44,7 +44,7 @@ export class BingoApp {
     if (previous?.code !== snapshot.code || snapshot.phase === 'lobby' ||
         snapshot.called.length < (previous?.called.length || 0)) this.lineNotice.clear();
     this.render();
-    this.lineNotice.show(lineGains(previous, snapshot));
+    this.lineNotice.show(rewardGains(previous, snapshot));
   }
 
   async perform(callback) {
@@ -138,6 +138,7 @@ export class BingoApp {
         const result = await this.api.send(kind);
         if (kind !== 'scan') this.state.draftDirty = false;
         this.update(result.room);
+        if (kind === 'rerollPrizes') this.notify('獎品已重新隨機，所有玩家同步更新。');
         if (kind === 'scan') {
           this.notify(`掃描完成：已刪除 ${result.room.lastScanRemovedCount} 位離線玩家，目前 ${result.room.players.length} 人。`);
         }

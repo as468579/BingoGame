@@ -4,11 +4,13 @@ const { randomUUID } = require('node:crypto');
 const { fail } = require('./errors');
 const { createCells } = require('./board');
 const { participants } = require('./participants');
+const { createLinePrizes, migrateLinePrizes } = require('./line-prizes');
 
 const REVERSIBLE_ACTIONS = new Set(['call', 'approve', 'reject', 'skip', 'cardUse']);
 
 function initialGameState(room) {
   return { phase: 'playing', turn: participants(room)[0].id, called: [], winners: [], pending: null, lastDecision: null, activeCard: null,
+    linePrizes: (room.linePrizes || createLinePrizes(room.size || 5)).map(prize => ({ ...prize, claimedBy: null })),
     playerStates: structuredClone(room.roundStart || room.players.map(player => ({ id: player.id, cells: createCells(player.board), hand: [] }))) };
 }
 
@@ -17,6 +19,7 @@ function captureGameState(room) {
     phase: room.phase, turn: room.turn, called: room.called, winners: room.winners,
     pending: room.pending || null, lastDecision: room.lastDecision || null,
     activeCard: room.activeCard || null,
+    linePrizes: room.linePrizes || createLinePrizes(room.size || 5),
     playerStates: room.players.map(player => ({ id: player.id, cells: player.cells, hand: player.hand, usedDemoCards: player.usedDemoCards || [] }))
   });
 }
@@ -36,12 +39,14 @@ function undoGame(room, revision) {
   const { playerStates, ...progress } = previous;
   Object.assign(room, progress);
   room.activeCard = progress.activeCard || null;
+  room.linePrizes = progress.linePrizes || (room.linePrizes || createLinePrizes(room.size || 5)).map(prize => ({ ...prize, claimedBy: null }));
   for (const player of room.players) {
     const saved = playerStates?.find(state => state.id === player.id);
     player.cells = saved ? structuredClone(saved.cells) : createCells(player.board, room.called);
     if (saved) player.hand = structuredClone(saved.hand);
     player.usedDemoCards = structuredClone(saved?.usedDemoCards || []);
   }
+  if (!progress.linePrizes) migrateLinePrizes(room, true);
   // Invalidate decisions sent by older tabs before this selection was restored.
   if (room.pending) room.pending.id = randomUUID();
   if (room.activeCard) room.activeCard.id = randomUUID();

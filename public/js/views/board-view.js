@@ -1,12 +1,13 @@
 import { $, element } from './dom.js';
 import { lineMeter } from './line-meter.js';
 import { renderBoardLines } from './board-lines.js';
+import { LinePrizesView } from './line-prizes-view.js';
 
 function phaseText(room, me) {
   if (room.activeCard) return '卡牌作答中，遊戲暫停；使用卡牌取代本回合選號，結束後換下一位。';
   if (room.phase === 'lobby') return me.ready ? `✓ 你已準備完成，等待房主開始（${room.size} × ${room.size}）。`
     : `填入 1～${room.size ** 2}，不重複排列，完成後按下準備。`;
-  if (room.phase === 'finished') return '本局已結束，好運屬於每個參與的人！';
+  if (room.phase === 'finished') return '';
   if (room.pending) {
     const player = room.players.find(candidate => candidate.id === room.pending.playerId);
     return `${player?.name || '玩家'} 選擇了 ${room.pending.number}，等待房主確認…`;
@@ -20,6 +21,7 @@ function phaseText(room, me) {
 export class BoardView {
   constructor(actions) {
     this.actions = actions;
+    this.prizes = new LinePrizesView();
     $('shuffle').onclick = actions.shuffle;
     $('ready').onclick = actions.ready;
   }
@@ -27,22 +29,25 @@ export class BoardView {
   render(state) {
     const { room, me, target, busy, connected, draft } = state;
     const mine = target.id === me.id;
+    const concealed = !mine && room.phase === 'lobby';
     const editing = mine && room.phase === 'lobby' && !me.ready;
     const size = room.size || 5;
     $('boardTitle').textContent = mine ? '我 的盤面' : `${target.name} 的盤面`;
     $('lineCount').replaceChildren(element('strong', 'line-total', target.lines),
       element('span', 'line-goal', `/ ${room.goal} 條線`), lineMeter(target.lines, room.goal));
-    $('phaseText').textContent = phaseText(room, me);
+    $('phaseText').textContent = concealed ? '遊戲開始前，其他玩家的盤面暫不公開。' : phaseText(room, me);
+    $('phaseText').hidden = room.phase === 'finished';
     $('board').dataset.size = size;
     $('board').dataset.phase = room.phase;
     $('board').setAttribute('aria-label', `${size} 乘 ${size} 賓果盤面`);
     const focused = document.activeElement?.dataset?.cell;
     const marked = new Set(room.called);
-    const cells = editing ? draft.map(number => ({ number, isCovered: false })) : target.cells;
+    const cells = concealed ? Array.from({ length: size ** 2 }, () => ({ number: '?', isCovered: false }))
+      : editing ? draft.map(number => ({ number, isCovered: false })) : target.cells;
     $('board').replaceChildren(...cells.map(({ number, isCovered }, index) => {
       const cell = element(editing ? 'input' : 'button', 'cell');
       cell.dataset.column = index % size % 5;
-      cell.setAttribute('aria-label', `第 ${Math.floor(index / size) + 1} 列第 ${index % size + 1} 格，號碼 ${number}`);
+      cell.setAttribute('aria-label', `第 ${Math.floor(index / size) + 1} 列第 ${index % size + 1} 格，${concealed ? '號碼尚未公開' : `號碼 ${number}`}`);
       if (editing) {
         Object.assign(cell, { type: 'number', min: '1', max: size ** 2, inputMode: 'numeric', value: number || '', disabled: busy });
         cell.dataset.cell = index;
@@ -59,6 +64,7 @@ export class BoardView {
       return cell;
     }));
     $('boardLines').replaceChildren(...(editing ? [] : renderBoardLines(cells, size)));
+    this.prizes.render(cells, size, room.phase, room.linePrizes || [], target.id, room.players);
     if (editing && focused !== undefined) $('board').querySelector(`[data-cell="${focused}"]`)?.focus();
     if (editing) this.validate(state);
     $('editTools').hidden = !mine || room.phase !== 'lobby';
@@ -66,7 +72,8 @@ export class BoardView {
     $('shuffle').disabled = busy;
     $('ready').textContent = me.ready ? '修改盤面 / 取消準備' : '確認盤面，準備好了 ✓';
     $('ready').disabled = busy || !connected;
-    $('boardHint').textContent = !mine ? '正在查看朋友的盤面；點擊自己的名字即可返回。' : editing
+    $('boardHint').textContent = concealed ? '開始遊戲後會顯示數字；點擊自己的名字即可返回。'
+      : !mine ? '正在查看朋友的盤面；點擊自己的名字即可返回。' : editing
       ? `每個格子都可以直接輸入數字，1～${size ** 2} 各使用一次。` : '盤面已保存；重新整理或短暫斷線後會自動恢復。';
   }
 
