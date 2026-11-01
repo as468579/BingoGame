@@ -14,7 +14,7 @@ function phaseText(room, me) {
   }
   const turn = room.players.find(candidate => candidate.id === room.turn);
   const rejection = room.lastDecision && !room.lastDecision.approved ? `房主已拒絕號碼 ${room.lastDecision.number}，換下一位。` : '';
-  return rejection + (turn?.id === me.id ? '輪到你了！點擊自己盤面上尚未選過的號碼。'
+  return rejection + (turn?.id === me.id ? '輪到你了！選一個號碼並抽卡，或使用一張手牌。'
     : `等待 ${turn?.name || ''} 選號${turn && !turn.online ? '（目前離線，等待重連或由房主略過）' : '…'}`);
 }
 

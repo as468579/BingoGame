@@ -4,10 +4,17 @@ export class SharedCardView {
   constructor(actions) {
     this.actions = actions;
     this.dialog = $('sharedCardDialog');
-    this.dialog.addEventListener('cancel', event => event.preventDefault());
+    this.dialog.addEventListener('cancel', event => { event.preventDefault(); this.cancel(); });
+    $('cancelSharedCard').onclick = () => this.cancel();
+    this.dialog.addEventListener('click', event => {
+      if (event.target !== this.dialog) return;
+      const rect = this.dialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) this.cancel();
+    });
   }
 
   render(state) {
+    this.state = state;
     const { room, me, busy, connected } = state;
     const active = room.activeCard;
     if (!active) { this.close(); this.sessionId = null; return; }
@@ -16,6 +23,8 @@ export class SharedCardView {
     const mine = active.playerId === me.id;
     const result = active.stage === 'result';
     const reviewing = active.stage === 'review';
+    $('cancelSharedCard').hidden = !mine || active.stage !== 'question';
+    $('cancelSharedCard').disabled = busy || !connected;
     $('sharedCardTitle').textContent = `${owner?.name || '玩家'} 使用了「${active.card.name}」`;
     $('sharedCardSymbol').textContent = active.card.symbol || '✦';
     $('sharedCardDescription').textContent = active.card.description || '';
@@ -58,4 +67,11 @@ export class SharedCardView {
   }
 
   close() { if (this.dialog.open) this.dialog.close(); }
+
+  cancel() {
+    const { room, me, busy, connected } = this.state || {};
+    if (room?.activeCard?.stage === 'question' && room.activeCard.playerId === me.id && !busy && connected) {
+      this.actions.cancelCard?.(room.activeCard.id);
+    }
+  }
 }

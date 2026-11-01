@@ -103,6 +103,7 @@ export class BingoApp {
   actions() {
     return {
       useCard: cardId => this.command('cardUse', { cardId }),
+      cancelCard: cardSessionId => this.command('cardCancel', { cardSessionId }),
       answerCard: (cardSessionId, choice) => this.command('cardAnswer', { cardSessionId, choice }),
       judgeCard: (cardSessionId, correct) => this.command('cardJudge', { cardSessionId, correct }),
       finishCard: cardSessionId => this.command('cardFinish', { cardSessionId }),

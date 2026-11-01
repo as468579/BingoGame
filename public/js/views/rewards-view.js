@@ -19,15 +19,8 @@ export class RewardsView {
 
   render({ room }) {
     const opening = room.phase === 'finished' && (this.phase !== 'finished' || this.code !== room.code);
-    const panel = $('rewardSummary');
-    const claimed = (room.linePrizes || []).filter(prize => prize.claimedBy).length;
-    $('rewardSummaryTitle').textContent = room.phase === 'finished' ? '本局獎勵結算' : '獎勵紀錄';
-    $('rewardClaimCount').textContent = `${claimed} / ${(room.linePrizes || []).length}`;
-    if (room.phase === 'finished' && this.phase !== 'finished') panel.open = true;
-    else if (room.phase === 'lobby' || (this.phase === 'finished' && room.phase !== 'finished')) panel.open = false;
     this.phase = room.phase;
     this.code = room.code;
-    $('rewardSummaryList').replaceChildren(...this.rows(room.players));
     $('viewGameResults').hidden = room.phase !== 'finished';
     if (room.phase === 'finished') {
       $('gameResultsList').replaceChildren(...this.rows(room.players));

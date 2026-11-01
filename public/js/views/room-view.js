@@ -1,4 +1,4 @@
-import { $, element } from './dom.js';
+import { $ } from './dom.js';
 import { PlayersView } from './players-view.js';
 import { BoardView } from './board-view.js';
 import { HostControlsView } from './host-controls-view.js';
@@ -9,6 +9,7 @@ import { CardPreviewView } from './card-preview-view.js';
 import { HandDrawerView } from './hand-drawer-view.js';
 import { SharedCardView } from './shared-card-view.js';
 import { RewardsView } from './rewards-view.js';
+import { DrawCardView } from './draw-card-view.js';
 
 export class RoomView {
   constructor(actions, address, notify, getState) {
@@ -17,11 +18,12 @@ export class RoomView {
     this.hostControls = new HostControlsView(actions);
     this.approval = new ApprovalView(actions);
     this.invitation = new InvitationView(address, notify, getState);
-    this.hand = new HandView();
+    this.hand = new HandView(actions);
     this.cardPreview = new CardPreviewView(count => this.hand.setPreviewCount(count), actions);
     this.handDrawer = new HandDrawerView();
     this.sharedCard = new SharedCardView(actions);
     this.rewards = new RewardsView();
+    this.drawCards = new DrawCardView();
     $('leave').onclick = actions.leave;
     $('switchPlayer').onclick = actions.switchPlayer;
   }
@@ -46,9 +48,8 @@ export class RoomView {
     this.hand.render(state);
     this.sharedCard.render(state);
     this.rewards.render(state);
-    $('rulesText').textContent = `本局 ${room.size} × ${room.size}，數字 1～${room.size ** 2}。輪流選號，房主確認後同步標記。橫、直、斜皆可連線，先完成 ${room.goal} 條線獲勝，可同時獲勝。`;
-    $('lastNumber').textContent = room.called.at(-1) || '—';
-    $('history').replaceChildren(...room.called.map(number => element('span', '', number)));
+    this.drawCards.render(state);
+    $('rulesText').textContent = `本局 ${room.size} × ${room.size}，數字 1～${room.size ** 2}。每回合選號並抽一張卡，或使用一張卡；使用卡牌後換人。房主確認選號後同步標記並發卡，先完成 ${room.goal} 條線獲勝，可同時獲勝。`;
     $('winner').textContent = room.winners.length
       ? `✳ ${room.players.filter(player => room.winners.includes(player.id)).map(player => player.name).join('、')} Bingo！` : '';
   }
@@ -67,6 +68,7 @@ export class RoomView {
     this.handDrawer.hide();
     this.sharedCard.close();
     this.rewards.hide();
+    this.drawCards.hide();
     $('connection').textContent = '● 尚未加入';
   }
 }

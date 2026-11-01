@@ -122,3 +122,5 @@ flowchart TD
 - 新增操作：加入 domain handler，控制器提供 action，對應 View 綁定事件，再補行為測試。
 
 目前仍為單程序 JSON 存檔架構。這次是職責拆分，沒有加入帳號密碼或多程序同步，也沒有改變「同房號＋同玩家 ID 即恢復原身分」的規則。
+
+房主 approve 選號時，card-actions.drawForNumber 在相同操作內隨機選取卡牌定義並呼叫 addToHand 建立獨立 UUID；lastDecision.drawnCardId 只用於識別本次發牌，快照的 lastDraw 僅投影給選號者。HandView 使用卡片 UUID 呼叫 cardUse，伺服器驗證手牌歸屬後移除該實體，activeCard 仍參照題庫定義。DrawCardView 只播放伺服器發卡的動畫，不提供額外抽牌 API。

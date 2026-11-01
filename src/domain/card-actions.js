@@ -1,21 +1,48 @@
 'use strict';
 
-const { randomUUID } = require('node:crypto');
+const { randomUUID, randomInt } = require('node:crypto');
 const { fail } = require('./errors');
-const { demoCards } = require('./card-catalog');
+const { demoCards, publicCard } = require('./card-catalog');
+const { addToHand, removeFromHand } = require('./hand');
 const { isParticipant } = require('./participants');
 const { advanceTurn } = require('./room');
+
+function drawForNumber(player) {
+  const definition = demoCards[randomInt(demoCards.length)];
+  return addToHand(player, { ...publicCard(definition), definitionId: definition.id });
+}
 
 function useCard(room, player, data) {
   if (!['lobby', 'playing'].includes(room.phase)) fail('本局已結束，請先重新開局。');
   if (room.activeCard || room.pending) fail('請先完成目前的作答或選號確認。', 409);
   if (!isParticipant(room, player.id)) fail('你尚未參與本局。', 403);
   if (room.phase === 'playing' && room.turn !== player.id) fail('請在自己的選號回合使用卡片。', 403);
-  const card = demoCards.find(candidate => candidate.id === data.cardId);
-  if (!card || player.usedDemoCards?.includes(card.id)) fail('這張卡片無法使用。');
-  player.usedDemoCards ||= [];
-  player.usedDemoCards.push(card.id);
-  room.activeCard = { id: randomUUID(), playerId: player.id, cardId: card.id, stage: 'question' };
+  const held = player.hand.find(candidate => candidate.id === data.cardId);
+  const card = demoCards.find(candidate => candidate.id === (held?.definitionId || data.cardId));
+  if (!card || (!held && player.usedDemoCards?.includes(card.id))) fail('這張卡片無法使用。');
+  const handIndex = held ? player.hand.indexOf(held) : -1;
+  if (held) removeFromHand(player, held.id);
+  else {
+    player.usedDemoCards ||= [];
+    player.usedDemoCards.push(card.id);
+  }
+  room.activeCard = { id: randomUUID(), playerId: player.id, cardId: card.id, stage: 'question',
+    returnCard: held || null, handIndex, undoDepth: room.history?.length || 0 };
+}
+
+function cancelCard(room, player, data) {
+  const active = session(room, data);
+  if (active.playerId !== player.id) fail('只有使用卡片的玩家可以取消使用。', 403);
+  if (active.stage !== 'question') fail('答案已提交，無法取消使用卡片。', 409);
+  const previous = room.history?.at(-1);
+  const legacy = !Object.hasOwn(active, 'returnCard') && previous?.playerStates?.find(state => state.id === player.id);
+  if (legacy) {
+    player.hand = structuredClone(legacy.hand);
+    player.usedDemoCards = structuredClone(legacy.usedDemoCards || []);
+  } else if (active.returnCard) player.hand.splice(Math.max(0, active.handIndex), 0, active.returnCard);
+  else player.usedDemoCards = (player.usedDemoCards || []).filter(id => id !== active.cardId);
+  if (room.phase === 'playing' && (legacy || room.history?.length === active.undoDepth + 1)) room.history.pop();
+  room.activeCard = null;
 }
 
 function session(room, data) {
@@ -49,4 +76,4 @@ function finishCard(room, player, data) {
   if (room.phase === 'playing') advanceTurn(room);
 }
 
-module.exports = { useCard, answerCard, judgeCard, finishCard };
+module.exports = { useCard, cancelCard, answerCard, judgeCard, finishCard, drawForNumber };

@@ -7,7 +7,7 @@ const { createHand } = require('./hand');
 const { requireHost, advanceTurn } = require('./room');
 const { REVERSIBLE_ACTIONS, captureGameState, undoGame } = require('./game-history');
 const { participants } = require('./participants');
-const { useCard, answerCard, judgeCard, finishCard } = require('./card-actions');
+const { useCard, cancelCard, answerCard, judgeCard, finishCard, drawForNumber } = require('./card-actions');
 const { createLinePrizes, ensureLinePrizes, awardLinePrizes } = require('./line-prizes');
 
 function scan(room, player, data, presence) {
@@ -92,6 +92,8 @@ function decide(room, player, data) {
     room.called.push(room.pending.number);
     participants(room).forEach(candidate => coverNumber(candidate.cells, room.pending.number));
     awardLinePrizes(room);
+    const caller = room.players.find(candidate => candidate.id === room.pending.playerId);
+    room.lastDecision.drawnCardId = drawForNumber(caller).id;
   }
   room.pending = null;
   const size = room.size || 5;
@@ -141,12 +143,12 @@ function reset(room, player) {
 }
 
 const handlers = new Map(Object.entries({ settings, board, start, call, approve: decide, reject: decide, skip, undo, reset, scan, rerollPrizes,
-  cardUse: useCard, cardAnswer: answerCard, cardJudge: judgeCard, cardFinish: finishCard }));
+  cardUse: useCard, cardCancel: cancelCard, cardAnswer: answerCard, cardJudge: judgeCard, cardFinish: finishCard }));
 
 function applyGameAction(room, player, data, presence) {
   const handler = handlers.get(data.kind);
   if (!handler) fail('不支援的操作。');
-  if (room.activeCard && !['cardAnswer', 'cardJudge', 'cardFinish'].includes(data.kind)) {
+  if (room.activeCard && !['cardCancel', 'cardAnswer', 'cardJudge', 'cardFinish'].includes(data.kind)) {
     fail('卡牌作答期間暫停遊戲，請先完成作答，或由房主結束作答。', 409);
   }
   const previous = REVERSIBLE_ACTIONS.has(data.kind) && (data.kind !== 'cardUse' || room.phase === 'playing') ? captureGameState(room) : null;
