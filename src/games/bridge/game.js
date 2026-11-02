@@ -15,7 +15,7 @@ function shuffle(values, pick = randomInt) {
 }
 
 function createBridgeState({ teamCount = 2, playersPerTeam = 2, size = 5 } = {}) {
-  return { teamCount, playersPerTeam, size, board: createBoard(size), deck: [], hands: {}, teams: [], round: 0, winners: [], lastPlay: null };
+  return { teamCount, playersPerTeam, size, board: createBoard(size), deck: [], hands: {}, teams: [], discards: [], round: 0, winners: [], lastPlay: null };
 }
 
 function teamId(index) { return `team-${index + 1}`; }
@@ -59,18 +59,28 @@ function activeBridgeTeam(game) {
   return game.teams?.find(team => !team.done) || null;
 }
 
-function legalPlacements(game, team, playerId, cardNumber) {
+function playableCard(game, team, playerId, cardNumber) {
   const active = activeBridgeTeam(game);
-  if (active && active.id !== team.id) return [];
-  if (team.done || team.order[team.cursor] !== playerId) return [];
+  if (active && active.id !== team.id) return null;
+  if (team.done || team.order[team.cursor] !== playerId) return null;
   const hand = game.hands[playerId] || [];
   const card = hand.find(candidate => candidate.number === cardNumber);
-  if (!card) return [];
+  if (!card) return null;
   const hasLead = team.leadColor && hand.some(candidate => candidate.color === team.leadColor);
-  if (hasLead && card.color !== team.leadColor) return [];
-  const ownCell = team.cells.find(cell => cell.number === card.number);
-  const free = Boolean(ownCell?.card) || Boolean(team.leadColor && !hasLead);
+  if (hasLead && card.color !== team.leadColor) return null;
+  return { card, missingSuit: Boolean(team.leadColor && !hasLead) };
+}
+
+function legalPlacements(game, team, playerId, cardNumber) {
+  const choice = playableCard(game, team, playerId, cardNumber);
+  if (!choice) return [];
+  const { card, missingSuit: free } = choice;
   return team.cells.filter(cell => !cell.card && (free || cell.number === card.number)).map(cell => cell.number);
 }
 
-module.exports = { COLORS, shuffle, createBridgeState, teamId, assignBridgePlayer, coloredDeck, lineCount, beginBridgeRound, activeBridgeTeam, legalPlacements };
+function canDiscard(game, team, playerId, cardNumber) {
+  const choice = playableCard(game, team, playerId, cardNumber);
+  return Boolean(choice && !choice.missingSuit && team.cells.some(cell => cell.number === cardNumber && cell.card));
+}
+
+module.exports = { COLORS, shuffle, createBridgeState, teamId, assignBridgePlayer, coloredDeck, lineCount, beginBridgeRound, activeBridgeTeam, legalPlacements, canDiscard };

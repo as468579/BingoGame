@@ -1,7 +1,7 @@
 'use strict';
 const { publicRoom, publicIdentity } = require('../../shared/public-room');
 
-const { teamId, lineCount, activeBridgeTeam, legalPlacements } = require('./game');
+const { teamId, lineCount, activeBridgeTeam, legalPlacements, canDiscard } = require('./game');
 
 function bridgeSnapshot(room, presence, viewerId) {
   const game = room.bridge;
@@ -21,7 +21,7 @@ function bridgeSnapshot(room, presence, viewerId) {
     boardVersion: room.boardVersion || 0, size: game.size, goal: game.size - 2, winners: game.winners,
     bridge: { teamCount: game.teamCount, playersPerTeam: game.playersPerTeam, round: game.round, teams, activeTeamId: active?.id || null,
       lastPlay: game.lastPlay, colorCounts: ['red', 'yellow', 'blue'].map(color => ({ color, count: game.deck.filter(card => card.color === color).length })),
-      legalMoves: room.phase === 'playing' && ownTeam ? hand.map(card => ({ cardNumber: card.number, targets: legalPlacements(game, ownTeam, viewerId, card.number) })) : [] },
+      legalMoves: room.phase === 'playing' && ownTeam ? hand.map(card => ({ cardNumber: card.number, targets: legalPlacements(game, ownTeam, viewerId, card.number), canDiscard: canDiscard(game, ownTeam, viewerId, card.number) })) : [] },
     players: room.players.map(player => ({ ...publicIdentity(player, presence), teamId: player.teamId || null,
       ready: player.ready,
       handCount: (game.hands[player.id] || []).length, ...(player.id === viewerId ? { hand } : {}) }))

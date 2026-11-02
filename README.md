@@ -69,7 +69,7 @@ npm start
 
 ## 遊戲選擇
 
-房主在建立房間前可選擇「Bingo」或「Bridge Bingo」，預設 Bingo。Bridge Bingo 使用獨立的 `/bridge-bingo?room=房號` 頁面，已實作分隊、共同盤面與三色配牌、私人手牌、跟色／自由牌、隊伍由上到下依序出牌、同步輪次與同輪平手。玩法與操作見 [橋牌賓果說明](docs/bridge-bingo.md)。房間會保存遊戲種類，加入與重連時自動顯示對應頁面；舊房間預設維持 Bingo，加入者無法更改房間遊戲種類。
+房主在建立房間前可選擇「Bingo」或「Bridge Bingo」，預設 Bingo。Bridge Bingo 使用獨立的 `/bridge-bingo?room=房號` 頁面，已實作分隊、共同盤面與三色配牌、私人手牌、跟色／棄牌、隊伍由上到下依序出牌、同步輪次與同輪平手。玩法與操作見 [橋牌賓果說明](docs/bridge-bingo.md)。房間會保存遊戲種類，加入與重連時自動顯示對應頁面；舊房間預設維持 Bingo，加入者無法更改房間遊戲種類。
 
 ## 格子狀態與手牌基礎
 
@@ -116,14 +116,14 @@ npm run check
 npm test
 ```
 
-目前共 **188 項測試**，包含單元測試與整合測試；`npm run check` 檢查 **119 個 JavaScript 檔案**的語法。
+目前共 **192 項測試**，包含單元測試與整合測試；`npm run check` 檢查 **119 個 JavaScript 檔案**的語法。
 
 | 測試檔案 | 主要範圍 |
 | --- | --- |
 | `test/bingo.test.js` | 各尺寸盤面、回合、房主確認、勝負、重送、上一步及 SSE 重連 |
 | `test/game-boundaries.test.js` | 遊戲模組依賴邊界、房間與快照隔離、混合遊戲互不影響、前端狀態切換與共用 dialog 政策 |
-| `test/bridge-unit.test.js` | 12 項獨立單元測試：狀態隔離、可重現配色、分隊、首位輪替、空手牌略過、跟色、自由牌、最後一格、各方向連線與快照隱私 |
-| `test/bridge.test.js` | 三色均衡、共同盤面與完整配牌、跟色／缺色／自由牌、私密手牌、同步輪替、同輪平手、完整遊戲、存檔重啟 |
+| `test/bridge-unit.test.js` | 12 項獨立單元測試：狀態隔離、可重現配色、分隊、首位輪替、空手牌略過、跟色、棄牌、最後一格、各方向連線與快照隱私 |
+| `test/bridge.test.js` | 三色均衡、共同盤面與完整配牌、跟色／缺色／棄牌、私密手牌、同步輪替、同輪平手、完整遊戲、存檔重啟 |
 | `test/application.test.js` | 應用程式隔離、靜態模組路由與私人檔案存取限制 |
 | `test/participants.test.js` | 玩家掃描刪除、多分頁連線、重新加入與名額釋出 |
 | `test/player-state.test.js` | 格子布林狀態、正式手牌隱私、存檔遷移及還原 |

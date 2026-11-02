@@ -57,7 +57,7 @@ export class BridgeRoomView {
       : room.phase === 'finished' ? '本局已結束，可查看各隊盤面與結果。'
         : viewed.done ? '本隊已完成這一輪，等待其他隊伍一起結算。'
           : activeTeam && activeTeam.id !== viewed.id ? `目前由 ${activeTeam.name} 出牌，請等待輪到${viewed.name}。`
-          : viewed.turn === playerId ? '輪到你出牌：先選手牌，再點亮起的空格。' : `等待 ${turnPlayer?.name || '隊員'} 出牌${turnPlayer && !turnPlayer.online ? '（離線，等待重連）' : '…'}`;
+          : viewed.turn === playerId ? '輪到你出牌：選擇手牌，確認放置或丟棄。' : `等待 ${turnPlayer?.name || '隊員'} 出牌${turnPlayer && !turnPlayer.online ? '（離線，等待重連）' : '…'}`;
     this.board.render(state, viewed);
     $('bridgeStart').hidden = room.host !== playerId || room.phase !== 'lobby';
     $('bridgeScan').hidden = room.host !== playerId || room.phase !== 'lobby';
@@ -73,7 +73,7 @@ export class BridgeRoomView {
       const winners = game.teams.filter(team => room.winners.includes(team.id));
       $('bridgeResultTitle').textContent = winners.length > 1 ? '比賽結束・平手' : '比賽結束';
       $('bridgeResultText').textContent = winners.length > 1 ? `${winners.map(team => team.name).join('、')} 同輪達標，並列獲勝！`
-        : winners.length ? `${winners[0].name} 獲勝！` : '所有隊伍完成比賽！';
+        : winners.length ? `${winners[0].name} 獲勝！` : '所有隊伍手牌已用完，本局無隊伍達到勝利門檻。';
       $('bridgeResultScores').replaceChildren(...game.teams.map(team => element('p', '', `${team.name}：${team.lines} 條線`)));
       if (opening && !$('bridgeResultDialog').open) $('bridgeResultDialog').showModal();
     } else this.closeResults();

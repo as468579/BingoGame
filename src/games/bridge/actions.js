@@ -2,7 +2,7 @@
 
 const { fail } = require('../../domain/errors');
 const { requireHost } = require('../../domain/room-access');
-const { createBridgeState, teamId, assignBridgePlayer, shuffle, coloredDeck, lineCount, beginBridgeRound, activeBridgeTeam, legalPlacements } = require('./game');
+const { createBridgeState, teamId, assignBridgePlayer, shuffle, coloredDeck, lineCount, beginBridgeRound, activeBridgeTeam, legalPlacements, canDiscard } = require('./game');
 
 function scan(room, player, data, presence) {
   requireHost(room, player, '只有房主可以重新掃描玩家。');
@@ -65,6 +65,7 @@ function start(room, player) {
   game.round = 1;
   game.winners = [];
   game.lastPlay = null;
+  game.discards = [];
   room.phase = 'playing';
   beginBridgeRound(game);
 }
@@ -78,19 +79,22 @@ function play(room, player, data) {
   if (!team || team.done || team.order[team.cursor] !== player.id) fail('請等待輪到你出牌。', 403);
   const active = activeBridgeTeam(game);
   if (active?.id !== team.id) fail(`請等待輪到你的隊伍，目前由 ${active?.name || '其他隊伍'} 出牌。`, 403);
-  if (!Number.isInteger(data.cardNumber) || !Number.isInteger(data.targetNumber) ||
-      !legalPlacements(game, team, player.id, data.cardNumber).includes(data.targetNumber)) fail('不符合跟色或放置規則，請選擇可出的卡片與空格。');
+  const discard = data.discard === true;
+  if (!Number.isInteger(data.cardNumber) || (discard
+    ? data.targetNumber != null || !canDiscard(game, team, player.id, data.cardNumber)
+    : !Number.isInteger(data.targetNumber) || !legalPlacements(game, team, player.id, data.cardNumber).includes(data.targetNumber))) fail('不符合跟色、放置或棄牌規則，請重新選擇。');
   const hand = game.hands[player.id];
   const index = hand.findIndex(card => card.number === data.cardNumber);
   const [card] = hand.splice(index, 1);
-  team.cells.find(cell => cell.number === data.targetNumber).card = { ...card, playerId: player.id };
+  if (discard) (game.discards ||= []).push({ playerId: player.id, teamId: team.id, card, round: game.round });
+  else team.cells.find(cell => cell.number === data.targetNumber).card = { ...card, playerId: player.id };
   team.leadColor ||= card.color;
-  game.lastPlay = { playerId: player.id, teamId: team.id, card, targetNumber: data.targetNumber, round: game.round };
+  game.lastPlay = { playerId: player.id, teamId: team.id, card, targetNumber: discard ? null : data.targetNumber, discard, round: game.round };
   team.cursor++;
   team.done = team.cursor >= team.order.length;
   if (game.teams.every(candidate => candidate.done)) {
     game.winners = game.teams.filter(candidate => lineCount(candidate, game.size) >= game.size - 2).map(candidate => candidate.id);
-    if (game.winners.length || game.teams.every(candidate => candidate.cells.every(cell => cell.card))) room.phase = 'finished';
+    if (game.winners.length || Object.values(game.hands).every(hand => hand.length === 0)) room.phase = 'finished';
     else { game.round++; beginBridgeRound(game); }
   }
 }

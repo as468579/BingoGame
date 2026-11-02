@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createApplication } = require('../src/app');
-const { coloredDeck, legalPlacements, lineCount, beginBridgeRound } = require('../src/games/bridge/game');
+const { coloredDeck, legalPlacements, canDiscard, lineCount, beginBridgeRound } = require('../src/games/bridge/game');
 
 function fixture({ size = 3, p = 2, t = 2, directory } = {}) {
   const rooms = new Map();
@@ -115,15 +115,68 @@ test('missing suit permits any color and any unoccupied destination even if the 
   assert.deepEqual(legalPlacements(game, team, 'me', 7), [2, 3, 4, 5, 6, 7, 8, 9]);
 });
 
-test('an occupied original number creates a free card regardless of occupant color, without bypassing suit', () => {
+test('an occupied original number no longer creates a free card or bypasses suit', () => {
   const { game, team } = legalFixture([{ number: 3, color: 'yellow' }, { number: 7, color: 'yellow' }, { number: 8, color: 'red' }]);
   team.cells[2].card = { number: 9, color: 'blue' };
   team.cells[7].card = { number: 1, color: 'yellow' };
-  assert.deepEqual(legalPlacements(game, team, 'me', 3), [1, 2, 4, 5, 6, 7, 9]);
+  assert.deepEqual(legalPlacements(game, team, 'me', 3), []);
+  assert.equal(canDiscard(game, team, 'me', 3), true);
   assert.deepEqual(legalPlacements(game, team, 'me', 7), [7]);
   assert.deepEqual(legalPlacements(game, team, 'me', 8), []);
   team.leadColor = null;
-  assert.ok(legalPlacements(game, team, 'me', 3).includes(7), 'a leader can also use a free card');
+  assert.deepEqual(legalPlacements(game, team, 'me', 3), []);
+  assert.equal(canDiscard(game, team, 'me', 3), true);
+});
+
+test('discard consumes one blocked card, sets the leader color and advances once on retries', () => {
+  const f = fixture(); f.start();
+  const game = f.room.bridge, team = game.teams[0], id = team.order[0];
+  game.hands[id] = [{ number: 1, color: 'yellow' }, { number: 2, color: 'yellow' }];
+  team.cells.find(cell => cell.number === 1).card = { number: 9, color: 'blue' };
+  const before = structuredClone(team.cells);
+  const token = f.room.players.find(player => player.id === id).token;
+  const snapshot = f.service.snapshot(f.room, id);
+  assert.deepEqual(snapshot.bridge.legalMoves.find(move => move.cardNumber === 1), { cardNumber: 1, targets: [], canDiscard: true });
+  const data = { cardNumber: 1, discard: true, round: 1, requestId: randomUUID() };
+  f.send('bridgePlay', token, data); f.send('bridgePlay', token, data);
+  assert.deepEqual(team.cells, before);
+  assert.deepEqual(game.hands[id], [{ number: 2, color: 'yellow' }]);
+  assert.equal(team.cursor, 1); assert.equal(team.leadColor, 'yellow');
+  assert.equal(game.discards.length, 1);
+  assert.equal(game.lastPlay.discard, true); assert.equal(game.lastPlay.targetNumber, null);
+});
+
+test('discard rejects playable, wrong-suit, missing-suit and malformed choices without mutations', () => {
+  const f = fixture(); f.start();
+  const game = f.room.bridge, team = game.teams[0], id = team.order[0];
+  game.hands[id] = [{ number: 1, color: 'yellow' }, { number: 2, color: 'red' }];
+  team.leadColor = 'yellow';
+  team.cells.find(cell => cell.number === 2).card = { number: 9, color: 'blue' };
+  const token = f.room.players.find(player => player.id === id).token;
+  for (const data of [{ cardNumber: 1 }, { cardNumber: 2 }, { cardNumber: 99 }, { cardNumber: 2, targetNumber: 3 }]) {
+    const before = structuredClone(game);
+    assert.throws(() => f.send('bridgePlay', token, { round: 1, discard: true, ...data }), /規則/);
+    assert.deepEqual(game, before);
+  }
+  team.leadColor = 'blue';
+  assert.ok(legalPlacements(game, team, id, 2).length, 'a blocked card still has targets when missing suit');
+  assert.throws(() => f.send('bridgePlay', token, { round: 1, discard: true, cardNumber: 2 }), /規則/);
+  f.play(team, 2, 3);
+  assert.equal(team.cells.find(cell => cell.number === 3).card.number, 2);
+});
+
+test('all hands exhausted by discards ends at the round boundary without requiring full boards', () => {
+  const f = fixture({ p: 1 }); f.start();
+  const game = f.room.bridge;
+  for (const team of game.teams) {
+    game.hands[team.playerIds[0]] = [{ number: 1, color: 'red' }];
+    team.cells.find(cell => cell.number === 1).card = { number: 2, color: 'yellow' };
+  }
+  f.play(game.teams[0], 1, undefined, { discard: true });
+  assert.equal(f.room.phase, 'playing');
+  f.play(game.teams[1], 1, undefined, { discard: true });
+  assert.equal(f.room.phase, 'finished'); assert.deepEqual(game.winners, []);
+  assert.equal(game.round, 1); assert.equal(game.discards.length, 2);
 });
 
 test('server validates ownership, turn, suit and position before changing any state; retries play once', () => {
@@ -254,7 +307,7 @@ test('all possible complete lines are counted from occupancy, even with mismatch
   assert.equal(lineCount(team, 5), 12);
 });
 
-test('complete games across board sizes preserve every card and cannot deadlock on suit or free placement', () => {
+test('complete games across board sizes conserve placed, discarded and remaining cards without deadlock', () => {
   for (const size of [3, 4, 5, 6, 7, 8, 9]) for (const p of [1, 2, 3, 8]) {
     const f = fixture({ size, p }); f.start(); const g = f.room.bridge;
     let plays = 0;
@@ -262,18 +315,19 @@ test('complete games across board sizes preserve every card and cannot deadlock 
       const team = g.teams.find(candidate => !candidate.done);
       assert.ok(team);
       const id = team.order[team.cursor];
-      const move = g.hands[id].map(card => ({ card, targets: legalPlacements(g, team, id, card.number) })).find(move => move.targets.length);
+      const move = g.hands[id].map(card => ({ card, targets: legalPlacements(g, team, id, card.number), discard: canDiscard(g, team, id, card.number) })).find(move => move.targets.length || move.discard);
       assert.ok(move, 'there must be a legal move whenever a player still has cards');
-      f.play(team, move.card.number, move.targets[0]);
+      f.play(team, move.card.number, move.targets[0], { discard: move.discard });
       assert.ok(++plays <= size ** 2 * 2);
       for (const current of g.teams) {
         const placed = current.cells.filter(cell => cell.card).map(cell => cell.card.number);
         const remaining = current.playerIds.flatMap(playerId => g.hands[playerId]).map(card => card.number);
-        assert.equal(new Set([...placed, ...remaining]).size, size ** 2);
-        assert.equal(placed.length + remaining.length, size ** 2);
+        const discarded = g.discards.filter(play => play.teamId === current.id).map(play => play.card.number);
+        assert.equal(new Set([...placed, ...remaining, ...discarded]).size, size ** 2);
+        assert.equal(placed.length + remaining.length + discarded.length, size ** 2);
       }
     }
-    assert.ok(g.winners.length);
+    assert.ok(g.winners.length || Object.values(g.hands).every(hand => !hand.length));
     assert.ok(g.teams.every(team => team.done));
   }
 });

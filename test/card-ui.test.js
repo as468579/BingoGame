@@ -386,6 +386,26 @@ test('Bridge card choice explains suit violations and closes without using cards
   assert.deepEqual(calls, []);
 });
 
+test('Bridge blocked cards ask for discard confirmation and cancellation preserves the hand', async t => {
+  const nodes = mount(t);
+  const { BridgeBoardView } = await import('../public/js/games/bridge/board-view.js');
+  const s = bridgeState('playing'), calls = [], team = s.room.bridge.teams[0];
+  s.me.hand = [{ number: 1, color: 'red' }];
+  s.room.bridge.legalMoves = [{ cardNumber: 1, targets: [], canDiscard: true }];
+  const view = new BridgeBoardView({ bridge: (...args) => calls.push(args) });
+  view.render(s, team);
+  assert.match(nodes.bridgeHand.children[0].attributes['aria-label'], /只能丟棄/);
+  nodes.bridgeHand.children[0].click();
+  assert.match(nodes.bridgeCardChoiceTitle.textContent, /丟棄紅色 1/);
+  assert.match(nodes.bridgeCardChoiceReason.textContent, /消耗卡片.*下一位/);
+  nodes.bridgeCancelCardChoice.click();
+  assert.equal(s.me.hand.length, 1); assert.deepEqual(calls, []);
+  nodes.bridgeHand.children[0].click(); nodes.bridgeConfirmCardChoice.click();
+  assert.deepEqual(calls, [['bridgePlay', { cardNumber: 1, discard: true, round: 1 }]]);
+  assert.equal(view.selected, null);
+  assert.ok(nodes.bridgeBoard.children.every(cell => cell.disabled));
+});
+
 test('Bridge card confirmation rechecks updates and invalidates dialogs from an older round', async t => {
   const nodes = mount(t);
   const { BridgeBoardView } = await import('../public/js/games/bridge/board-view.js');

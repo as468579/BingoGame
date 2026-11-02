@@ -8,7 +8,8 @@ export const colorNames = { red: '紅色', yellow: '黃色', blue: '藍色' };
 export class BridgeBoardView {
   constructor(actions) {
     this.actions = actions; this.selected = null;
-    this.choice = new BridgeCardChoiceView(() => ({ state: this.state, team: this.team }), number => {
+    this.choice = new BridgeCardChoiceView(() => ({ state: this.state, team: this.team }), (number, discard) => {
+      if (discard) return this.actions.bridge('bridgePlay', { cardNumber: number, discard: true, round: this.state.room.bridge.round });
       this.selected = number;
       this.render(this.state, this.team);
     });
@@ -37,17 +38,15 @@ export class BridgeBoardView {
       return button;
     }));
     $('bridgeLines').replaceChildren(...renderBoardLines(team.cells.map(cell => ({ isCovered: Boolean(cell.card) })), room.size));
-    const occupiedOriginal = selected && team.cells.some(cell => cell.number === selected.number && cell.card);
-    $('bridgeMoveHint').textContent = selected ? `${colorNames[selected.color]} ${selected.number}：${occupiedOriginal ? '原數字格已佔領，為自由牌' : missingSuit ? '手中缺少指定顏色，可自由放置' : '須放在相同數字格'}，請點亮起的空格。`
+    $('bridgeMoveHint').textContent = selected ? `${colorNames[selected.color]} ${selected.number}：${missingSuit ? '手中缺少指定顏色，可自由放置' : '須放在相同數字格'}，請點亮起的空格。`
       : room.phase === 'lobby' ? '開始時所有隊伍共用相同盤面與配色，獨立隨機發牌。'
-        : !mine ? '正在查看其他隊伍，點選自己的隊伍即可返回出牌。' : '先選一張手牌，再選擇盤面上的放置位置。';
+        : !mine ? '正在查看其他隊伍，點選自己的隊伍即可返回出牌。' : '點選手牌查看放置或棄牌說明；標示「只能丟棄」的卡片，確認後會結束本次出牌。';
     $('bridgeHandCount').textContent = `${hand.length} 張 · 僅自己可見`;
     $('bridgeHand').replaceChildren(...[...hand].sort((a, b) => a.number - b.number).map(card => {
-      const legal = moves.find(move => move.cardNumber === card.number)?.targets || [];
-      const button = cardFace({ tag: 'button', className: `bridge-number-card ${card.color}${card.number === this.selected ? ' selected' : ''}${!canPlay || !legal.length ? ' is-unplayable' : ''}`, type: colorNames[card.color], art: card.number });
-      const free = team.cells.some(cell => cell.number === card.number && cell.card);
-      if (free) button.append(element('span', 'bridge-card-rule', '自由牌'));
-      button.setAttribute('aria-label', `${colorNames[card.color]} ${card.number}${free ? '，自由牌' : missingSuit ? '，缺色可自由放置' : ''}${legal.length ? '，可出牌' : '，目前不可出牌'}`);
+      const move = moves.find(move => move.cardNumber === card.number), legal = move?.targets || [];
+      const button = cardFace({ tag: 'button', className: `bridge-number-card ${card.color}${card.number === this.selected ? ' selected' : ''}${!canPlay || (!legal.length && !move?.canDiscard) ? ' is-unplayable' : ''}`, type: colorNames[card.color], art: card.number });
+      if (move?.canDiscard) button.append(element('span', 'bridge-card-rule', '只能丟棄'));
+      button.setAttribute('aria-label', `${colorNames[card.color]} ${card.number}${move?.canDiscard ? '，只能丟棄' : missingSuit ? '，缺色可自由放置' : ''}${legal.length ? '，可出牌' : move?.canDiscard ? '' : '，目前不可出牌'}`);
       button.setAttribute('aria-pressed', String(card.number === this.selected));
       button.onclick = () => {
         this.selected = null;

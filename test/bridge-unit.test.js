@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { COLORS, shuffle, createBridgeState, assignBridgePlayer, coloredDeck,
-  beginBridgeRound, legalPlacements, lineCount } = require('../src/games/bridge/game');
+  beginBridgeRound, legalPlacements, canDiscard, lineCount } = require('../src/games/bridge/game');
 const { bridgeSnapshot } = require('../src/games/bridge/snapshot');
 
 function position(hand, leadColor = 'yellow') {
@@ -87,19 +87,23 @@ test('empty hands are skipped even for the nominal leader; an empty team has no 
   assert.deepEqual(legalPlacements(game, team, 'a', 1), []);
 });
 
-test('leader placement requires a matching number until the original number has been occupied', () => {
+test('a leader must discard an occupied number rather than place it elsewhere', () => {
   const { game, team } = position([{ number: 3, color: 'red' }], null);
   assert.deepEqual(legalPlacements(game, team, 'a', 3), [3]);
   team.cells[2].card = { number: 8, color: 'blue' };
-  assert.deepEqual(legalPlacements(game, team, 'a', 3), [1, 2, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(legalPlacements(game, team, 'a', 3), []);
+  assert.equal(canDiscard(game, team, 'a', 3), true);
 });
 
-test('a same-suit free card remains available alongside normal cards and a wrong-suit free card stays forbidden', () => {
+test('blocked same-suit cards can be discarded even with normal alternatives; wrong-suit discards stay forbidden', () => {
   for (const occupantColor of COLORS) {
     const { game, team } = position([{ number: 3, color: 'yellow' }, { number: 7, color: 'yellow' }, { number: 8, color: 'red' }]);
     team.cells[2].card = { number: 9, color: occupantColor };
     team.cells[7].card = { number: 1, color: occupantColor };
-    assert.deepEqual(legalPlacements(game, team, 'a', 3), [1, 2, 4, 5, 6, 7, 9]);
+    assert.deepEqual(legalPlacements(game, team, 'a', 3), []);
+    assert.equal(canDiscard(game, team, 'a', 3), true);
+    assert.equal(canDiscard(game, team, 'a', 7), false);
+    assert.equal(canDiscard(game, team, 'a', 8), false);
     assert.deepEqual(legalPlacements(game, team, 'a', 7), [7]);
     assert.deepEqual(legalPlacements(game, team, 'a', 8), []);
   }
@@ -110,13 +114,17 @@ test('missing the designated suit frees every held color while occupied destinat
   team.cells[0].card = { number: 8, color: 'yellow' };
   for (const card of game.hands.a) assert.deepEqual(legalPlacements(game, team, 'a', card.number), [2, 3, 4, 5, 6, 7, 8, 9]);
   assert.equal(team.cells[2].card, null, 'original empty number does not restrict a missing-suit card');
+  team.cells[2].card = { number: 1, color: 'yellow' };
+  assert.deepEqual(legalPlacements(game, team, 'a', 3), [2, 4, 5, 6, 7, 8, 9]);
+  assert.equal(canDiscard(game, team, 'a', 3), false, 'missing suit must place rather than discard');
 });
 
 test('last-slot moves are valid without overwriting cards and legality checks never mutate state', () => {
   const { game, team } = position([{ number: 3, color: 'yellow' }]);
   team.cells.forEach(cell => { if (cell.number !== 9) cell.card = { number: cell.number, color: 'red' }; });
   const before = structuredClone(game);
-  assert.deepEqual(legalPlacements(game, team, 'a', 3), [9]);
+  assert.deepEqual(legalPlacements(game, team, 'a', 3), []);
+  assert.equal(canDiscard(game, team, 'a', 3), true);
   assert.deepEqual(legalPlacements(game, team, 'a', 99), []);
   assert.deepEqual(legalPlacements(game, team, 'b', 3), []);
   assert.deepEqual(legalPlacements(game, team, 'unknown', 3), []);
@@ -151,7 +159,7 @@ test('snapshot units hide teammates hands and block legal moves for spectators a
     players: [{ id: 'a', name: 'A', teamId: team.id }, { id: 'b', name: 'B', teamId: team.id }] };
   const presence = { isOnline: () => true };
   const snapshot = bridgeSnapshot(room, presence, 'a');
-  assert.deepEqual(snapshot.bridge.legalMoves, [{ cardNumber: 3, targets: [3] }]);
+  assert.deepEqual(snapshot.bridge.legalMoves, [{ cardNumber: 3, targets: [3], canDiscard: false }]);
   assert.equal(snapshot.players[1].hand, undefined); assert.equal(snapshot.players[1].handCount, 1);
   assert.equal(snapshot.bridge.deck, undefined); assert.equal(snapshot.bridge.hands, undefined);
   const spectator = bridgeSnapshot(room, presence, 'outsider');

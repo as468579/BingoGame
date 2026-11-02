@@ -24,9 +24,10 @@ export function cardPlayIssue(state, team, number) {
   const hand = me.hand || [], card = hand.find(candidate => candidate.number === number);
   if (!card) return '這張卡片已不在你的手牌中，請依最新手牌重新選擇。';
   if (team.leadColor && card.color !== team.leadColor && hand.some(candidate => candidate.color === team.leadColor)) {
-    return `本輪指定${colors[team.leadColor]}，你仍持有${colors[team.leadColor]}卡片，必須跟色，不能出${colors[card.color]}卡片。自由牌也必須遵守跟色規則。`;
+    return `本輪指定${colors[team.leadColor]}，你仍持有${colors[team.leadColor]}卡片，必須跟色，不能出${colors[card.color]}卡片。`;
   }
-  if (!room.bridge.legalMoves?.find(move => move.cardNumber === number)?.targets.length) return '這張卡片目前沒有合法落點。已被佔領的格子不能重複放置，請依最新盤面重新選牌。';
+  const move = room.bridge.legalMoves?.find(move => move.cardNumber === number);
+  if (!move?.targets.length && !move?.canDiscard) return '這張卡片目前沒有合法落點。已被佔領的格子不能重複放置，請依最新盤面重新選牌。';
   return '';
 }
 
@@ -41,8 +42,9 @@ export class BridgeCardChoiceView {
       if (this.number === null || this.key !== this.contextKey(state, team)) return this.close();
       if (cardPlayIssue(state, team, this.number)) return this.display();
       const number = this.number;
+      const discard = Boolean(state.room.bridge.legalMoves?.find(move => move.cardNumber === number)?.canDiscard);
       this.close();
-      this.onConfirm(number);
+      this.onConfirm(number, discard);
     };
   }
 
@@ -69,8 +71,13 @@ export class BridgeCardChoiceView {
     const { state, team } = this.getContext();
     const issue = cardPlayIssue(state, team, this.number);
     const card = state.me.hand?.find(candidate => candidate.number === this.number);
-    $('bridgeCardChoiceTitle').textContent = issue ? '無法使用這張卡片' : `使用${colors[card.color]} ${card.number}？`;
-    $('bridgeCardChoiceReason').textContent = issue || '確認後，請點選盤面上亮起的空格放置';
+    const discard = Boolean(state.room.bridge.legalMoves?.find(move => move.cardNumber === this.number)?.canDiscard);
+    const missingSuit = team.leadColor && !state.me.hand?.some(candidate => candidate.color === team.leadColor);
+    $('bridgeCardChoiceTitle').textContent = issue ? '無法使用這張卡片' : `${discard ? '丟棄' : '使用'}${colors[card.color]} ${card.number}？`;
+    $('bridgeCardChoiceReason').textContent = issue || (discard ? '對應數字格已被佔領，這張牌只能丟棄。確認後會消耗卡片，並換下一位玩家出牌。'
+      : missingSuit ? '手中沒有指定顏色，可放在任意空格。確認後，請點選盤面上亮起的空格放置。'
+        : `這張牌須放在數字 ${card.number} 的空格。確認後，請點選盤面上亮起的空格放置。`);
+    $('bridgeConfirmCardChoice').textContent = discard ? '確認丟棄，結束出牌' : '確認使用，選擇落點';
     $('bridgeConfirmCardChoice').hidden = Boolean(issue);
     $('bridgeCancelCardChoice').textContent = issue ? '知道了' : '取消';
     const content = $('bridgeCardChoiceCard');
