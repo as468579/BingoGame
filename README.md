@@ -116,7 +116,7 @@ npm run check
 npm test
 ```
 
-目前共 **192 項測試**，包含單元測試與整合測試；`npm run check` 檢查 **119 個 JavaScript 檔案**的語法。
+目前共 **195 項測試**，包含單元測試與整合測試；`npm run check` 檢查 **119 個 JavaScript 檔案**的語法。
 
 | 測試檔案 | 主要範圍 |
 | --- | --- |

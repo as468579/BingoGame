@@ -11,6 +11,9 @@ function scan(room, player, data, presence) {
   room.lastScanRemovedCount = room.players.length - retained.length;
   room.lastScanAt = Date.now();
   room.players = retained;
+  for (const [id, captain] of Object.entries(room.bridge.captains || {})) {
+    if (!retained.some(member => member.id === captain && member.teamId === id)) delete room.bridge.captains[id];
+  }
 }
 
 function settings(room, player, data) {
@@ -34,8 +37,20 @@ function chooseTeam(room, player, data) {
   const valid = Array.from({ length: room.bridge.teamCount }, (_, i) => teamId(i));
   if (data.teamId !== null && !valid.includes(data.teamId)) fail('無效的隊伍。');
   if (data.teamId && room.players.filter(candidate => candidate.id !== member.id && candidate.teamId === data.teamId).length >= room.bridge.playersPerTeam) fail('該隊已滿，請先移出一位玩家。');
+  if (member.teamId !== data.teamId && room.bridge.captains?.[member.teamId] === member.id) delete room.bridge.captains[member.teamId];
   member.teamId = data.teamId;
   member.ready = false;
+}
+
+function captain(room, player, data) {
+  requireHost(room, player, '只有房主可以指定隊長。');
+  if (room.phase !== 'lobby') fail('請在準備階段指定隊長。');
+  const valid = Array.from({ length: room.bridge.teamCount }, (_, i) => teamId(i));
+  if (!valid.includes(data.teamId)) fail('無效的隊伍。');
+  if (data.playerId !== null && !room.players.some(member => member.id === data.playerId && member.teamId === data.teamId)) fail('隊長必須是該隊成員。');
+  room.bridge.captains ||= {};
+  if (data.playerId === null) delete room.bridge.captains[data.teamId];
+  else room.bridge.captains[data.teamId] = data.playerId;
 }
 
 function ready(room, player, data) {
@@ -50,8 +65,8 @@ function start(room, player) {
   if (room.phase !== 'lobby') fail('遊戲已開始。');
   const game = room.bridge;
   const rosters = Array.from({ length: game.teamCount }, (_, i) => room.players.filter(member => member.teamId === teamId(i)));
-  if (room.players.length !== game.teamCount * game.playersPerTeam ||
-      rosters.some(roster => roster.length !== game.playersPerTeam || roster.some(member => !member.ready))) fail('每隊必須滿員且所有玩家準備完成。');
+  if (room.players.some(member => !member.ready || !rosters.some(roster => roster.includes(member))) ||
+      rosters.some(roster => roster.length === 0 || roster.length > game.playersPerTeam)) fail('每隊至少需要 1 人，且所有玩家必須完成分隊與準備。');
   game.deck = coloredDeck(game.size);
   game.hands = {};
   game.teams = rosters.map((roster, i) => {
@@ -100,13 +115,15 @@ function play(room, player, data) {
 
 function reset(room, player) {
   requireHost(room, player, '只有房主可以重新開局。');
+  const captains = { ...room.bridge.captains };
   room.bridge = createBridgeState(room.bridge);
+  room.bridge.captains = captains;
   room.phase = 'lobby';
   room.boardVersion = (room.boardVersion || 0) + 1;
   room.players.forEach(member => { member.ready = false; });
 }
 
-const handlers = { bridgeScan: scan, bridgeSettings: settings, bridgeTeam: chooseTeam, bridgeReady: ready, bridgeStart: start, bridgePlay: play, bridgeReset: reset };
+const handlers = { bridgeScan: scan, bridgeSettings: settings, bridgeTeam: chooseTeam, bridgeCaptain: captain, bridgeReady: ready, bridgeStart: start, bridgePlay: play, bridgeReset: reset };
 function applyBridgeAction(room, player, data, presence) {
   const handler = handlers[data.kind];
   if (!Object.hasOwn(handlers, data.kind) || !handler) fail('不支援的 Bridge Bingo 操作。');

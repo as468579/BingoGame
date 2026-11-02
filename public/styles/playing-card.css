@@ -25,7 +25,7 @@
 .game-card-back .card-back-anchor{position:relative;width:64%;height:auto;max-width:86px;aspect-ratio:5 / 6;fill:none;stroke:#dbf1ff;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 2px 1px #102d4b88) drop-shadow(0 0 9px #a0d9ff44)}
 @media(max-width:700px){.bridge-number-card .game-card-art{width:40px;height:40px;font-size:29px}}
 .game-card.pending-hand-card{justify-content:center;cursor:default}
-.game-card-front .card-anchor-watermark{position:absolute;inset:12% 14%;width:72%;height:76%;z-index:0;pointer-events:none;fill:none;stroke:currentColor;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;opacity:.1}
+.game-card-front .card-anchor-watermark{position:absolute;right:6px;bottom:6px;width:16px;height:19px;z-index:0;pointer-events:none;fill:none;stroke:currentColor;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;opacity:.25}
 .game-card-front:has(.card-anchor-watermark)>:not(.card-anchor-watermark){position:relative;z-index:1}
 .game-card.game-card-back.card-back-parchment{
   border:2px solid var(--card-gold-rim,#c9b783);

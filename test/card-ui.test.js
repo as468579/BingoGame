@@ -331,6 +331,26 @@ test('room lifecycle hides only the previous game and reuses views without rebin
   assert.deepEqual(hidden, ['bingo', 'bridge-bingo']);
 });
 
+test('Bridge host can select captains and all players see badges without guest assignment controls', async t => {
+  const nodes = mount(t);
+  const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
+  const calls = [], view = new BridgeRoomView({ bridge: (...args) => calls.push(args) });
+  const s = bridgeState(), team = s.room.bridge.teams[0];
+  view.render(s);
+  const control = nodes.bridgeTeams.children[0].children.find(child => child.className === 'team-roster-captain-control');
+  const select = control.children[0];
+  assert.deepEqual(select.children.map(option => option.value), ['', 'host']);
+  select.value = 'host'; select.onchange();
+  assert.deepEqual(calls, [['bridgeCaptain', { teamId: 'team-1', playerId: 'host' }]]);
+  team.captainId = 'host';
+  view.render(s);
+  const member = nodes.bridgeTeams.children[0].children.find(child => child.className.includes('team-roster-member'));
+  assert.match(member.textContent, /隊長/);
+  s.room.host = 'other'; view.render(s);
+  assert.ok(nodes.bridgeTeams.children.every(group => !group.children.some(child => child.className === 'team-roster-captain-control')));
+  assert.match(nodes.bridgeTeams.textContent, /隊長/);
+});
+
 test('Bridge Bingo renders teams, a plain numbered board and preparation controls independently of Bingo', async t => {
   const nodes = mount(t);
   const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
@@ -345,6 +365,16 @@ test('Bridge Bingo renders teams, a plain numbered board and preparation control
   assert.equal(nodes.bridgeSettingsPanel.hidden, false);
   assert.equal(nodes.bridgeStart.disabled, true);
   assert.equal(nodes.bridgeReady.hidden, false);
+  const partial = bridgeState();
+  partial.room.bridge.playersPerTeam = 4;
+  partial.me.ready = true;
+  partial.room.players.push({ id: 'guest', name: 'Guest', teamId: 'team-2', ready: true, online: true });
+  partial.room.bridge.teams[1].playerIds = ['guest'];
+  view.render(partial);
+  assert.equal(nodes.bridgeStart.disabled, false, 'one ready player per team is sufficient');
+  partial.room.players[1].ready = false;
+  view.render(partial);
+  assert.equal(nodes.bridgeStart.disabled, true);
   view.hide(); assert.equal(nodes.bridgeGame.hidden, true);
 });
 

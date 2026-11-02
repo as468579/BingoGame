@@ -11,6 +11,7 @@ export class BridgeRoomView {
       ready: $('bridgeReady'), count: $('bridgePlayerCount'), summary: $('bridgePresenceSummary') }, {
       onAssign: (playerId, teamId) => this.actions.bridge('bridgeTeam', { playerId, teamId }),
       onReady: ready => this.actions.bridge('bridgeReady', { ready }),
+      onCaptain: (teamId, playerId) => this.actions.bridge('bridgeCaptain', { teamId, playerId }),
       onInspect: teamId => { this.viewedTeam = teamId; this.board.selected = null; this.render(this.state); }
     });
     $('bridgeCopyCode').onclick = () => copyRoomCode(this.state.room.code, $('bridgeRoomCode'), notify);
@@ -55,7 +56,7 @@ export class BridgeRoomView {
     $('bridgeLeadColor').textContent = viewed.leadColor ? `指定顏色：${colorNames[viewed.leadColor]}` : '指定顏色：首位出牌決定';
     $('bridgeLeadColor').dataset.color = viewed.leadColor || '';
     const turnPlayer = room.players.find(player => player.id === viewed.turn);
-    $('bridgeStatus').textContent = room.phase === 'lobby' ? '每隊滿員並全員準備後，由房主開始。'
+    $('bridgeStatus').textContent = room.phase === 'lobby' ? '每隊至少 1 人且全員準備後，由房主開始，不需滿員。'
       : room.phase === 'finished' ? '本局已結束，可查看各隊盤面與結果。'
         : viewed.done ? '本隊已完成這一輪，等待其他隊伍一起結算。'
           : activeTeam && activeTeam.id !== viewed.id ? `目前由 ${activeTeam.name} 出牌，請等待輪到${viewed.name}。`
@@ -66,8 +67,9 @@ export class BridgeRoomView {
     $('bridgeScan').disabled = busy || !connected;
     $('bridgeScanHint').hidden = true;
     $('bridgeScanHint').textContent = '';
-    $('bridgeStart').disabled = busy || !connected || room.players.length !== game.teamCount * game.playersPerTeam ||
-      room.players.some(player => !player.ready || !player.teamId) || game.teams.some(team => team.playerIds.length !== game.playersPerTeam);
+    $('bridgeStart').disabled = busy || !connected ||
+      room.players.some(player => !player.ready || !game.teams.some(team => team.id === player.teamId)) ||
+      game.teams.some(team => team.playerIds.length === 0 || team.playerIds.length > game.playersPerTeam);
     $('bridgeReset').hidden = room.host !== playerId || room.phase === 'lobby'; $('bridgeReset').disabled = busy || !connected;
     $('bridgeViewResults').hidden = room.phase !== 'finished';
     if (room.phase === 'finished') {

@@ -15,7 +15,7 @@ function shuffle(values, pick = randomInt) {
 }
 
 function createBridgeState({ teamCount = 3, playersPerTeam = 4, size = 6 } = {}) {
-  return { teamCount, playersPerTeam, size, board: createBoard(size), deck: [], hands: {}, teams: [], discards: [], round: 0, winners: [], lastPlay: null };
+  return { teamCount, playersPerTeam, size, board: createBoard(size), deck: [], hands: {}, teams: [], captains: {}, discards: [], round: 0, winners: [], lastPlay: null };
 }
 
 function teamId(index) { return `team-${index + 1}`; }

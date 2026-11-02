@@ -2,8 +2,8 @@ import { element } from './dom.js';
 
 // Game-neutral team UI. Adapters supply data and commands; this component owns all markup and interaction.
 export class TeamRosterView {
-  constructor({ list, controls, ownTeam, ready, count, summary }, { onAssign, onReady, onInspect } = {}) {
-    Object.assign(this, { list, controls, ownTeam, ready, count, summary, onAssign, onReady, onInspect });
+  constructor({ list, controls, ownTeam, ready, count, summary }, { onAssign, onReady, onInspect, onCaptain } = {}) {
+    Object.assign(this, { list, controls, ownTeam, ready, count, summary, onAssign, onReady, onInspect, onCaptain });
     list.className = 'team-roster-list';
     controls.className = 'team-roster-controls';
     ownTeam.className = 'team-roster-select';
@@ -44,6 +44,18 @@ export class TeamRosterView {
       group.append(heading);
       if (team.rewardCount !== undefined) group.append(element('p', 'team-roster-rewards', `獎品 ${team.rewardCount} 份`));
       members.filter(member => member.teamId === team.id).forEach(member => group.append(this.member(member, team.turn, disabled)));
+      if (this.onCaptain && lobby && viewerId === hostId) {
+        const label = element('label', 'team-roster-captain-control', '隊長');
+        const select = element('select', 'team-roster-select');
+        select.setAttribute('aria-label', `指定 ${team.name} 的隊長`);
+        const none = element('option', '', '未指定'); none.value = '';
+        select.append(none, ...members.filter(member => member.teamId === team.id).map(member => {
+          const option = element('option', '', member.name); option.value = member.id; return option;
+        }));
+        select.value = team.captainId || ''; select.disabled = Boolean(disabled);
+        select.onchange = () => { if (!select.disabled) this.onCaptain(team.id, select.value || null); };
+        label.append(select); group.append(label);
+      }
       const size = members.filter(member => member.teamId === team.id).length;
       group.append(element('p', 'team-roster-count', `${size} / ${playersPerTeam} 人${phase === 'playing' && team.done ? ' · 本輪完成' : ''}`));
       return group;
@@ -64,6 +76,7 @@ export class TeamRosterView {
     const row = element('div', `team-roster-member${phase === 'playing' && turn === member.id ? ' is-turn' : ''}`);
     row.append(element('strong', '', `${phase === 'playing' && turn === member.id ? '▶ ' : ''}${member.name}${member.id === viewerId ? '（你）' : ''}`),
       element('span', '', `${member.online ? '●' : '○ 離線'} · ${phase === 'lobby' ? member.ready ? '已準備' : '未準備' : `手牌 ${member.handCount} 張`}`));
+    if (teams.some(team => team.id === member.teamId && team.captainId === member.id)) row.children[0].append(element('span', 'team-roster-captain-badge', '隊長'));
     if (phase === 'lobby' && hostId === viewerId) {
       const select = element('select', 'team-roster-select');
       select.setAttribute('aria-label', `分配 ${member.name} 的隊伍`);

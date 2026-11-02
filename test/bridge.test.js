@@ -276,6 +276,49 @@ test('same-round winning teams tie only after every team finishes its full round
   assert.throws(() => f.send('bridgePlay', f.hostToken, { cardNumber: 5, targetNumber: 5, round: 1 }), /出牌階段/);
 });
 
+test('partially filled and uneven Bridge teams can start when each has a ready player', () => {
+  const f = fixture({ p: 3, t: 3 });
+  f.room.players = [0, 3, 4, 6].map(index => f.room.players[index]);
+  const last = f.room.players.pop();
+  f.room.players.forEach(player => f.send('bridgeReady', player.token, { ready: true }));
+  assert.throws(() => f.send('bridgeStart'), /每隊至少/);
+  f.room.players.push(last);
+  assert.throws(() => f.send('bridgeStart'), /準備/);
+  f.send('bridgeReady', last.token, { ready: true });
+  last.teamId = null;
+  assert.throws(() => f.send('bridgeStart'), /分隊/);
+  last.teamId = 'team-3';
+  f.send('bridgeStart');
+  assert.equal(f.room.phase, 'playing');
+  assert.deepEqual(f.room.bridge.teams.map(team => team.playerIds.length), [1, 2, 1]);
+  for (const team of f.room.bridge.teams) {
+    const counts = team.playerIds.map(id => f.room.bridge.hands[id].length);
+    assert.equal(counts.reduce((a, b) => a + b), 9);
+    assert.ok(Math.max(...counts) - Math.min(...counts) <= 1);
+  }
+});
+
+test('only the host assigns a team member as captain; reset preserves captains and departures clear them', () => {
+  const f = fixture(), [host, teammate, other] = f.room.players;
+  const assign = (playerId, teamId = host.teamId, token = f.hostToken) => f.send('bridgeCaptain', token, { playerId, teamId });
+  assert.throws(() => assign(teammate.id, host.teamId, teammate.token), /只有房主/);
+  assert.throws(() => assign(other.id), /該隊成員/);
+  assert.throws(() => assign(host.id, 'team-99'), /無效/);
+  assign(teammate.id);
+  assert.equal(f.service.snapshot(f.room, other.id).bridge.teams[0].captainId, teammate.id);
+  assign(null);
+  assert.equal(f.service.snapshot(f.room, host.id).bridge.teams[0].captainId, null);
+  assign(teammate.id); f.start();
+  assert.throws(() => assign(host.id), /準備階段/);
+  f.send('bridgeReset');
+  assert.equal(f.room.bridge.captains[host.teamId], teammate.id);
+  f.send('bridgeTeam', f.hostToken, { playerId: teammate.id, teamId: null });
+  assert.equal(f.service.snapshot(f.room, host.id).bridge.teams[0].captainId, null);
+  f.send('bridgeTeam', f.hostToken, { playerId: teammate.id, teamId: host.teamId });
+  assign(teammate.id); f.send('bridgeScan');
+  assert.equal(f.room.bridge.captains[host.teamId], undefined);
+});
+
 test('team assignment, readiness and configuration are checked on the server', () => {
   const f = fixture();
   assert.throws(() => f.send('bridgeStart'), /準備/);
@@ -295,13 +338,16 @@ test('team assignment, readiness and configuration are checked on the server', (
 test('active team hands, current suit, placements and turn survive an actual repository restart', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-test-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  const f = fixture({ directory }); f.start();
+  const f = fixture({ directory });
+  f.send('bridgeCaptain', f.hostToken, { teamId: 'team-1', playerId: f.host.playerId });
+  f.start();
   const team = f.room.bridge.teams[0], card = f.room.bridge.hands[team.order[0]][0];
   f.play(team, card.number, card.number);
   const restarted = createApplication({ dataDirectory: directory });
   const restored = restarted.repository.get(f.code);
   assert.deepEqual(restored.bridge, f.room.bridge);
   assert.equal(restarted.service.snapshot(restored, f.host.playerId).bridge.activeTeamId, 'team-1');
+  assert.equal(restarted.service.snapshot(restored, f.host.playerId).bridge.teams[0].captainId, f.host.playerId);
   const response = restarted.service.execute({ kind: 'join', code: f.code, token: randomUUID(), name: 'Host', requestId: randomUUID() });
   assert.equal(response.playerId, f.host.playerId);
   assert.deepEqual(response.room.players[0].hand, f.room.bridge.hands[f.host.playerId]);
