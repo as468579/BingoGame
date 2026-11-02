@@ -13,6 +13,9 @@ export class HandView {
   }
 
   render({ hand, room, playerId, busy, connected }) {
+    $('handEmpty').textContent = '隊伍目前沒有卡片';
+    $('previewCardList').replaceChildren();
+    $('previewCardsEmpty').hidden = true;
     this.handCount = hand.length;
     this.renderCount();
     $('handList').replaceChildren(...hand.map((card, index) => {

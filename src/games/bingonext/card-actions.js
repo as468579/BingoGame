@@ -6,42 +6,38 @@ const { demoCards, publicCard } = require('./card-catalog');
 const { addToHand, removeFromHand } = require('./hand');
 const { isParticipant } = require('./participants');
 const { advanceTurn } = require('./turns');
+const { teamHand } = require('./team-hands');
+const { chooseQuestion, findQuestion } = require('./question-bank');
 
 function drawForNumber(player) {
   const definition = demoCards[randomInt(demoCards.length)];
-  return addToHand(player, { ...publicCard(definition), definitionId: definition.id });
+  const { question, options, ...face } = publicCard(definition);
+  return addToHand(player, { ...face, definitionId: definition.id });
 }
 
 function useCard(room, player, data) {
-  if (!['lobby', 'playing'].includes(room.phase)) fail('本局已結束，請先重新開局。');
+  if (room.phase !== 'playing') fail('請在遊戲進行中的自己的回合使用卡片。');
   if (room.activeCard || room.pending) fail('請先完成目前的作答或選號確認。', 409);
   if (!isParticipant(room, player.id)) fail('你尚未參與本局。', 403);
   if (room.phase === 'playing' && room.turn !== player.id) fail('請在自己的選號回合使用卡片。', 403);
-  const held = player.hand.find(candidate => candidate.id === data.cardId);
-  const card = demoCards.find(candidate => candidate.id === (held?.definitionId || data.cardId));
-  if (!card || (!held && player.usedDemoCards?.includes(card.id))) fail('這張卡片無法使用。');
-  const handIndex = held ? player.hand.indexOf(held) : -1;
-  if (held) removeFromHand(player, held.id);
-  else {
-    player.usedDemoCards ||= [];
-    player.usedDemoCards.push(card.id);
-  }
-  room.activeCard = { id: randomUUID(), playerId: player.id, cardId: card.id, stage: 'question',
-    returnCard: held || null, handIndex, undoDepth: room.history?.length || 0 };
+  if (!player.teamId) fail('請先加入隊伍。', 403);
+  const hand = teamHand(room, player.teamId);
+  const held = hand.find(candidate => candidate.id === data.cardId);
+  const card = held && demoCards.find(candidate => candidate.id === held.definitionId);
+  if (!card) fail('這張卡片不在你的隊伍手牌中。');
+  const question = chooseQuestion();
+  const handIndex = hand.indexOf(held);
+  removeFromHand({ hand }, held.id);
+  room.activeCard = { id: randomUUID(), playerId: player.id, teamId: player.teamId, cardId: card.id, questionId: question.id, stage: 'question',
+    returnCard: held, handIndex, undoDepth: room.history?.length || 0 };
 }
 
 function cancelCard(room, player, data) {
   const active = session(room, data);
   if (active.playerId !== player.id) fail('只有使用卡片的玩家可以取消使用。', 403);
   if (active.stage !== 'question') fail('答案已提交，無法取消使用卡片。', 409);
-  const previous = room.history?.at(-1);
-  const legacy = !Object.hasOwn(active, 'returnCard') && previous?.playerStates?.find(state => state.id === player.id);
-  if (legacy) {
-    player.hand = structuredClone(legacy.hand);
-    player.usedDemoCards = structuredClone(legacy.usedDemoCards || []);
-  } else if (active.returnCard) player.hand.splice(Math.max(0, active.handIndex), 0, active.returnCard);
-  else player.usedDemoCards = (player.usedDemoCards || []).filter(id => id !== active.cardId);
-  if (room.phase === 'playing' && (legacy || room.history?.length === active.undoDepth + 1)) room.history.pop();
+  if (active.returnCard) teamHand(room, active.teamId).splice(Math.max(0, active.handIndex), 0, active.returnCard);
+  if (room.history?.length === active.undoDepth + 1) room.history.pop();
   room.activeCard = null;
 }
 
@@ -54,8 +50,8 @@ function answerCard(room, player, data) {
   const active = session(room, data);
   if (active.playerId !== player.id) fail('只有使用卡片的玩家可以作答。', 403);
   if (active.stage !== 'question') fail('此問題已回答。', 409);
-  const card = demoCards.find(candidate => candidate.id === active.cardId);
-  if (!Number.isInteger(data.choice) || data.choice < 0 || data.choice >= card.options.length) fail('請選擇有效的答案。');
+  const question = findQuestion(active.questionId || active.cardId);
+  if (!question || !Number.isInteger(data.choice) || data.choice < 0 || data.choice >= question.options.length) fail('請選擇有效的答案。');
   Object.assign(active, { stage: 'review', choice: data.choice });
 }
 

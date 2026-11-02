@@ -3,8 +3,7 @@ import { PlayersView } from './views/players-view.js';
 import { BoardView } from './views/board-view.js';
 import { HostControlsView } from './views/host-controls-view.js';
 import { InvitationView } from '../../views/invitation-view.js';
-import { PendingHandView } from '../../views/pending-hand-view.js';
-// Original hand and preview views are retained while card contents are pending.
+import { HandView } from './views/hand-view.js';
 import { HandDrawerView } from './views/hand-drawer-view.js';
 import { SharedCardView } from './views/shared-card-view.js';
 import { RewardsView } from './views/rewards-view.js';
@@ -17,7 +16,7 @@ export class BingoNextView {
     this.board = new BoardView(actions);
     this.hostControls = new HostControlsView(actions);
     this.invitation = new InvitationView(address, notify, getState, $);
-    this.hand = new PendingHandView($);
+    this.hand = new HandView(actions);
     // this.cardPreview = new CardPreviewView(count => this.hand.setPreviewCount(count), actions);
     this.handDrawer = new HandDrawerView();
     this.sharedCard = new SharedCardView(actions);
@@ -44,7 +43,7 @@ export class BingoNextView {
     this.sharedCard.render(state);
     this.rewards.render(state);
     // this.drawCards.render(state);
-    $('rulesText').textContent = `全場共用盤面，選號後直接為自己的隊伍佔領並抽卡，或改用一張手牌。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線獲勝；盤面滿時按連線數結算。`;
+    $('rulesText').textContent = `全場共用盤面，選號後直接為自己的隊伍佔領；每格開局時獨立有 10% 機率成為特殊格，選中特殊格獲得一張隨機卡，一般格不抽卡。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線獲勝；盤面滿時按連線數結算。`;
     $('winner').textContent = room.winners.length
       ? `✳ ${room.teams.filter(team => room.winners.includes(team.id)).map(team => team.name).join('、')}${room.winners.length > 1 ? ' 並列獲勝' : ' 獲勝'}！` : '';
   }

@@ -5,7 +5,7 @@ const REVERSIBLE_ACTIONS = new Set(['call', 'skip', 'cardUse']);
 function captureGameState(room) {
   return structuredClone({ phase: room.phase, turn: room.turn, called: room.called, cells: room.cells,
     winners: room.winners, pending: null, lastDecision: room.lastDecision, activeCard: room.activeCard || null,
-    linePrizes: room.linePrizes,
+    linePrizes: room.linePrizes, teamHands: room.teamHands || {},
     playerStates: room.players.map(p => ({ id: p.id, hand: p.hand, usedDemoCards: p.usedDemoCards || [] })) });
 }
 function canUndo(room) { return Boolean(room.history?.length); }

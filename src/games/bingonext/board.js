@@ -1,4 +1,5 @@
 'use strict';
+const { randomInt } = require('node:crypto');
 const { createBoard, boardValid, coveredLines } = require('../../shared/number-grid');
 
 function winningLineGoal(size = 5) {
@@ -10,6 +11,11 @@ function winningLineGoal(size = 5) {
 function createCells(board, called = []) {
   const covered = new Set(called);
   return board.map(number => ({ number, isCovered: covered.has(number) }));
+}
+
+// Independent Bernoulli trials: a round may legitimately have no special cells.
+function createSpecialCells(board, pick = randomInt) {
+  return createCells(board).map(cell => ({ ...cell, isSpecial: pick(10) === 0 }));
 }
 
 function coverNumber(cells, number, isCovered = true) {
@@ -30,4 +36,4 @@ function lines(board, called, size = Math.sqrt(board.length)) {
   return coveredLines(createCells(board, called), size);
 }
 
-module.exports = { winningLineGoal, createBoard, boardValid, createCells, coverNumber, clearCovers, coveredLines, lines };
+module.exports = { winningLineGoal, createBoard, boardValid, createCells, createSpecialCells, coverNumber, clearCovers, coveredLines, lines };

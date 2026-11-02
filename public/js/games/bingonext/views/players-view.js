@@ -13,6 +13,6 @@ export class PlayersView {
     this.roster.render({ teams: room.teams.map(team => ({ ...team, rewardCount: team.rewards.length,
       turn: team.playerIds.includes(room.turn) ? room.turn : null })), members: room.players, viewerId: playerId,
       hostId: room.host, phase: room.phase, busy, connected, playersPerTeam: room.playersPerTeam, goal: room.goal,
-      selectedTeamId: me?.teamId || room.players.find(player => player.id === playerId)?.teamId, paused: Boolean(room.activeCard) });
+      selectedTeamId: me?.teamId || room.players.find(player => player.id === playerId)?.teamId, sharedHands: true, paused: Boolean(room.activeCard) });
   }
 }

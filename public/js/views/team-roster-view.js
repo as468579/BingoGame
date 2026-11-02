@@ -43,6 +43,7 @@ export class TeamRosterView {
       if (team.id === activeTeamId) heading.append(element('span', 'team-roster-active', '出牌中'));
       group.append(heading);
       if (team.rewardCount !== undefined) group.append(element('p', 'team-roster-rewards', `獎品 ${team.rewardCount} 份`));
+      if (team.handCount !== undefined) group.append(element('p', 'team-roster-count', `隊伍手牌 ${team.handCount} 張`));
       members.filter(member => member.teamId === team.id).forEach(member => group.append(this.member(member, team.turn, disabled)));
       if (this.onCaptain && lobby && viewerId === hostId) {
         const label = element('label', 'team-roster-captain-control', '隊長');
@@ -75,7 +76,7 @@ export class TeamRosterView {
     const { phase, viewerId, hostId, teams } = this.model;
     const row = element('div', `team-roster-member${phase === 'playing' && turn === member.id ? ' is-turn' : ''}`);
     row.append(element('strong', '', `${phase === 'playing' && turn === member.id ? '▶ ' : ''}${member.name}${member.id === viewerId ? '（你）' : ''}`),
-      element('span', '', `${member.online ? '●' : '○ 離線'} · ${phase === 'lobby' ? member.ready ? '已準備' : '未準備' : `手牌 ${member.handCount} 張`}`));
+      element('span', '', `${member.online ? '●' : '○ 離線'}${phase === 'lobby' ? ` · ${member.ready ? '已準備' : '未準備'}` : this.model.sharedHands ? '' : ` · 手牌 ${member.handCount} 張`}`));
     if (teams.some(team => team.id === member.teamId && team.captainId === member.id)) row.children[0].append(element('span', 'team-roster-captain-badge', '隊長'));
     if (phase === 'lobby' && hostId === viewerId) {
       const select = element('select', 'team-roster-select');

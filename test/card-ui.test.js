@@ -87,6 +87,7 @@ test('BingoNext renders only its own shared board, team roster, team rewards and
   const { BingoNextState } = await import('../public/js/games/bingonext/state.js');
   const s = new BingoNextState(); s.playerId = 'host'; s.connected = true;
   const board = Array.from({ length: 9 }, (_, i) => i + 1), cells = board.map(number => ({ number, isCovered: number === 1, ...(number === 1 ? { teamId: 'team-1' } : {}) }));
+  cells[1].isSpecial = true;
   s.accept({ code: 'NEXT', gameType: 'bingo-next', phase: 'playing', host: 'host', revision: 1, boardVersion: 0, size: 3, goal: 1,
     turn: 'host', teamCount: 2, playersPerTeam: 1, onlineCount: 2, called: [1], cells, board, linePrizes: [], winners: [],
     teams: [{ id: 'team-1', name: '隊伍 1', playerIds: ['host'], lines: 0, rewards: [] }, { id: 'team-2', name: '隊伍 2', playerIds: ['guest'], lines: 0, rewards: [] }],
@@ -103,11 +104,32 @@ test('BingoNext renders only its own shared board, team roster, team rewards and
   assert.equal(nodes['next-root'].hidden, false); assert.equal(nodes['next-boardTitle'].textContent, '全場共用盤面');
   assert.equal(nodes['next-board'].children.length, 9); assert.equal(nodes['next-board'].children[0].dataset.team, 0);
   assert.equal(nodes['next-board'].children[0].disabled, true); assert.equal(nodes['next-board'].children[1].disabled, false);
+  assert.equal(nodes['next-board'].children[1].classList.contains('is-special'), true);
+  assert.match(nodes['next-board'].children[1].attributes['aria-label'], /特殊格/);
+  assert.match(nodes['next-board'].children[1].textContent, /✦/);
   s.room.lastDraw = { id: 'drawn', name: '星光指引', theme: 'gold', symbol: '✧' };
   view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, false);
   s.room.phase = 'finished'; s.room.winners = ['team-1']; view.render(s);
   assert.equal(nodes['next-gameResultsDialog'].open, true); assert.equal(nodes['next-gameResultsList'].children.length, 2);
   view.hide(); assert.equal(nodes['next-root'].hidden, true); assert.equal(nodes['next-gameResultsDialog'].open, false);
+});
+
+test('Team Bingo shared hand renders usable cards only during the member turn and clears demo cards', async t => {
+  const nodes = mount(t);
+  const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
+  const calls = [], hand = [{ id: 'team-card', definitionId: 'star', name: '星光指引', type: '祝福', theme: 'gold', symbol: '✧', description: '卡牌效果' }];
+  const view = new HandView({ useCard: id => calls.push(id) });
+  const s = { hand, playerId: 'member', connected: true, busy: false, room: { phase: 'playing', turn: 'member' } };
+  view.render(s);
+  assert.equal(nodes['next-handCount'].textContent, '1 張');
+  assert.equal(nodes['next-previewCardList'].children.length, 0);
+  const card = nodes['next-handList'].children[0].children[0];
+  assert.equal(card.disabled, false); assert.match(card.textContent, /星光指引/);
+  card.click(); assert.deepEqual(calls, ['team-card']);
+  view.render({ ...s, room: { ...s.room, turn: 'other' } });
+  assert.equal(nodes['next-handList'].children[0].children[0].disabled, true);
+  view.render({ ...s, room: { ...s.room, activeCard: { id: 'question' } } });
+  assert.equal(nodes['next-handList'].children[0].children[0].disabled, true);
 });
 
 test('BingoNext uses the Bridge-style own-team selector and limits member assignment controls to the host', async t => {

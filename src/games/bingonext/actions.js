@@ -2,8 +2,9 @@
 const { randomUUID } = require('node:crypto');
 const { fail } = require('../../domain/errors');
 const { requireHost } = require('../../domain/room-access');
-const { createBoard, boardValid, createCells, winningLineGoal } = require('./board');
+const { createBoard, boardValid, createCells, createSpecialCells, winningLineGoal } = require('./board');
 const { teams, assignPlayer } = require('./teams');
+const { teamHand } = require('./team-hands');
 const { advanceTurn } = require('./turns');
 const { captureGameState, undoGame, REVERSIBLE_ACTIONS } = require('./history');
 const { createLinePrizes, awardLinePrizes, teamLines } = require('./prizes');
@@ -47,6 +48,7 @@ function start(room, player) {
   if (room.phase !== 'lobby') fail('遊戲已開始。');
   if (room.players.some(p => !p.ready || !p.teamId) ||
       teams(room).some(t => !room.players.some(p => p.teamId === t.id))) fail('每隊至少需要 1 位玩家，且所有玩家都必須完成分隊與準備。');
+  room.cells = createSpecialCells(room.board);
   room.phase = 'playing'; room.turn = room.players[0].id; room.history = [];
   room.roundStart = captureGameState(room).playerStates;
 }
@@ -58,7 +60,7 @@ function call(room, player, data) {
   if (cell.isCovered) fail('這個格子已被佔領，不能重複選取。');
   Object.assign(cell, { isCovered: true, teamId: player.teamId, playerId: player.id });
   room.called.push(data.number);
-  room.lastDecision = { id: randomUUID(), playerId: player.id, number: data.number, approved: true, drawnCardId: drawForNumber(player).id };
+  room.lastDecision = { id: randomUUID(), playerId: player.id, teamId: player.teamId, number: data.number, approved: true, drawnCardId: cell.isSpecial ? drawForNumber({ hand: teamHand(room, player.teamId) }).id : null };
   awardLinePrizes(room);
   room.winners = teams(room).filter(t => teamLines(room, t.id) >= winningLineGoal(room.size)).map(t => t.id);
   if (room.winners.length || room.called.length === room.size ** 2) {
@@ -82,7 +84,7 @@ function skip(room, player, data, presence) {
 }
 function resetProgress(room) {
   Object.assign(room, { cells: createCells(room.board), called: [], turn: null, winners: [], pending: null, lastDecision: null,
-    activeCard: null, history: [], roundStart: null, linePrizes: createLinePrizes(room.size) });
+    activeCard: null, history: [], roundStart: null, teamHands: {}, linePrizes: createLinePrizes(room.size) });
   room.players.forEach(p => { p.usedDemoCards = []; });
 }
 function reset(room, player) {
