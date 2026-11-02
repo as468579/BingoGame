@@ -32,3 +32,8 @@
 .bridge-card-choice-rules p{margin:7px 0;font-size:inherit;color:inherit;line-height:inherit}
 .bridge-card-choice-rules ul{margin:8px 0 12px;padding-left:20px}
 .bridge-heading{justify-content:flex-end}
+#bridgeRound{font-size:20px;font-weight:700;line-height:1.5;color:#f3dfa3;overflow-wrap:anywhere}
+#bridgeLeadColor{font-size:18px;font-weight:700;line-height:1.5}
+#bridgeLeadColor[data-color="red"]{color:#ff9393}
+#bridgeLeadColor[data-color="yellow"]{color:#ffe16b}
+#bridgeLeadColor[data-color="blue"]{color:#8fd0ff}

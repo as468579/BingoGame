@@ -39,9 +39,11 @@ export class BridgeBoardView {
     }));
     $('bridgeLines').replaceChildren(...renderBoardLines(team.cells.map(cell => ({ isCovered: Boolean(cell.card) })), room.size));
     $('bridgeMoveHint').textContent = selected ? `${colorNames[selected.color]} ${selected.number}：${missingSuit ? '手中缺少指定顏色，可自由放置' : '須放在相同數字格'}，請點亮起的空格。`
-      : room.phase === 'lobby' ? '開始時所有隊伍共用相同盤面與配色，獨立隨機發牌。'
-        : !mine ? '正在查看其他隊伍，點選自己的隊伍即可返回出牌。' : '點選手牌查看放置或棄牌說明；標示「只能丟棄」的卡片，確認後會結束本次出牌。';
-    $('bridgeHandCount').textContent = `${hand.length} 張 · 僅自己可見`;
+      : room.phase === 'lobby' ? '每隊盤面各自隨機排列，共用相同卡片配色，獨立隨機發牌。'
+        : !mine ? '正在查看其他隊伍，點選自己的隊伍即可返回出牌。' : '';
+    $('bridgeMoveHint').hidden = !$('bridgeMoveHint').textContent;
+    $('bridgeHandCount').textContent = '';
+    $('bridgeHandCount').hidden = true;
     $('bridgeHand').replaceChildren(...[...hand].sort((a, b) => a.number - b.number).map(card => {
       const move = moves.find(move => move.cardNumber === card.number), legal = move?.targets || [];
       const button = cardFace({ tag: 'button', className: `bridge-number-card ${card.color}${card.number === this.selected ? ' selected' : ''}${!canPlay || (!legal.length && !move?.canDiscard) ? ' is-unplayable' : ''}`, type: colorNames[card.color], art: card.number });

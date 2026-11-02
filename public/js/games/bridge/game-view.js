@@ -32,6 +32,7 @@ export class BridgeRoomView {
     const { room, me, playerId, busy, connected } = state;
     const game = room.bridge;
     const activeTeam = game.teams.find(team => team.id === game.activeTeamId);
+    const activePlayer = room.players.find(player => player.id === activeTeam?.turn);
     const key = `${room.code}:${room.boardVersion}:${playerId}`;
     const opening = room.phase === 'finished' && (this.phase !== 'finished' || this.key !== key);
     if (this.key !== key) { this.viewedTeam = null; this.settingsDirty = false; this.closeResults(); }
@@ -50,8 +51,9 @@ export class BridgeRoomView {
       busy, connected, playersPerTeam: game.playersPerTeam, goal: room.goal, selectedTeamId: viewed.id, activeTeamId: game.activeTeamId });
     $('bridgeBoardTitle').textContent = `${viewed.name}${viewed.id === me.teamId ? '（你的隊伍）' : ''}`;
     $('bridgeLineCount').textContent = `${viewed.lines} / ${room.goal} 條線`;
-    $('bridgeRound').textContent = room.phase === 'lobby' ? `${game.teamCount} 隊 · 每隊 ${game.playersPerTeam} 人 · ${room.size} × ${room.size}` : `第 ${game.round} 輪 · 每人一張${activeTeam ? ` · ${activeTeam.name} 出牌中` : ''}`;
+    $('bridgeRound').textContent = room.phase === 'lobby' ? `${game.teamCount} 隊 · 每隊 ${game.playersPerTeam} 人 · ${room.size} × ${room.size}` : `第 ${game.round} 輪 · 每人一張${activeTeam ? ` · ${activeTeam.name} 出牌中${activePlayer ? ` · 輪到 ${activePlayer.name}${activePlayer.id === playerId ? '（你）' : ''}${!activePlayer.online ? '（離線，等待重連）' : ''}` : ''}` : ''}`;
     $('bridgeLeadColor').textContent = viewed.leadColor ? `指定顏色：${colorNames[viewed.leadColor]}` : '指定顏色：首位出牌決定';
+    $('bridgeLeadColor').dataset.color = viewed.leadColor || '';
     const turnPlayer = room.players.find(player => player.id === viewed.turn);
     $('bridgeStatus').textContent = room.phase === 'lobby' ? '每隊滿員並全員準備後，由房主開始。'
       : room.phase === 'finished' ? '本局已結束，可查看各隊盤面與結果。'

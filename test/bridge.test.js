@@ -68,11 +68,11 @@ test('balanced three-color decks contain every number exactly once at every supp
   }
 });
 
-test('teams share one arrangement and color map but each receives a complete independently dealt deck', () => {
+test('teams have independently shuffled boards and share a color map with complete independently dealt decks', () => {
   const f = fixture({ size: 5, p: 3 }); f.start();
   const game = f.room.bridge;
   for (const team of game.teams) {
-    assert.deepEqual(team.cells.map(cell => cell.number), game.board);
+    assert.deepEqual(team.cells.map(cell => cell.number).sort((a, b) => a - b), [...game.board].sort((a, b) => a - b));
     assert.ok(team.cells.every(cell => cell.card === null));
     const cards = team.playerIds.flatMap(id => game.hands[id]);
     assert.deepEqual(cards.sort((a, b) => a.number - b.number), game.deck);
@@ -80,6 +80,11 @@ test('teams share one arrangement and color map but each receives a complete ind
     assert.ok(Math.max(...counts) - Math.min(...counts) <= 1);
     assert.deepEqual(team.order, team.playerIds);
   }
+  assert.notDeepEqual(game.teams[0].cells.map(cell => cell.number), game.teams[1].cells.map(cell => cell.number));
+  const otherBoard = structuredClone(game.teams[1].cells);
+  game.teams[0].cells.reverse();
+  game.teams[0].cells[0].card = { number: 1, color: 'red' };
+  assert.deepEqual(game.teams[1].cells, otherBoard, 'team arrangements and occupancy are independent');
 });
 
 test('only the owner receives their hand or legal moves, including when the viewer is host', () => {

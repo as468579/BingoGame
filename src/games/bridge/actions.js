@@ -52,7 +52,6 @@ function start(room, player) {
   const rosters = Array.from({ length: game.teamCount }, (_, i) => room.players.filter(member => member.teamId === teamId(i)));
   if (room.players.length !== game.teamCount * game.playersPerTeam ||
       rosters.some(roster => roster.length !== game.playersPerTeam || roster.some(member => !member.ready))) fail('每隊必須滿員且所有玩家準備完成。');
-  game.board = shuffle(game.board);
   game.deck = coloredDeck(game.size);
   game.hands = {};
   game.teams = rosters.map((roster, i) => {
@@ -60,7 +59,7 @@ function start(room, player) {
     for (const id of recipients) game.hands[id] = [];
     shuffle(game.deck).forEach((card, index) => game.hands[recipients[index % recipients.length]].push({ ...card }));
     return { id: teamId(i), name: `隊伍 ${i + 1}`, playerIds: roster.map(member => member.id),
-      cells: game.board.map(number => ({ number, card: null })), order: [], cursor: 0, leadColor: null, done: false };
+      cells: shuffle(game.board).map(number => ({ number, card: null })), order: [], cursor: 0, leadColor: null, done: false };
   });
   game.round = 1;
   game.winners = [];

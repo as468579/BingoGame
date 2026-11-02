@@ -76,7 +76,7 @@ export class BridgeCardChoiceView {
     $('bridgeCardChoiceTitle').textContent = issue ? '無法使用這張卡片' : `${discard ? '丟棄' : '使用'}${colors[card.color]} ${card.number}？`;
     $('bridgeCardChoiceReason').textContent = issue || (discard ? '對應數字格已被佔領，這張牌只能丟棄。確認後會消耗卡片，並換下一位玩家出牌。'
       : missingSuit ? '手中沒有指定顏色，可放在任意空格。確認後，請點選盤面上亮起的空格放置。'
-        : `這張牌須放在數字 ${card.number} 的空格。確認後，請點選盤面上亮起的空格放置。`);
+        : '確認後，請點選盤面上亮起的空格放置。');
     $('bridgeConfirmCardChoice').textContent = discard ? '確認丟棄，結束出牌' : '確認使用，選擇落點';
     $('bridgeConfirmCardChoice').hidden = Boolean(issue);
     $('bridgeCancelCardChoice').textContent = issue ? '知道了' : '取消';

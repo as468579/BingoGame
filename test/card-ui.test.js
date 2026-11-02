@@ -434,12 +434,15 @@ test('waiting Bridge teams see which team is playing and cannot select a card fo
   const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
   s.me.hand = [{ number: 1, color: 'red' }];
   s.room.bridge.activeTeamId = 'team-2';
+  s.room.players.push({ id: 'guest', name: '測試隊員', teamId: 'team-2', online: true });
+  s.room.bridge.teams[1].turn = 'guest';
   s.room.bridge.teams[0].turn = null;
   s.room.bridge.legalMoves = [{ cardNumber: 1, targets: [] }];
   const calls = [], view = new BridgeRoomView({ bridge: (...args) => calls.push(args) });
   view.render(s);
   assert.match(nodes.bridgeStatus.textContent, /目前由 隊伍 2 出牌/);
   assert.match(nodes.bridgeRound.textContent, /隊伍 2 出牌中/);
+  assert.match(nodes.bridgeRound.textContent, /輪到 測試隊員/);
   assert.equal(nodes.bridgeBoard.children.every(cell => cell.disabled), true);
   nodes.bridgeHand.children[0].click();
   assert.match(nodes.bridgeCardChoiceReason.textContent, /目前由 隊伍 2 出牌/);
