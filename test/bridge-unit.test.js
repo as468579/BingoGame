@@ -14,9 +14,10 @@ function position(hand, leadColor = 'yellow') {
 test('Bridge state instances have independent boards, hands and result collections', () => {
   const first = createBridgeState(), second = createBridgeState();
   first.board.reverse(); first.hands.a = [{ number: 1, color: 'red' }]; first.winners.push('team-1');
-  assert.deepEqual(second.board, Array.from({ length: 25 }, (_, i) => i + 1));
+  assert.deepEqual(second.board, Array.from({ length: 36 }, (_, i) => i + 1));
   assert.deepEqual(second.hands, {}); assert.deepEqual(second.winners, []);
-  assert.equal(second.round, 0); assert.equal(second.teamCount, 2); assert.equal(second.playersPerTeam, 2);
+  assert.equal(second.round, 0); assert.equal(second.teamCount, 3); assert.equal(second.playersPerTeam, 4);
+  assert.equal(second.size, 6);
 });
 
 test('shuffle preserves its input and supports deterministic random choices including empty decks', () => {
@@ -46,7 +47,7 @@ test('number-color allocation is reproducible and balanced without requiring a l
 });
 
 test('automatic assignment fills available teams without moving assigned or active-game players', () => {
-  const room = { phase: 'lobby', bridge: createBridgeState(), players: [] };
+  const room = { phase: 'lobby', bridge: createBridgeState({ teamCount: 2, playersPerTeam: 2 }), players: [] };
   for (let i = 0; i < 5; i++) {
     const player = { id: String(i), teamId: null }; room.players.push(player); assignBridgePlayer(room, player);
   }

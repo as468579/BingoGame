@@ -26,7 +26,7 @@ test('new team Bingo rooms default to 8 by 8 without changing other games or sav
   assert.deepEqual(initial.board, Array.from({ length: 64 }, (_, i) => i + 1));
   assert.equal(initial.linePrizes.length, 18);
   assert.equal(getGame('bingo').initializeRoom().size, 5);
-  assert.equal(getGame('bridge-bingo').initializeRoom().size, 5);
+  assert.equal(getGame('bridge-bingo').initializeRoom().size, 6);
   const f = fixture({ size: 5 }); getGame('bingo-next').migrate(f.room);
   assert.equal(f.room.size, 5); assert.equal(f.room.board.length, 25);
 });

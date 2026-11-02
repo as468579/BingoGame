@@ -1,5 +1,6 @@
 
 .next-team-settings{display:flex;gap:12px;margin-bottom:16px}.next-team-settings input{width:100px}
+#next-phaseText{font-size:20px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
 #next-root [data-team="0"]{--team-ink:#b84840;--team-wash:#b8484040}
 #next-root [data-team="1"]{--team-ink:#488ac9;--team-wash:#488ac940}
 #next-root [data-team="2"]{--team-ink:#d2ae3b;--team-wash:#d2ae3b40}

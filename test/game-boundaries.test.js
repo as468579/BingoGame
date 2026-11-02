@@ -17,6 +17,11 @@ test('game modules create only their own room and member state', () => {
   for (const key of ['called', 'history', 'linePrizes', 'pending', 'activeCard']) assert.equal(key in bridge, false, key);
   for (const key of ['board', 'cells', 'hand', 'usedDemoCards']) assert.equal(key in b, false, key);
   assert.equal(b.teamId, 'team-1');
+  assert.equal(bridge.size, 6);
+  assert.equal(bridge.bridge.size, 6);
+  assert.equal(bridge.bridge.teamCount, 3);
+  assert.equal(bridge.bridge.playersPerTeam, 4);
+  assert.equal(getGame('bridge-bingo').capacity(bridge), 12);
   assert.equal(getGame().id, 'bingo');
   assert.throws(() => getGame('missing'), /有效的遊戲/);
 });

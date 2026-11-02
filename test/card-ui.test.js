@@ -241,10 +241,16 @@ test('both games use shared card faces and concealed backs without changing card
   const { HandView } = await import('../public/js/games/bingo/views/hand-view.js');
   const { BridgeBoardView } = await import('../public/js/games/bridge/board-view.js');
   const { DrawCardView } = await import('../public/js/games/bingo/views/draw-card-view.js');
+  const { DrawCardView: NextDrawCardView } = await import('../public/js/games/bingonext/views/draw-card-view.js');
   new DrawCardView().reset();
+  new NextDrawCardView().reset();
   const bridge = new BridgeBoardView({ bridge() {} }), s = bridgeState();
   bridge.render(s, s.room.bridge.teams[0]);
-  for (const back of [nodes.drawCardDisplay.children[0], nodes.bridgeHand.children[0]]) {
+  assert.match(nodes.bridgeHand.children[0].className, /bridge-hand-back/);
+  assert.doesNotMatch(nodes.bridgeHand.children[0].className, /bridge-number-card/);
+  assert.match(nodes.bridgeHand.children[0].className, /card-back-parchment/);
+  assert.equal(nodes.bridgeHand.children[0].textContent, '');
+  for (const back of [nodes.drawCardDisplay.children[0], nodes['next-drawCardDisplay'].children[0], nodes.bridgeHand.children[0]]) {
     assert.match(back.className, /game-card-back/);
     assert.equal(back.attributes['aria-hidden'], 'true');
     assert.equal(back.children[0].tagName, 'svg');
@@ -260,6 +266,11 @@ test('both games use shared card faces and concealed backs without changing card
   bridge.render(s, s.room.bridge.teams[0]);
   assert.match(nodes.bridgeHand.children[0].className, /game-card-front/);
   assert.equal(nodes.bridgeHand.children[0].textContent, '藍色3');
+  const watermark = nodes.bridgeHand.children[0].children.find(child => child.attributes.class === 'card-anchor-watermark');
+  assert.ok(watermark);
+  assert.equal(watermark.attributes['aria-hidden'], 'true');
+  assert.equal(watermark.attributes.focusable, 'false');
+  assert.equal(watermark.children[0].attributes.d, nodes.drawCardDisplay.children[0].children[0].children[0].attributes.d);
   nodes.bridgeHand.children[0].click();
   assert.match(nodes.bridgeCardChoiceCard.children[0].className, /game-card-front/);
   assert.equal(s.me.hand.length, 1);
@@ -275,7 +286,10 @@ test('Bridge scan is only shown to the host before play and disables during disc
   s.busy = true; view.render(s); assert.equal(nodes.bridgeScan.disabled, true);
   s.busy = false; s.connected = false; view.render(s); assert.equal(nodes.bridgeScan.disabled, true);
   s.connected = true; s.room.lastScanAt = 1; s.room.lastScanRemovedCount = 2; view.render(s);
-  assert.match(nodes.bridgeScanHint.textContent, /移除 2 位/);
+  assert.equal(nodes.bridgeScanHint.textContent, '');
+  assert.equal(nodes.bridgeScanHint.hidden, true);
+  assert.equal(nodes.bridgeMoveHint.hidden, true);
+  assert.equal(nodes.bridgeHandEmpty.hidden, true);
   s.playerId = 'other'; view.render(s);
   assert.equal(nodes.bridgeScan.hidden, true); assert.equal(nodes.bridgeScanHint.hidden, true);
   s.playerId = 'host'; s.room.phase = 'playing'; view.render(s);

@@ -7,7 +7,10 @@ const { migrateBridgeRoom } = require('./migration');
 
 module.exports = {
   id: 'bridge-bingo',
-  initializeRoom: () => ({ bridge: createBridgeState(), size: 5, boardVersion: 0 }),
+  initializeRoom: () => {
+    const bridge = createBridgeState();
+    return { bridge, size: bridge.size, boardVersion: 0 };
+  },
   createPlayer: (room, name, token) => ({ ...createIdentity(name, token), teamId: null, ready: false }),
   capacity: room => room.bridge.teamCount * room.bridge.playersPerTeam,
   joined: assignBridgePlayer,

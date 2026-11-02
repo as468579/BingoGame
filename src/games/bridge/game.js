@@ -14,7 +14,7 @@ function shuffle(values, pick = randomInt) {
   return result;
 }
 
-function createBridgeState({ teamCount = 2, playersPerTeam = 2, size = 5 } = {}) {
+function createBridgeState({ teamCount = 3, playersPerTeam = 4, size = 6 } = {}) {
   return { teamCount, playersPerTeam, size, board: createBoard(size), deck: [], hands: {}, teams: [], discards: [], round: 0, winners: [], lastPlay: null };
 }
 

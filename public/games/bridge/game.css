@@ -37,3 +37,7 @@
 #bridgeLeadColor[data-color="red"]{color:#ff9393}
 #bridgeLeadColor[data-color="yellow"]{color:#ffe16b}
 #bridgeLeadColor[data-color="blue"]{color:#8fd0ff}
+#bridgeBoard .bridge-placed-card{font-size:14px;font-weight:700;line-height:1.4;padding:2px 4px}
+.bridge-hand-back{flex:none;width:76px;height:108px;padding:7px}
+.game-card.game-card-back.bridge-hand-back{border-color:#806336}
+.bridge-hand-back.card-back-parchment:before{border-color:#997b4f}

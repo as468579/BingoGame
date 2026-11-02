@@ -64,9 +64,8 @@ export class BridgeRoomView {
     $('bridgeStart').hidden = room.host !== playerId || room.phase !== 'lobby';
     $('bridgeScan').hidden = room.host !== playerId || room.phase !== 'lobby';
     $('bridgeScan').disabled = busy || !connected;
-    $('bridgeScanHint').hidden = room.host !== playerId || room.phase !== 'lobby';
-    $('bridgeScanHint').textContent = room.lastScanAt ? `上次掃描移除 ${room.lastScanRemovedCount} 位離線玩家，目前 ${room.players.length} 人。`
-      : '重新掃描會移除已斷線的玩家，保留在線玩家的隊伍與準備狀態。';
+    $('bridgeScanHint').hidden = true;
+    $('bridgeScanHint').textContent = '';
     $('bridgeStart').disabled = busy || !connected || room.players.length !== game.teamCount * game.playersPerTeam ||
       room.players.some(player => !player.ready || !player.teamId) || game.teams.some(team => team.playerIds.length !== game.playersPerTeam);
     $('bridgeReset').hidden = room.host !== playerId || room.phase === 'lobby'; $('bridgeReset').disabled = busy || !connected;

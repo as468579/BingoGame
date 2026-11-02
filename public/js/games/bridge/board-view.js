@@ -39,14 +39,14 @@ export class BridgeBoardView {
     }));
     $('bridgeLines').replaceChildren(...renderBoardLines(team.cells.map(cell => ({ isCovered: Boolean(cell.card) })), room.size));
     $('bridgeMoveHint').textContent = selected ? `${colorNames[selected.color]} ${selected.number}：${missingSuit ? '手中缺少指定顏色，可自由放置' : '須放在相同數字格'}，請點亮起的空格。`
-      : room.phase === 'lobby' ? '每隊盤面各自隨機排列，共用相同卡片配色，獨立隨機發牌。'
+      : room.phase === 'lobby' ? ''
         : !mine ? '正在查看其他隊伍，點選自己的隊伍即可返回出牌。' : '';
     $('bridgeMoveHint').hidden = !$('bridgeMoveHint').textContent;
     $('bridgeHandCount').textContent = '';
     $('bridgeHandCount').hidden = true;
     $('bridgeHand').replaceChildren(...[...hand].sort((a, b) => a.number - b.number).map(card => {
       const move = moves.find(move => move.cardNumber === card.number), legal = move?.targets || [];
-      const button = cardFace({ tag: 'button', className: `bridge-number-card ${card.color}${card.number === this.selected ? ' selected' : ''}${!canPlay || (!legal.length && !move?.canDiscard) ? ' is-unplayable' : ''}`, type: colorNames[card.color], art: card.number });
+      const button = cardFace({ tag: 'button', className: `bridge-number-card ${card.color}${card.number === this.selected ? ' selected' : ''}${!canPlay || (!legal.length && !move?.canDiscard) ? ' is-unplayable' : ''}`, type: colorNames[card.color], art: card.number, watermark: true });
       if (move?.canDiscard) button.append(element('span', 'bridge-card-rule', '只能丟棄'));
       button.setAttribute('aria-label', `${colorNames[card.color]} ${card.number}${move?.canDiscard ? '，只能丟棄' : missingSuit ? '，缺色可自由放置' : ''}${legal.length ? '，可出牌' : move?.canDiscard ? '' : '，目前不可出牌'}`);
       button.setAttribute('aria-pressed', String(card.number === this.selected));
@@ -57,8 +57,9 @@ export class BridgeBoardView {
       };
       return button;
     }));
-    if (room.phase === 'lobby' && !hand.length) $('bridgeHand').append(cardBack('bridge-number-card'));
-    $('bridgeHandEmpty').textContent = room.phase === 'lobby' ? '開始後只在這裡查看自己的手牌。' : hand.length ? '' : '手牌已用完，之後回合會自動略過你。';
+    if (room.phase === 'lobby' && !hand.length) $('bridgeHand').append(cardBack('bridge-hand-back card-back-parchment'));
+    $('bridgeHandEmpty').textContent = room.phase === 'lobby' || hand.length ? '' : '手牌已用完，之後回合會自動略過你。';
+    $('bridgeHandEmpty').hidden = !$('bridgeHandEmpty').textContent;
     this.choice.refresh();
   }
 
