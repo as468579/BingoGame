@@ -14,6 +14,7 @@ export class BingoNextController {
   actions() {
     return {
       team: (playerId, teamId) => this.app.command('team', { playerId, teamId }),
+      captain: (teamId, playerId) => this.app.command('captain', { teamId, playerId }),
       useCard: cardId => this.app.command('cardUse', { cardId }),
       cancelCard: cardSessionId => this.app.command('cardCancel', { cardSessionId }),
       answerCard: (cardSessionId, choice) => this.app.command('cardAnswer', { cardSessionId, choice }),
@@ -21,11 +22,12 @@ export class BingoNextController {
       finishCard: cardSessionId => this.app.command('cardFinish', { cardSessionId }),
       selectPlayer: id => { this.state.selected = id; this.app.render(); },
       editCell: (index, number) => { this.state.editCell(index, number); this.app.view.gameView.board.validate(this.state); },
-      shuffle: () => {
-        this.state.draft = shuffledBoard(this.state.room.size);
-        this.state.draftDirty = true;
-        this.app.render();
-      },
+      shuffle: () => this.app.perform(async () => {
+        const { room } = this.state;
+        const result = await this.app.api.send('board', { board: shuffledBoard(room.size), boardVersion: room.boardVersion, rerollSpecial: true });
+        this.state.draftDirty = false;
+        this.app.update(result.room);
+      }),
       ready: () => this.app.perform(async () => {
         const { me, room, draft } = this.state;
         const result = await this.app.api.send(me.id === room.host ? 'board' : 'ready',

@@ -47,6 +47,7 @@ export class BoardView {
     $('board').replaceChildren(...cells.map(({ number, isCovered }, index) => {
       const cell = element(editing ? 'input' : 'button', 'cell');
       cell.dataset.column = index % size % 5;
+      cell.setAttribute('title', concealed ? '號碼尚未公開' : `${number || '未填寫'}`);
       cell.setAttribute('aria-label', `第 ${Math.floor(index / size) + 1} 列第 ${index % size + 1} 格，${concealed ? '號碼尚未公開' : `號碼 ${number}`}`);
       if (editing) {
         Object.assign(cell, { type: 'number', min: '1', max: size ** 2, inputMode: 'numeric', value: number || '', disabled: busy });

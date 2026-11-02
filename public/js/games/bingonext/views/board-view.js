@@ -20,11 +20,13 @@ export class BoardView {
     $('board').setAttribute('aria-label', `${room.size} 乘 ${room.size} 共用賓果盤面`);
     $('board').dataset.size = room.size; $('board').dataset.phase = room.phase;
     const focused = document.activeElement?.dataset?.cell;
-    const cells = editing ? draft.map(number => ({ number, isCovered: false })) : room.cells;
+    const cells = editing ? draft.map((number, index) => ({ number, isCovered: false, isSpecial: Boolean(room.cells[index]?.isSpecial) })) : room.cells;
     $('board').replaceChildren(...cells.map((cell, index) => {
       const node = element(editing ? 'input' : 'button', `cell${cell.isCovered ? ' marked' : ''}`);
       const owner = room.teams.find(t => t.id === cell.teamId);
       node.dataset.column = index % room.size % 5;
+      node.setAttribute('title', `${cell.number || '未填寫'}`);
+      if (cell.isSpecial) node.classList.add('is-special');
       node.setAttribute('aria-label', `號碼 ${cell.number}${cell.isSpecial ? '，特殊格，佔領可獲得一張卡' : ''}，${owner ? `${owner.name} 已佔領` : '未佔領'}`);
       if (editing) {
         Object.assign(node, { type: 'number', min: '1', max: room.size ** 2, inputMode: 'numeric', value: cell.number || '', disabled: busy || !connected });
@@ -33,7 +35,6 @@ export class BoardView {
       } else {
         node.append(element('span', 'next-cell-number', cell.number));
         if (cell.isSpecial) {
-          node.classList.add('is-special');
           const marker = element('span', 'next-special-marker', '✦');
           marker.setAttribute('aria-hidden', 'true'); node.append(marker);
         }
@@ -50,9 +51,9 @@ export class BoardView {
       return lines;
     })));
     this.prizes.render(room.cells, room.size, room.phase, room.linePrizes, me.teamId, room.teams);
-    $('editTools').hidden = !editing;
-    $('shuffle').hidden = !editing; $('shuffle').disabled = busy || !connected;
-    $('boardHint').textContent = '✦ 特殊格：每格開局時獨立有 10% 機率，佔領可獲得一張卡。整條線都屬於同隊才能獲獎。';
+    $('editTools').hidden = !host || room.phase !== 'lobby';
+    $('shuffle').hidden = !host || room.phase !== 'lobby'; $('shuffle').disabled = busy || !connected;
+    $('boardHint').textContent = '✦ 特殊格：數量為總格數 × 15%（無條件進位），位置隨機，佔領可獲得一張卡。整條線都屬於同隊才能獲獎。';
     if (editing) { this.validate(state); if (focused !== undefined) $('board').querySelector(`[data-cell="${focused}"]`)?.focus(); }
   }
   validate({ room, draft }) {

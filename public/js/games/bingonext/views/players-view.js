@@ -6,7 +6,8 @@ export class PlayersView {
   constructor(actions) {
     this.roster = new TeamRosterView({ list: $('players'), controls: $('joinControls'), ownTeam: $('ownTeam'), ready: $('ready'),
       count: $('playerCount'), summary: $('presenceSummary') }, {
-      onAssign: (playerId, teamId) => actions.team(playerId, teamId), onReady: () => actions.ready()
+      onAssign: (playerId, teamId) => actions.team(playerId, teamId), onReady: () => actions.ready(),
+      onCaptain: (teamId, playerId) => actions.captain(teamId, playerId)
     });
   }
   render({ room, me, playerId, busy, connected }) {

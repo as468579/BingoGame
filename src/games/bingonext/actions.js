@@ -19,6 +19,7 @@ function settings(room, player, data) {
   resetProgress(room);
   room.players.forEach(p => { p.teamId = null; p.ready = false; p.hand = []; });
   room.players.forEach(p => assignPlayer(room, p));
+  room.captains = {};
 }
 function team(room, player, data) {
   if (room.phase !== 'lobby') fail('開始後不能更換隊伍。');
@@ -26,7 +27,17 @@ function team(room, player, data) {
   if (!member || (member.id !== player.id && room.host !== player.id)) fail('只能變更自己或由房主分配隊伍。', 403);
   if (data.teamId !== null && !teams(room).some(t => t.id === data.teamId)) fail('無效的隊伍。');
   if (data.teamId && room.players.filter(p => p.id !== member.id && p.teamId === data.teamId).length >= room.playersPerTeam) fail('該隊已滿，請先移出一位玩家。');
+  if (member.teamId !== data.teamId && room.captains?.[member.teamId] === member.id) delete room.captains[member.teamId];
   member.teamId = data.teamId; member.ready = false;
+}
+function captain(room, player, data) {
+  requireHost(room, player, '只有房主可以指定隊長。');
+  if (room.phase !== 'lobby') fail('請在準備階段指定隊長。');
+  if (!teams(room).some(t => t.id === data.teamId)) fail('無效的隊伍。');
+  if (data.playerId !== null && !room.players.some(p => p.id === data.playerId && p.teamId === data.teamId)) fail('隊長必須是該隊成員。');
+  room.captains ||= {};
+  if (data.playerId === null) delete room.captains[data.teamId];
+  else room.captains[data.teamId] = data.playerId;
 }
 function ready(room, player, data) {
   if (room.phase !== 'lobby' || !player.teamId) fail('請在準備階段加入隊伍。');
@@ -38,9 +49,15 @@ function board(room, player, data) {
   if (room.phase !== 'lobby') fail('開始後不能修改盤面。');
   if (data.boardVersion !== room.boardVersion) fail('盤面已更新，請重新確認。', 409);
   if (!boardValid(data.board, room.size)) fail(`請填入 1～${room.size ** 2}，每個數字只能出現一次。`);
-  const changed = data.board.some((n, i) => n !== room.board[i]);
-  room.board = [...data.board]; room.cells = createCells(room.board);
-  if (changed) { room.boardVersion++; room.players.forEach(p => { p.ready = false; }); }
+  const changed = data.rerollSpecial === true || data.board.some((n, i) => n !== room.board[i]);
+  const previous = room.cells;
+  room.board = [...data.board];
+  room.cells = data.rerollSpecial === true ? createSpecialCells(room.board)
+    : createCells(room.board).map((cell, index) => ({ ...cell, isSpecial: Boolean(previous[index]?.isSpecial) }));
+  if (changed) {
+    room.boardVersion++;
+    if (data.rerollSpecial !== true) room.players.forEach(p => { p.ready = false; });
+  }
   if (typeof data.ready === 'boolean') player.ready = data.ready;
 }
 function start(room, player) {
@@ -48,7 +65,6 @@ function start(room, player) {
   if (room.phase !== 'lobby') fail('遊戲已開始。');
   if (room.players.some(p => !p.ready || !p.teamId) ||
       teams(room).some(t => !room.players.some(p => p.teamId === t.id))) fail('每隊至少需要 1 位玩家，且所有玩家都必須完成分隊與準備。');
-  room.cells = createSpecialCells(room.board);
   room.phase = 'playing'; room.turn = room.players[0].id; room.history = [];
   room.roundStart = captureGameState(room).playerStates;
 }
@@ -76,6 +92,9 @@ function scan(room, player, data, presence) {
   if (room.phase !== 'lobby') fail('請在準備階段重新掃描。');
   const retained = room.players.filter(p => p.id === room.host || presence.isOnline(p.id));
   room.lastScanRemovedCount = room.players.length - retained.length; room.lastScanAt = Date.now(); room.players = retained;
+  for (const [id, captainId] of Object.entries(room.captains || {})) {
+    if (!retained.some(p => p.id === captainId && p.teamId === id)) delete room.captains[id];
+  }
 }
 function skip(room, player, data, presence) {
   requireHost(room, player, '只有房主可以略過離線玩家。');
@@ -83,7 +102,7 @@ function skip(room, player, data, presence) {
   advanceTurn(room);
 }
 function resetProgress(room) {
-  Object.assign(room, { cells: createCells(room.board), called: [], turn: null, winners: [], pending: null, lastDecision: null,
+  Object.assign(room, { cells: createSpecialCells(room.board), called: [], turn: null, winners: [], pending: null, lastDecision: null,
     activeCard: null, history: [], roundStart: null, teamHands: {}, linePrizes: createLinePrizes(room.size) });
   room.players.forEach(p => { p.usedDemoCards = []; });
 }
@@ -98,7 +117,7 @@ function rerollPrizes(room, player) {
   if (room.phase !== 'lobby') fail('只能在遊戲開始前重新隨機獎品。');
   room.linePrizes = createLinePrizes(room.size);
 }
-const handlers = { settings, board, team, ready, start, call, scan, skip, reset, undo, rerollPrizes,
+const handlers = { settings, board, team, captain, ready, start, call, scan, skip, reset, undo, rerollPrizes,
   cardUse: useCard, cardCancel: cancelCard, cardAnswer: answerCard, cardJudge: judgeCard, cardFinish: finishCard };
 function applyGameAction(room, player, data, presence) {
   if (!Object.hasOwn(handlers, data.kind)) fail('不支援的團隊賓果操作。');

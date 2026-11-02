@@ -1,8 +1,8 @@
 
 .next-team-settings{display:flex;gap:12px;margin-bottom:16px}.next-team-settings input{width:100px}
 #next-phaseText{font-size:20px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
-#next-board .cell.is-special:not(.marked){background:#b18a35;color:#fff3c4!important;box-shadow:inset 0 0 0 2px #efd17b}
-#next-board .cell.is-special:not(.marked):hover:enabled{background:#c49a3e}
+#next-board .cell.is-special:not(.marked){background:#947c48;color:#f3e7c1!important;box-shadow:inset 0 0 0 1px #c5ab6d}
+#next-board .cell.is-special:not(.marked):hover:enabled{background:#a38b52}
 .next-special-marker{position:absolute;top:3px;right:4px;font:700 13px/1 sans-serif;color:#ffe294;text-shadow:0 1px 2px #362805;pointer-events:none;z-index:3}
 #next-root [data-team="0"]{--team-ink:#b84840;--team-wash:#b8484040}
 #next-root [data-team="1"]{--team-ink:#488ac9;--team-wash:#488ac940}

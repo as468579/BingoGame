@@ -13,9 +13,16 @@ function createCells(board, called = []) {
   return board.map(number => ({ number, isCovered: covered.has(number) }));
 }
 
-// Independent Bernoulli trials: a round may legitimately have no special cells.
+// Sample positions without replacement so every layout has exactly ceil(N * 15 / 100) specials.
 function createSpecialCells(board, pick = randomInt) {
-  return createCells(board).map(cell => ({ ...cell, isSpecial: pick(10) === 0 }));
+  const cells = createCells(board).map(cell => ({ ...cell, isSpecial: false }));
+  const positions = cells.map((_, index) => index);
+  for (let i = 0; i < Math.ceil(cells.length * 15 / 100); i++) {
+    const selected = i + pick(cells.length - i);
+    [positions[i], positions[selected]] = [positions[selected], positions[i]];
+    cells[positions[i]].isSpecial = true;
+  }
+  return cells;
 }
 
 function coverNumber(cells, number, isCovered = true) {

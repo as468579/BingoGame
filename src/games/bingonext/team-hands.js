@@ -1,4 +1,5 @@
 'use strict';
+const { createSpecialCells } = require('./board');
 
 function teamHand(room, teamId) {
   room.teamHands ||= {};
@@ -6,6 +7,7 @@ function teamHand(room, teamId) {
 }
 
 function migrateTeamHands(room) {
+  if (room.phase === 'lobby' && room.cells?.length && room.cells.every(cell => typeof cell.isSpecial !== 'boolean')) room.cells = createSpecialCells(room.board);
   const convert = state => {
     if (!state.teamHands) {
       state.teamHands = {};

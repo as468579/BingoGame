@@ -114,6 +114,21 @@ test('BingoNext renders only its own shared board, team roster, team rewards and
   view.hide(); assert.equal(nodes['next-root'].hidden, true); assert.equal(nodes['next-gameResultsDialog'].open, false);
 });
 
+test('Team Bingo shuffle persists the board and requests special-cell reroll immediately', async t => {
+  mount(t);
+  const { BingoNextController } = await import('../public/js/games/bingonext/controller.js');
+  const calls = [], state = { room: { size: 3, boardVersion: 7 }, draftDirty: true };
+  const saved = { code: 'SAVED' };
+  const app = { state, perform: operation => operation(), api: { send: async (...args) => { calls.push(args); return { room: saved }; } },
+    update: room => { assert.equal(room, saved); } };
+  await new BingoNextController(app).actions().shuffle();
+  assert.equal(calls[0][0], 'board');
+  assert.equal(calls[0][1].rerollSpecial, true); assert.equal(calls[0][1].boardVersion, 7);
+  assert.equal(calls[0][1].ready, undefined);
+  assert.deepEqual([...calls[0][1].board].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.equal(state.draftDirty, false);
+});
+
 test('Team Bingo shared hand renders usable cards only during the member turn and clears demo cards', async t => {
   const nodes = mount(t);
   const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
@@ -164,7 +179,7 @@ test('Bridge Bingo and BingoNext instantiate the same roster component and share
   const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
   const { TeamRosterView } = await import('../public/js/views/team-roster-view.js');
   const bridge = new BridgeRoomView({ bridge: (...args) => sent.push(args) });
-  const next = new PlayersView({ team: (...args) => sent.push(args), ready: () => sent.push(['ready']) });
+  const next = new PlayersView({ team: (...args) => sent.push(args), ready: () => sent.push(['ready']), captain: (...args) => sent.push(['captain', ...args]) });
   assert.ok(bridge.roster instanceof TeamRosterView); assert.equal(bridge.roster.constructor, next.roster.constructor);
   const s = bridgeState(); bridge.render(s);
   assert.equal(nodes.bridgeTeams.className, nodes['next-players'].className);
@@ -176,6 +191,16 @@ test('Bridge Bingo and BingoNext instantiate the same roster component and share
   const snapshot = { room: { ...s.room, teams: s.room.bridge.teams.map(team => ({ ...team, rewards: [] })), playersPerTeam: 1 },
     me: s.me, playerId: 'host', connected: true, busy: false };
   next.render(snapshot); nodes['next-ready'].click(); assert.deepEqual(sent.at(-1), ['ready']);
+  const captainControl = nodes['next-players'].children[0].children.find(n => n.className === 'team-roster-captain-control');
+  const bridgeCaptainControl = nodes.bridgeTeams.children[0].children.find(n => n.className === 'team-roster-captain-control');
+  assert.equal(captainControl.className, bridgeCaptainControl.className);
+  captainControl.children[0].value = 'host'; captainControl.children[0].onchange();
+  assert.deepEqual(sent.at(-1), ['captain', 'team-1', 'host']);
+  snapshot.room.teams[0].captainId = 'host'; next.render(snapshot);
+  assert.match(nodes['next-players'].children[0].textContent, /隊長/);
+  snapshot.room.host = 'other'; next.render(snapshot);
+  assert.ok(nodes['next-players'].children.every(group => !group.children.some(n => n.className === 'team-roster-captain-control')));
+  snapshot.room.host = 'host';
   nodes['next-players'].scrollTop = 80;
   s.me.ready = true; next.render(snapshot);
   assert.equal(nodes['next-ready'].textContent, '取消準備'); assert.equal(nodes['next-players'].scrollTop, 80);

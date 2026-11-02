@@ -80,18 +80,7 @@ test('partially filled and unequal teams can start when every team is represente
   assert.equal(f.room.turn, f.room.players[1].id);
 });
 
-test('each special-cell trial uses one of ten equally likely outcomes without forcing a minimum count', () => {
-  const { createSpecialCells } = require('../src/games/bingonext/board');
-  const board = Array.from({ length: 10 }, (_, i) => i + 1), rolls = [];
-  const cells = createSpecialCells(board, bound => { assert.equal(bound, 10); const roll = rolls.length; rolls.push(roll); return roll; });
-  assert.deepEqual(cells.map(cell => cell.isSpecial), [true, false, false, false, false, false, false, false, false, false]);
-  assert.ok(createSpecialCells(board, () => 9).every(cell => !cell.isSpecial));
-  assert.ok(createSpecialCells(board, () => 0).every(cell => cell.isSpecial));
-  assert.deepEqual(cells.map(cell => cell.number), board);
-  assert.ok(cells.every(cell => !cell.isCovered));
-});
-
-test('normal cells do not draw cards and special flags are stable until a new start', () => {
+test('normal cells do not draw cards and special flags are stable throughout play and undo', () => {
   const f = fixture(); f.start();
   assert.ok(f.room.cells.every(cell => typeof cell.isSpecial === 'boolean'));
   f.room.cells[0].isSpecial = false;
@@ -103,8 +92,32 @@ test('normal cells do not draw cards and special flags are stable until a new st
   assert.deepEqual(f.room.cells.map(cell => cell.isSpecial), flags);
   f.send('undo', { revision: f.room.revision });
   assert.deepEqual(f.room.cells.map(cell => cell.isSpecial), flags);
-  f.send('reset'); assert.ok(f.room.cells.every(cell => !cell.isSpecial));
+  f.send('reset'); assert.ok(f.room.cells.every(cell => typeof cell.isSpecial === 'boolean'));
   f.start(); assert.ok(f.room.cells.every(cell => typeof cell.isSpecial === 'boolean'));
+});
+
+test('manual edits keep special positions but cancel readiness; shuffle refreshes positions and preserves readiness', () => {
+  const f = fixture();
+  assert.ok(f.room.cells.every(cell => typeof cell.isSpecial === 'boolean'));
+  f.room.cells.forEach((cell, index) => { cell.isSpecial = index % 2 === 0; });
+  const flags = f.room.cells.map(cell => cell.isSpecial);
+  const guest = f.room.players[1]; f.send('ready', { ready: true }, guest.token);
+  f.send('board', { board: [...f.room.board].reverse(), boardVersion: f.room.boardVersion, ready: true });
+  assert.deepEqual(f.room.cells.map(cell => cell.isSpecial), flags);
+  assert.equal(guest.ready, false);
+  f.send('board', { board: f.room.board, boardVersion: f.room.boardVersion, ready: false });
+  assert.deepEqual(f.room.cells.map(cell => cell.isSpecial), flags);
+  f.start(); assert.deepEqual(f.room.cells.map(cell => cell.isSpecial), flags);
+  f.send('reset');
+  f.room.players.forEach(player => { player.ready = true; });
+  const version = f.room.boardVersion;
+  assert.throws(() => f.send('board', { board: f.room.board, boardVersion: version, rerollSpecial: true }, guest.token), /只有房主/);
+  f.room.cells.forEach(cell => { cell.isSpecial = 'old-layout'; });
+  f.send('board', { board: f.room.board, boardVersion: version, rerollSpecial: true });
+  assert.ok(f.room.cells.every(cell => typeof cell.isSpecial === 'boolean'));
+  assert.equal(f.room.boardVersion, version + 1);
+  assert.ok(f.room.players.every(player => player.ready));
+  assert.throws(() => f.send('board', { board: f.room.board, boardVersion: version, rerollSpecial: true }), /已更新/);
 });
 
 test('selecting a special number immediately claims a cell, draws exactly one private card and advances once', () => {
@@ -247,6 +260,28 @@ test('question bank selection is independent of card definitions and exposes eve
     assert.equal(chooseQuestion(bound => { assert.equal(bound, questions.length); return index; }).id, questions[index].id);
   }
 });
+test('Team Bingo captain assignment is host-only and follows membership, reset and settings changes', () => {
+  const f = fixture({ p: 2 }), [host, teammate, opponent] = f.room.players;
+  const assign = (playerId, teamId = 'team-1', token = f.token) => f.send('captain', { playerId, teamId }, token);
+  assert.throws(() => assign(teammate.id, 'team-1', teammate.token), /只有房主/);
+  assert.throws(() => assign(opponent.id), /該隊成員/);
+  assert.throws(() => assign(host.id, 'team-99'), /無效/);
+  assign(teammate.id);
+  assert.equal(f.service.snapshot(f.room, opponent.id).teams[0].captainId, teammate.id);
+  assign(null); assert.equal(f.service.snapshot(f.room, host.id).teams[0].captainId, null);
+  assign(teammate.id); f.start();
+  assert.throws(() => assign(host.id), /準備階段/);
+  f.send('reset'); assert.equal(f.room.captains['team-1'], teammate.id);
+  f.send('team', { playerId: teammate.id, teamId: null });
+  assert.equal(f.service.snapshot(f.room, host.id).teams[0].captainId, null);
+  f.send('team', { playerId: teammate.id, teamId: 'team-1' });
+  assign(teammate.id); f.send('scan');
+  assert.equal(f.room.captains['team-1'], undefined);
+  assign(host.id);
+  f.send('settings', { size: 4, teamCount: 2, playersPerTeam: 2 });
+  assert.deepEqual(f.room.captains, {});
+});
+
 test('host scan removes offline members only on request and reset preserves team settings', t => {
   const f = fixture({ p: 2 }), kept = f.room.players[1];
   const close = f.connections.subscribe(kept.id, { write() {} }); t.after(close);
@@ -258,11 +293,14 @@ test('host scan removes offline members only on request and reset preserves team
 });
 test('shared ownership, private hands and undo survive a repository restart and same-ID rejoin', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'bingo-next-')); t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  const f = fixture({ directory }); f.start(); f.room.cells[0].isSpecial = true; f.play(1);
+  const f = fixture({ directory });
+  f.send('captain', { teamId: 'team-1', playerId: f.room.host });
+  f.start(); f.room.cells[0].isSpecial = true; f.play(1);
   const restarted = createApplication({ dataDirectory: directory }), restored = restarted.repository.get(f.code);
   assert.deepEqual(restored, f.room);
   const joined = restarted.service.execute({ kind: 'join', code: f.code, name: 'Host', token: randomUUID(), requestId: randomUUID() });
   assert.equal(joined.playerId, f.room.host); assert.equal(joined.room.cells[0].teamId, 'team-1');
+  assert.equal(joined.room.teams[0].captainId, f.room.host);
   restarted.service.execute({ kind: 'undo', code: f.code, token: f.token, revision: restored.revision, requestId: randomUUID() });
   assert.equal(restored.cells[0].isCovered, false);
   assert.equal(restored.cells[0].isSpecial, true);

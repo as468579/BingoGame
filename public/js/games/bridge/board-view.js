@@ -31,6 +31,7 @@ export class BridgeBoardView {
     $('bridgeBoard').replaceChildren(...team.cells.map(cell => {
       const button = element('button', `cell${cell.card ? ' marked' : ''}${targets.includes(cell.number) ? ' bridge-target' : ''}`);
       button.append(element('span', 'bridge-cell-base', cell.number));
+      button.setAttribute('title', `${cell.number}`);
       if (cell.card) button.append(element('span', `bridge-placed-card ${cell.card.color}`, `${colorNames[cell.card.color][0]} ${cell.card.number}`));
       button.setAttribute('aria-label', `格號 ${cell.number}${cell.card ? `，${colorNames[cell.card.color]} ${cell.card.number} 已佔領` : '，空格'}`);
       button.disabled = !canPlay || !targets.includes(cell.number);

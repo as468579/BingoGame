@@ -43,7 +43,7 @@ export class BingoNextView {
     this.sharedCard.render(state);
     this.rewards.render(state);
     // this.drawCards.render(state);
-    $('rulesText').textContent = `全場共用盤面，選號後直接為自己的隊伍佔領；每格開局時獨立有 10% 機率成為特殊格，選中特殊格獲得一張隨機卡，一般格不抽卡。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線獲勝；盤面滿時按連線數結算。`;
+    $('rulesText').textContent = `全場共用盤面，選號後直接為自己的隊伍佔領；建立或隨機排列時，隨機選出總格數 × 15%（無條件進位）個特殊格，選中特殊格獲得一張隨機卡，一般格不抽卡。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線獲勝；盤面滿時按連線數結算。`;
     $('winner').textContent = room.winners.length
       ? `✳ ${room.teams.filter(team => room.winners.includes(team.id)).map(team => team.name).join('、')}${room.winners.length > 1 ? ' 並列獲勝' : ' 獲勝'}！` : '';
   }
