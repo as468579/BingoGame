@@ -136,14 +136,15 @@ function javascriptFiles(directory) {
 
 test('server and client game modules cannot import another game implementation', () => {
   const root = path.resolve(__dirname, '..');
-  for (const location of ['src/games', 'public/js/games']) for (const game of ['bingo', 'bridge']) {
+  const gameNames = ['bingo', 'bridge', 'bingonext'];
+  for (const location of ['src/games', 'public/js/games']) for (const game of gameNames) {
     const directory = path.join(root, location, game);
-    const sibling = path.join(root, location, game === 'bingo' ? 'bridge' : 'bingo');
+    const siblings = gameNames.filter(name => name !== game).map(name => path.join(root, location, name));
     for (const file of javascriptFiles(directory)) {
       const source = fs.readFileSync(file, 'utf8');
       for (const match of source.matchAll(/(?:require\(|from\s+|import\()\s*['"](\.[^'"]+)['"]/g)) {
         const target = path.resolve(path.dirname(file), match[1]);
-        assert.equal(target === sibling || target.startsWith(sibling + path.sep), false, `${path.relative(root, file)} imports ${match[1]}`);
+        assert.equal(siblings.some(sibling => target === sibling || target.startsWith(sibling + path.sep)), false, `${path.relative(root, file)} imports ${match[1]}`);
       }
     }
   }

@@ -3,7 +3,7 @@ import { $ } from './dom.js';
 export class EntryView {
   constructor(session, onEnter) {
     this.query = new URLSearchParams(location.search);
-    this.joinPage = /^\/(?:join|bridge-bingo)\/?$/.test(location.pathname);
+    this.joinPage = /^\/(?:join|bridge-bingo|bingo-next)\/?$/.test(location.pathname);
     $('gameChoice').hidden = this.joinPage;
     if (this.joinPage) {
       document.title = '加入朋友的房間 · Alberta Events';

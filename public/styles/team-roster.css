@@ -1,0 +1,20 @@
+/* Shared by every team-based game. Game-specific data is provided by view adapters. */
+.team-roster-list{display:block;height:auto;max-height:57vh;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#b09e79 transparent;overflow-anchor:none;padding-right:4px}
+.players-card .team-roster-summary{font-size:12px;line-height:1.6;color:#8e7953;margin:10px 0}
+.players-card .team-roster-total{font-size:12px;color:#8e7953}
+.team-roster-team{padding:10px 0;border-bottom:1px solid #b6a17c66}
+.team-roster-heading{width:100%;padding:9px;text-align:left;font-size:16px;font-weight:700;line-height:1.4;background:#e2d4af;border:1px solid #b6a17c;border-radius:7px;color:#514735;box-shadow:inset 0 1px #fff8,0 2px 0 #0003}
+.team-roster-team.is-selected>.team-roster-heading{background:linear-gradient(#ffde7a,#e9a438);border-color:#b48439}
+.team-roster-count,.team-roster-rewards{font-size:11px!important;margin:8px 0 0!important;color:#8e7953!important;line-height:1.5}
+.team-roster-member{padding:10px 2px 5px;display:grid;gap:4px}
+.team-roster-member strong{font-size:14px;overflow-wrap:anywhere}
+.team-roster-member>span{font-size:11px;color:#8d7954}
+.team-roster-member.is-turn strong{color:#a65d10}
+.team-roster-select{font:inherit;font-size:13px;background:#f6edd4;color:#514735;border:1px solid #c1ad7f;border-radius:6px;padding:6px;max-width:100%;width:100%}
+.team-roster-controls{margin-top:16px;display:grid;gap:8px}
+.team-roster-controls[hidden]{display:none}
+.team-roster-controls label{font-size:13px;margin:0}
+.team-roster-controls .team-roster-ready{width:100%;min-width:0;font-size:14px;padding:10px}
+.team-roster-active{display:block;font-size:12px;margin-top:3px;line-height:1.4}
+.team-roster-unassigned{font-size:14px;color:#655538}
+@media(max-width:700px){.team-roster-list{max-height:330px}}

@@ -1,6 +1,6 @@
 'use strict';
 const { fail } = require('../domain/errors');
-const games = new Map([require('./bingo'), require('./bridge')].map(game => [game.id, game]));
+const games = new Map([require('./bingo'), require('./bridge'), require('./bingonext')].map(game => [game.id, game]));
 
 function getGame(type = 'bingo') {
   const game = games.get(type);

@@ -1,11 +1,18 @@
 import { $, element } from '../../views/dom.js';
 import { BridgeBoardView, colorNames } from './board-view.js';
 import { copyRoomCode } from '../../views/copy-room-code.js';
+import { TeamRosterView } from '../../views/team-roster-view.js';
 
 export class BridgeRoomView {
   constructor(actions = {}, notify = () => {}) {
     this.actions = actions;
     this.board = new BridgeBoardView(actions);
+    this.roster = new TeamRosterView({ list: $('bridgeTeams'), controls: $('bridgeJoinControls'), ownTeam: $('bridgeOwnTeam'),
+      ready: $('bridgeReady'), count: $('bridgePlayerCount'), summary: $('bridgePresenceSummary') }, {
+      onAssign: (playerId, teamId) => this.actions.bridge('bridgeTeam', { playerId, teamId }),
+      onReady: ready => this.actions.bridge('bridgeReady', { ready }),
+      onInspect: teamId => { this.viewedTeam = teamId; this.board.selected = null; this.render(this.state); }
+    });
     $('bridgeCopyCode').onclick = () => copyRoomCode(this.state.room.code, $('bridgeRoomCode'), notify);
     for (const id of ['bridgeTeamCount', 'bridgePlayersPerTeam', 'bridgeSize']) $(id).oninput = () => { this.settingsDirty = true; };
     $('bridgeApplySettings').onclick = () => {
@@ -13,8 +20,6 @@ export class BridgeRoomView {
         playersPerTeam: Number($('bridgePlayersPerTeam').value), size: Number($('bridgeSize').value) });
       this.settingsDirty = false;
     };
-    $('bridgeOwnTeam').onchange = () => this.actions.bridge('bridgeTeam', { teamId: $('bridgeOwnTeam').value || null });
-    $('bridgeReady').onclick = () => this.actions.bridge('bridgeReady', { ready: !this.state.me.ready });
     $('bridgeStart').onclick = () => this.actions.bridge('bridgeStart');
     $('bridgeScan').onclick = () => this.actions.bridge('bridgeScan');
     $('bridgeReset').onclick = () => { if (confirm('重新開局會清空出牌與手牌，讓所有人重新準備，確定嗎？')) this.actions.bridge('bridgeReset'); };
@@ -38,16 +43,11 @@ export class BridgeRoomView {
     document.title = 'Bridge Bingo · Alberta Events';
     $('bridgeGame').hidden = false;
     $('bridgeRoomCode').textContent = room.code;
-    $('bridgePlayerCount').textContent = `${room.players.length} / ${game.teamCount * game.playersPerTeam} 人`;
     $('bridgeSettingsPanel').hidden = room.host !== playerId || room.phase !== 'lobby';
     if (!this.settingsDirty) { $('bridgeTeamCount').value = game.teamCount; $('bridgePlayersPerTeam').value = game.playersPerTeam; $('bridgeSize').value = room.size; }
     for (const id of ['bridgeTeamCount', 'bridgePlayersPerTeam', 'bridgeSize', 'bridgeApplySettings']) $(id).disabled = busy || !connected;
-    this.renderTeams(room, playerId, busy || !connected);
-    $('bridgeOwnTeam').replaceChildren(...this.teamOptions(game.teams)); $('bridgeOwnTeam').value = me.teamId || '';
-    $('bridgeOwnTeam').disabled = busy || !connected;
-    $('bridgeJoinControls').hidden = room.phase !== 'lobby';
-    $('bridgeReady').textContent = me.ready ? '取消準備' : '準備好了 ✓';
-    $('bridgeReady').disabled = busy || !connected || !me.teamId;
+    this.roster.render({ teams: game.teams, members: room.players, viewerId: playerId, hostId: room.host, phase: room.phase,
+      busy, connected, playersPerTeam: game.playersPerTeam, goal: room.goal, selectedTeamId: viewed.id, activeTeamId: game.activeTeamId });
     $('bridgeBoardTitle').textContent = `${viewed.name}${viewed.id === me.teamId ? '（你的隊伍）' : ''}`;
     $('bridgeLineCount').textContent = `${viewed.lines} / ${room.goal} 條線`;
     $('bridgeRound').textContent = room.phase === 'lobby' ? `${game.teamCount} 隊 · 每隊 ${game.playersPerTeam} 人 · ${room.size} × ${room.size}` : `第 ${game.round} 輪 · 每人一張${activeTeam ? ` · ${activeTeam.name} 出牌中` : ''}`;
@@ -77,42 +77,6 @@ export class BridgeRoomView {
       $('bridgeResultScores').replaceChildren(...game.teams.map(team => element('p', '', `${team.name}：${team.lines} 條線`)));
       if (opening && !$('bridgeResultDialog').open) $('bridgeResultDialog').showModal();
     } else this.closeResults();
-  }
-
-  teamOptions(teams) {
-    const none = element('option', '', '未分隊'); none.value = '';
-    return [none, ...teams.map(team => { const option = element('option', '', team.name); option.value = team.id; return option; })];
-  }
-
-  renderTeams(room, playerId, disabled) {
-    const teams = room.bridge.teams.map(team => {
-      const group = element('section', `bridge-team${team.id === this.viewedTeam ? ' active' : ''}`);
-      const heading = element('button', 'bridge-team-heading', `${team.name} · ${team.lines} / ${room.goal} 條`);
-      if (room.bridge.activeTeamId === team.id) heading.append(element('span', 'bridge-active-team-label', '出牌中'));
-      heading.onclick = () => { this.viewedTeam = team.id; this.board.selected = null; this.render(this.state); };
-      group.append(heading);
-      room.players.filter(player => player.teamId === team.id).forEach(player => group.append(this.member(player, room, team.turn, playerId, disabled)));
-      group.append(element('p', 'bridge-team-count', `${team.playerIds.length} / ${room.bridge.playersPerTeam} 人${room.phase === 'playing' && team.done ? ' · 本輪完成' : ''}`));
-      return group;
-    });
-    const unassigned = room.players.filter(player => !player.teamId);
-    if (unassigned.length) {
-      const group = element('section', 'bridge-team'); group.append(element('strong', '', '未分隊'));
-      unassigned.forEach(player => group.append(this.member(player, room, null, playerId, disabled))); teams.push(group);
-    }
-    $('bridgeTeams').replaceChildren(...teams);
-  }
-
-  member(player, room, turn, viewerId, disabled) {
-    const row = element('div', `bridge-member${turn === player.id ? ' is-turn' : ''}`);
-    row.append(element('strong', '', `${turn === player.id ? '▶ ' : ''}${player.name}${player.id === viewerId ? '（你）' : ''}`),
-      element('span', '', `${player.online ? '●' : '○ 離線'} · ${room.phase === 'lobby' ? player.ready ? '已準備' : '未準備' : `${player.handCount} 張`}`));
-    if (room.phase === 'lobby' && room.host === viewerId) {
-      const select = element('select'); select.setAttribute('aria-label', `分配 ${player.name} 的隊伍`);
-      select.append(...this.teamOptions(room.bridge.teams)); select.value = player.teamId || ''; select.disabled = disabled;
-      select.onchange = () => this.actions.bridge('bridgeTeam', { playerId: player.id, teamId: select.value || null }); row.append(select);
-    }
-    return row;
   }
 
   closeResults() { if ($('bridgeResultDialog').open) $('bridgeResultDialog').close(); }

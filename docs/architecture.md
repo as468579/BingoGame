@@ -102,3 +102,11 @@ GameApp 只處理登入、建立／加入、進出房間、API、重試與 SSE�
 `npm run test:architecture` 驗證混合房間不互相修改、初始化與快照隔離、舊存檔分派、前端狀態切換、dialog 政策及禁止遊戲互相匯入。RoomView 的延遲建立與切換生命週期也由介面測試覆蓋。
 
 新增遊戲時，提供一個後端 adapter、一組前端工廠與自己的根 DOM／樣式，再於兩個 registry 註冊；不把規則加入 RoomService 或 GameApp，也不從其他遊戲複製或匯入其狀態。
+
+## BingoNext 隔離
+
+新增 bingo-next 遊戲介面卡，伺服器與前端規則分別位於 src/games/bingonext/ 與 public/js/games/bingonext/。此版本以原 Bingo 為基礎建立獨立模組，保留卡牌操作，改用房間層級的 board/cells、隊伍獎勵與立即選號；不匯入其他遊戲實作。前端 DOM 使用 next- 前綴，既有視覺樣式以 :is 選擇器支援兩款 Bingo。共用邀請元件接受 DOM lookup，預設行為維持原版。
+
+### 共用隊伍元件
+
+Bridge Bingo 與 BingoNext 都實際建立 public/js/views/team-roster-view.js 的 TeamRosterView。元件負責隊伍清單、成員與在線／準備狀態、未分隊區塊、自己的隊伍選單、準備按鈕及房主分配權限。共用樣式集中在 public/styles/team-roster.css。Bridge 的畫面與 BingoNext 的 PlayersView 僅轉接資料形狀和 onAssign/onReady/onInspect 回呼，不再各自實作選隊 UI。Bridge 可點隊名切換盤面，BingoNext 額外提供獎品數，兩者的遊戲指令與規則仍獨立。

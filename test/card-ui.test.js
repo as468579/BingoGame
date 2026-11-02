@@ -8,7 +8,8 @@ function mount(t) {
       this.tagName = tag; this.children = []; this.attributes = {}; this.listeners = {};
       this.dataset = {}; this.hidden = false; this.open = false; this.textContent = '';
       const classes = new Set();
-      this.classList = { add: value => classes.add(value), remove: value => classes.delete(value), contains: value => classes.has(value) };
+      this.classList = { add: value => classes.add(value), remove: value => classes.delete(value), contains: value => classes.has(value),
+        toggle: (value, enabled) => { if (enabled) classes.add(value); else classes.delete(value); } };
     }
     append(...nodes) { this.children.push(...nodes); }
     replaceChildren(...nodes) { this._text = ''; this.children = [...nodes]; }
@@ -47,11 +48,13 @@ function mount(t) {
     'bridgeReady', 'bridgeStart', 'bridgeScan', 'bridgeScanHint', 'bridgeReset', 'bridgeCloseResults', 'bridgeViewResults', 'bridgeResultDialog',
     'bridgePlayerCount', 'bridgeSettingsPanel', 'bridgeJoinControls', 'bridgeBoardTitle', 'bridgeLineCount',
     'bridgeRound', 'bridgeLeadColor', 'bridgeStatus', 'bridgeResultTitle', 'bridgeResultText', 'bridgeResultScores',
-    'bridgeTeams', 'bridgeBoard', 'bridgeLines', 'bridgeMoveHint', 'bridgeHandCount', 'bridgeHand', 'bridgeHandEmpty',
+    'bridgeTeams', 'bridgePresenceSummary', 'bridgeBoard', 'bridgeLines', 'bridgeMoveHint', 'bridgeHandCount', 'bridgeHand', 'bridgeHandEmpty',
     'bridgeCardChoiceDialog', 'bridgeCloseCardChoice', 'bridgeCancelCardChoice', 'bridgeConfirmCardChoice',
     'bridgeCardChoiceTitle', 'bridgeCardChoiceReason', 'bridgeCardChoiceCard'
   ];
   const nodes = Object.fromEntries(ids.map(id => [id, new Node()]));
+  for (const id of [...ids, 'root', 'publicAddress', 'saveAddress', 'copy', 'copyInvite', 'invitePanel', 'inviteLink', 'inviteHint',
+    'roomCode', 'rulesText', 'winner', 'players', 'playerCount', 'presenceSummary', 'teamCount', 'playersPerTeam', 'gameResultsTitle', 'joinControls', 'ownTeam']) nodes[`next-${id}`] = new Node();
   const original = globalThis.document;
   globalThis.document = { getElementById: id => {
     assert.ok(nodes[id], `Unexpected DOM dependency: ${id}`);
@@ -74,6 +77,105 @@ function bridgeState(phase = 'lobby') {
       { id: 'team-2', name: '隊伍 2', playerIds: [], cells, lines: 0, turn: null, leadColor: null }
     ] } } };
 }
+
+test('BingoNext renders only its own shared board, team roster, team rewards and card controls', async t => {
+  const nodes = mount(t), originalLocation = globalThis.location;
+  globalThis.location = { origin: 'http://localhost:3000' };
+  t.after(() => { if (originalLocation === undefined) delete globalThis.location; else globalThis.location = originalLocation; });
+  const { BingoNextView } = await import('../public/js/games/bingonext/game-view.js');
+  const { BingoNextState } = await import('../public/js/games/bingonext/state.js');
+  const s = new BingoNextState(); s.playerId = 'host'; s.connected = true;
+  const board = Array.from({ length: 9 }, (_, i) => i + 1), cells = board.map(number => ({ number, isCovered: number === 1, ...(number === 1 ? { teamId: 'team-1' } : {}) }));
+  s.accept({ code: 'NEXT', gameType: 'bingo-next', phase: 'playing', host: 'host', revision: 1, boardVersion: 0, size: 3, goal: 1,
+    turn: 'host', teamCount: 2, playersPerTeam: 1, onlineCount: 2, called: [1], cells, board, linePrizes: [], winners: [],
+    teams: [{ id: 'team-1', name: '隊伍 1', playerIds: ['host'], lines: 0, rewards: [] }, { id: 'team-2', name: '隊伍 2', playerIds: ['guest'], lines: 0, rewards: [] }],
+    players: [{ id: 'host', name: 'Host', teamId: 'team-1', board, hand: [], handCount: 0, ready: true, online: true }, { id: 'guest', name: 'Guest', teamId: 'team-2', board, handCount: 0, ready: true, online: true }], availableDemoCards: [] });
+  const lookup = document.getElementById, actions = { call() {}, command() {}, settingsChanged() {}, applySize() {}, undo() {} };
+  document.getElementById = id => { assert.ok(id.startsWith('next-'), `BingoNext touched another game's DOM: ${id}`); return lookup(id); };
+  const view = new BingoNextView(actions, { value: '', invitation: code => `http://localhost:3000/join?room=${code}` }, () => {}, () => s);
+  view.render(s);
+  assert.equal(nodes['next-root'].hidden, false); assert.equal(nodes['next-boardTitle'].textContent, '全場共用盤面');
+  assert.equal(nodes['next-board'].children.length, 9); assert.equal(nodes['next-board'].children[0].dataset.team, 0);
+  assert.equal(nodes['next-board'].children[0].disabled, true); assert.equal(nodes['next-board'].children[1].disabled, false);
+  s.room.phase = 'finished'; s.room.winners = ['team-1']; view.render(s);
+  assert.equal(nodes['next-gameResultsDialog'].open, true); assert.equal(nodes['next-gameResultsList'].children.length, 2);
+  view.hide(); assert.equal(nodes['next-root'].hidden, true); assert.equal(nodes['next-gameResultsDialog'].open, false);
+});
+
+test('BingoNext uses the Bridge-style own-team selector and limits member assignment controls to the host', async t => {
+  const nodes = mount(t), sent = [];
+  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const view = new PlayersView({ team: (...args) => sent.push(args) });
+  const host = { id: 'host', name: 'Host', teamId: 'team-1', ready: true, handCount: 0 },
+    guest = { id: 'guest', name: 'Guest', teamId: 'team-2', ready: false, handCount: 0 };
+  const room = { phase: 'lobby', host: host.id, onlineCount: 2, playersPerTeam: 1, players: [host, guest], teams: [
+    { id: 'team-1', name: '隊伍 1', playerIds: ['host'], lines: 0, rewards: [] },
+    { id: 'team-2', name: '隊伍 2', playerIds: ['guest'], lines: 0, rewards: [] }] };
+  const s = { room, playerId: guest.id, connected: true, busy: false };
+  view.render(s);
+  assert.equal(nodes['next-joinControls'].hidden, false); assert.equal(nodes['next-ownTeam'].value, 'team-2');
+  assert.equal(nodes['next-ownTeam'].children.length, 3);
+  assert.ok(nodes['next-players'].children.every(group => group.children.filter(n => n.className === 'team-roster-member').every(row => row.children.every(n => n.tagName !== 'select'))));
+  nodes['next-ownTeam'].value = ''; nodes['next-ownTeam'].onchange();
+  assert.deepEqual(sent, [['guest', null]]);
+  view.render({ ...s, busy: true }); assert.equal(nodes['next-ownTeam'].disabled, true);
+  view.render({ ...s, connected: false }); assert.equal(nodes['next-ownTeam'].disabled, true);
+  view.render({ ...s, playerId: host.id });
+  const guestRow = nodes['next-players'].children[1].children.find(n => n.className === 'team-roster-member');
+  const assignment = guestRow.children.find(n => n.tagName === 'select');
+  assignment.value = ''; assignment.onchange(); assert.deepEqual(sent.at(-1), ['guest', null]);
+  room.phase = 'playing'; view.render(s);
+  assert.equal(nodes['next-joinControls'].hidden, true);
+});
+
+test('Bridge Bingo and BingoNext instantiate the same roster component and share readiness, assignment and inspection behavior', async t => {
+  const nodes = mount(t), sent = [];
+  const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
+  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const { TeamRosterView } = await import('../public/js/views/team-roster-view.js');
+  const bridge = new BridgeRoomView({ bridge: (...args) => sent.push(args) });
+  const next = new PlayersView({ team: (...args) => sent.push(args), ready: () => sent.push(['ready']) });
+  assert.ok(bridge.roster instanceof TeamRosterView); assert.equal(bridge.roster.constructor, next.roster.constructor);
+  const s = bridgeState(); bridge.render(s);
+  assert.equal(nodes.bridgeTeams.className, nodes['next-players'].className);
+  assert.equal(nodes.bridgeJoinControls.className, nodes['next-joinControls'].className);
+  nodes.bridgeReady.click(); assert.deepEqual(sent.at(-1), ['bridgeReady', { ready: true }]);
+  nodes.bridgeOwnTeam.value = ''; nodes.bridgeOwnTeam.onchange();
+  assert.deepEqual(sent.at(-1), ['bridgeTeam', { playerId: 'host', teamId: null }]);
+  nodes.bridgeTeams.children[1].children[0].click(); assert.equal(bridge.viewedTeam, 'team-2');
+  const snapshot = { room: { ...s.room, teams: s.room.bridge.teams.map(team => ({ ...team, rewards: [] })), playersPerTeam: 1 },
+    me: s.me, playerId: 'host', connected: true, busy: false };
+  next.render(snapshot); nodes['next-ready'].click(); assert.deepEqual(sent.at(-1), ['ready']);
+  nodes['next-players'].scrollTop = 80;
+  s.me.ready = true; next.render(snapshot);
+  assert.equal(nodes['next-ready'].textContent, '取消準備'); assert.equal(nodes['next-players'].scrollTop, 80);
+  snapshot.room.activeCard = { id: 'pause' }; next.render(snapshot);
+  assert.equal(nodes['next-ownTeam'].disabled, true); assert.equal(nodes['next-ready'].disabled, true);
+  snapshot.room.phase = 'playing'; next.render(snapshot);
+  assert.equal(nodes['next-joinControls'].hidden, true);
+  snapshot.room.phase = 'lobby'; snapshot.room.activeCard = null;
+  s.me.teamId = null; next.render(snapshot);
+  assert.equal(nodes['next-ready'].disabled, true);
+  assert.match(nodes['next-players'].children.at(-1).textContent, /未分隊/);
+});
+
+test('BingoNext start controls require occupied teams and readiness rather than full capacity', async t => {
+  const nodes = mount(t);
+  const { HostControlsView } = await import('../public/js/games/bingonext/views/host-controls-view.js');
+  const view = new HostControlsView({ command() {} });
+  const players = [{ id: 'host', teamId: 'team-1', ready: true }, { id: 'guest', teamId: 'team-2', ready: true }];
+  const room = { host: 'host', phase: 'lobby', size: 5, goal: 3, teamCount: 2, playersPerTeam: 4, players,
+    teams: [{ playerIds: ['host'] }, { playerIds: ['guest'] }] };
+  const s = { room, me: players[0], busy: false, connected: true };
+  view.render(s); assert.equal(nodes['next-start'].disabled, false); assert.match(nodes['next-start'].textContent, /開始遊戲/);
+  players[1].ready = false; view.render(s); assert.equal(nodes['next-start'].disabled, true); assert.match(nodes['next-start'].textContent, /等待 1 位/);
+  players[1].ready = true; room.teams[1].playerIds = []; view.render(s);
+  assert.equal(nodes['next-start'].disabled, true); assert.match(nodes['next-start'].textContent, /每隊至少/);
+  room.teams[1].playerIds = ['guest']; players[1].teamId = null; view.render(s);
+  assert.equal(nodes['next-start'].disabled, true); assert.match(nodes['next-start'].textContent, /分隊/);
+  players[1].teamId = 'team-2'; view.render({ ...s, connected: false }); assert.equal(nodes['next-start'].disabled, true);
+  view.render({ ...s, busy: true }); assert.equal(nodes['next-start'].disabled, true);
+});
 
 test('both games use shared card faces and concealed backs without changing card content', async t => {
   const nodes = mount(t);
@@ -300,7 +402,7 @@ test('game picker is available for hosts and hidden on join and Bridge pages', a
   const { EntryView } = await import('../public/js/views/entry-view.js');
   const original = globalThis.location;
   t.after(() => { if (original === undefined) delete globalThis.location; else globalThis.location = original; });
-  for (const pathname of ['/', '/join', '/bridge-bingo']) {
+  for (const pathname of ['/', '/join', '/bridge-bingo', '/bingo-next']) {
     globalThis.location = { pathname, search: '' };
     const view = new EntryView({ name: '', roomCode: 'OLD01' }, () => {});
     assert.equal(nodes.gameChoice.hidden, pathname !== '/');
