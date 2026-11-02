@@ -1,4 +1,5 @@
 import { $ } from './dom.js';
+import { copyRoomCode } from './copy-room-code.js';
 
 export class InvitationView {
   constructor(address, notify, getRoom) {
@@ -32,17 +33,7 @@ export class InvitationView {
 
   async copyCode() {
     const code = this.getRoom().room.code;
-    try {
-      await navigator.clipboard.writeText(code);
-      this.notify(`房號 ${code} 已複製。`);
-    } catch {
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents($('roomCode'));
-      selection.removeAllRanges();
-      selection.addRange(range);
-      this.notify(`請複製已選取的房號：${code}`);
-    }
+    return copyRoomCode(code, $('roomCode'), this.notify);
   }
 
   async copyInvitation() {

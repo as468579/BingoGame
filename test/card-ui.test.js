@@ -39,14 +39,24 @@ function mount(t) {
     'settingsPanel', 'sizeHint', 'hostTools', 'scanHint', 'shuffle', 'ready', 'board',
     'boardTitle', 'lineCount', 'phaseText', 'boardLines', 'editTools', 'boardHint',
     'gameResultsDialog', 'gameResultsList', 'closeGameResults', 'viewGameResults', 'drawCardDisplay',
-    'drawnCardDialog', 'drawnCardTitle', 'drawnCardContent', 'closeDrawnCard'
+    'drawnCardDialog', 'drawnCardTitle', 'drawnCardContent', 'closeDrawnCard',
+    'bridgeGame', 'bridgeRoomCode', 'bridgeCopyCode', 'welcome', 'game', 'leave', 'switchPlayer',
+    'gameChoice', 'gameType', 'code', 'name', 'create', 'join', 'welcomeTitle', 'welcomeText',
+    'entryTitle', 'joinDivider', 'hostEntry', 'entryHint', 'connection',
+    'bridgeTeamCount', 'bridgePlayersPerTeam', 'bridgeSize', 'bridgeApplySettings', 'bridgeOwnTeam',
+    'bridgeReady', 'bridgeStart', 'bridgeScan', 'bridgeScanHint', 'bridgeReset', 'bridgeCloseResults', 'bridgeViewResults', 'bridgeResultDialog',
+    'bridgePlayerCount', 'bridgeSettingsPanel', 'bridgeJoinControls', 'bridgeBoardTitle', 'bridgeLineCount',
+    'bridgeRound', 'bridgeLeadColor', 'bridgeStatus', 'bridgeResultTitle', 'bridgeResultText', 'bridgeResultScores',
+    'bridgeTeams', 'bridgeBoard', 'bridgeLines', 'bridgeMoveHint', 'bridgeHandCount', 'bridgeHand', 'bridgeHandEmpty',
+    'bridgeCardChoiceDialog', 'bridgeCloseCardChoice', 'bridgeCancelCardChoice', 'bridgeConfirmCardChoice',
+    'bridgeCardChoiceTitle', 'bridgeCardChoiceReason', 'bridgeCardChoiceCard'
   ];
   const nodes = Object.fromEntries(ids.map(id => [id, new Node()]));
   const original = globalThis.document;
   globalThis.document = { getElementById: id => {
     assert.ok(nodes[id], `Unexpected DOM dependency: ${id}`);
     return nodes[id];
-  }, createElement: tag => new Node(tag), body: new Node('body') };
+  }, createElement: tag => new Node(tag), createElementNS: (_, tag) => new Node(tag), body: new Node('body') };
   t.after(() => { if (original === undefined) delete globalThis.document; else globalThis.document = original; });
   return nodes;
 }
@@ -55,9 +65,259 @@ function state(overrides = {}) {
   return { room: { code: 'ROOM01', host: 'host', pending: null }, playerId: 'host', me: { id: 'host' }, hand: [], ...overrides };
 }
 
+function bridgeState(phase = 'lobby') {
+  const cells = Array.from({ length: 9 }, (_, i) => ({ number: i + 1, card: null }));
+  const me = { id: 'host', name: 'Host', teamId: 'team-1', hand: [], handCount: 0, online: true, ready: false };
+  return { me, playerId: 'host', connected: true, busy: false, room: { code: 'BRIDGE', gameType: 'bridge-bingo', host: 'host', phase, size: 3, goal: 1, boardVersion: 0, players: [me], winners: [],
+    bridge: { teamCount: 2, playersPerTeam: 1, round: 1, legalMoves: [], teams: [
+      { id: 'team-1', name: '隊伍 1', playerIds: ['host'], cells, lines: 0, turn: 'host', leadColor: null },
+      { id: 'team-2', name: '隊伍 2', playerIds: [], cells, lines: 0, turn: null, leadColor: null }
+    ] } } };
+}
+
+test('both games use shared card faces and concealed backs without changing card content', async t => {
+  const nodes = mount(t);
+  const { HandView } = await import('../public/js/games/bingo/views/hand-view.js');
+  const { BridgeBoardView } = await import('../public/js/games/bridge/board-view.js');
+  const { DrawCardView } = await import('../public/js/games/bingo/views/draw-card-view.js');
+  new DrawCardView().reset();
+  const bridge = new BridgeBoardView({ bridge() {} }), s = bridgeState();
+  bridge.render(s, s.room.bridge.teams[0]);
+  for (const back of [nodes.drawCardDisplay.children[0], nodes.bridgeHand.children[0]]) {
+    assert.match(back.className, /game-card-back/);
+    assert.equal(back.attributes['aria-hidden'], 'true');
+    assert.equal(back.children[0].tagName, 'svg');
+    assert.equal(back.children[0].attributes.class, 'card-back-anchor');
+    assert.equal(back.children[0].attributes['aria-hidden'], 'true');
+  }
+  const card = { id: 'spell', definitionId: 'star', theme: 'green', type: '能力', symbol: '✦', name: '星光', description: '卡牌效果' };
+  new HandView({ useCard() {} }).render(state({ hand: [card], connected: true }));
+  assert.match(nodes.handList.children[0].children[0].className, /game-card-front/);
+  assert.match(nodes.handList.children[0].textContent, /星光卡牌效果/);
+  s.me.hand = [{ number: 3, color: 'blue' }];
+  s.room.phase = 'playing'; s.room.bridge.legalMoves = [{ cardNumber: 3, targets: [3] }];
+  bridge.render(s, s.room.bridge.teams[0]);
+  assert.match(nodes.bridgeHand.children[0].className, /game-card-front/);
+  assert.equal(nodes.bridgeHand.children[0].textContent, '藍色3');
+  nodes.bridgeHand.children[0].click();
+  assert.match(nodes.bridgeCardChoiceCard.children[0].className, /game-card-front/);
+  assert.equal(s.me.hand.length, 1);
+});
+
+test('Bridge scan is only shown to the host before play and disables during disconnection or requests', async t => {
+  const nodes = mount(t), commands = [];
+  const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
+  const view = new BridgeRoomView({ bridge: (...args) => commands.push(args) }), s = bridgeState();
+  view.render(s);
+  assert.equal(nodes.bridgeScan.hidden, false); assert.equal(nodes.bridgeScan.disabled, false);
+  nodes.bridgeScan.click(); assert.deepEqual(commands, [['bridgeScan']]);
+  s.busy = true; view.render(s); assert.equal(nodes.bridgeScan.disabled, true);
+  s.busy = false; s.connected = false; view.render(s); assert.equal(nodes.bridgeScan.disabled, true);
+  s.connected = true; s.room.lastScanAt = 1; s.room.lastScanRemovedCount = 2; view.render(s);
+  assert.match(nodes.bridgeScanHint.textContent, /移除 2 位/);
+  s.playerId = 'other'; view.render(s);
+  assert.equal(nodes.bridgeScan.hidden, true); assert.equal(nodes.bridgeScanHint.hidden, true);
+  s.playerId = 'host'; s.room.phase = 'playing'; view.render(s);
+  assert.equal(nodes.bridgeScan.hidden, true); assert.equal(nodes.bridgeScanHint.hidden, true);
+});
+
+test('the room shell can run Bridge with no Bingo DOM and never initializes an inactive game', async t => {
+  const nodes = mount(t);
+  const { RoomView } = await import('../public/js/views/room-view.js');
+  const lookup = document.getElementById;
+  const forbidden = new Set(['game', 'board', 'handPanel', 'openHand', 'confirmCall', 'sharedCardDialog', 'lineNotices']);
+  document.getElementById = id => { assert.equal(forbidden.has(id), false, `Bridge touched Bingo DOM: ${id}`); return lookup(id); };
+  const view = new RoomView({ leave() {}, switchPlayer() {} }, {}, () => {}, () => bridgeState(), () => ({ bridge() {} }));
+  view.render(bridgeState()); view.render(bridgeState());
+  assert.equal(view.instances.size, 1);
+  assert.equal(view.instances.has('bingo'), false);
+  assert.equal(nodes.bridgeGame.hidden, false);
+  assert.equal(nodes.welcome.hidden, true);
+  view.hide();
+  assert.equal(nodes.bridgeGame.hidden, true);
+});
+
+test('room lifecycle hides only the previous game and reuses views without rebinding handlers', async t => {
+  mount(t);
+  const { RoomView } = await import('../public/js/views/room-view.js');
+  const { getClientGame } = await import('../public/js/games/index.js');
+  const created = [], hidden = [];
+  for (const id of ['bingo', 'bridge-bingo']) t.mock.method(getClientGame(id), 'createView', () => {
+    created.push(id);
+    return { render() {}, hide() { hidden.push(id); } };
+  });
+  const view = new RoomView({ leave() {}, switchPlayer() {} }, {}, () => {}, () => ({}));
+  view.render({ room: { gameType: 'bingo' } });
+  view.render({ room: { gameType: 'bridge-bingo' } });
+  view.render({ room: { gameType: 'bridge-bingo' } });
+  assert.deepEqual(hidden, ['bingo']);
+  view.render({ room: { gameType: 'bingo' } });
+  assert.deepEqual(created, ['bingo', 'bridge-bingo']);
+  assert.deepEqual(hidden, ['bingo', 'bridge-bingo']);
+});
+
+test('Bridge Bingo renders teams, a plain numbered board and preparation controls independently of Bingo', async t => {
+  const nodes = mount(t);
+  const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
+  const view = new BridgeRoomView({ bridge() {} });
+  view.render(bridgeState());
+  assert.equal(nodes.bridgeGame.hidden, false);
+  assert.equal(nodes.bridgeRoomCode.textContent, 'BRIDGE');
+  assert.equal(nodes.game.hidden, false, 'the game view must not touch another game root');
+  assert.equal(nodes.welcome.hidden, false, 'common chrome belongs to the room shell');
+  assert.equal(nodes.bridgeBoard.children.length, 9);
+  assert.equal(nodes.bridgeTeams.children.length, 2);
+  assert.equal(nodes.bridgeSettingsPanel.hidden, false);
+  assert.equal(nodes.bridgeStart.disabled, true);
+  assert.equal(nodes.bridgeReady.hidden, false);
+  view.hide(); assert.equal(nodes.bridgeGame.hidden, true);
+});
+
+test('Bridge card selection highlights legal destinations and sends the card, target and round', async t => {
+  const nodes = mount(t);
+  const { BridgeBoardView } = await import('../public/js/games/bridge/board-view.js');
+  const calls = [];
+  const view = new BridgeBoardView({ bridge: (kind, data) => calls.push([kind, data]) });
+  const s = bridgeState('playing');
+  s.room.size = 4;
+  s.room.goal = 2;
+  s.room.bridge.teams.forEach(team => { team.cells = Array.from({ length: 16 }, (_, i) => ({ number: i + 1, card: null })); });
+  s.me.hand = [{ number: 2, color: 'blue' }, { number: 10, color: 'yellow' }, { number: 1, color: 'red' }];
+  s.room.bridge.legalMoves = [{ cardNumber: 1, targets: [7] }, { cardNumber: 2, targets: [] }];
+  const team = s.room.bridge.teams[0];
+  view.render(s, team);
+  assert.deepEqual(nodes.bridgeHand.children.map(card => card.children[1].textContent), ['1', '2', '10']);
+  assert.deepEqual(s.me.hand.map(card => card.number), [2, 10, 1], 'display sorting must not reorder the dealt hand');
+  assert.doesNotMatch(nodes.bridgeHand.children[0].className, /is-unplayable/);
+  assert.match(nodes.bridgeHand.children[1].className, /is-unplayable/);
+  nodes.bridgeHand.children[0].click();
+  assert.equal(nodes.bridgeCardChoiceDialog.open, true);
+  assert.ok(nodes.bridgeBoard.children.every(cell => cell.disabled));
+  assert.deepEqual(calls, []);
+  nodes.bridgeConfirmCardChoice.click();
+  assert.equal(nodes.bridgeCardChoiceDialog.open, false);
+  assert.equal(nodes.bridgeBoard.children[6].disabled, false);
+  assert.ok(nodes.bridgeBoard.children.filter((_, i) => i !== 6).every(cell => cell.disabled));
+  nodes.bridgeBoard.children[6].click();
+  assert.deepEqual(calls, [['bridgePlay', { cardNumber: 1, targetNumber: 7, round: 1 }]]);
+  view.render(s, s.room.bridge.teams[1]);
+  assert.ok(nodes.bridgeHand.children.every(card => card.className.includes('is-unplayable')));
+});
+
+test('Bridge card choice explains suit violations and closes without using cards', async t => {
+  const nodes = mount(t);
+  const { BridgeBoardView } = await import('../public/js/games/bridge/board-view.js');
+  const calls = [], s = bridgeState('playing');
+  s.me.hand = [{ number: 1, color: 'yellow' }, { number: 2, color: 'red' }];
+  s.room.bridge.teams[0].leadColor = 'yellow';
+  s.room.bridge.legalMoves = [{ cardNumber: 1, targets: [1] }, { cardNumber: 2, targets: [] }];
+  const view = new BridgeBoardView({ bridge: (...args) => calls.push(args) });
+  view.render(s, s.room.bridge.teams[0]);
+  nodes.bridgeHand.children[1].click();
+  assert.match(nodes.bridgeCardChoiceTitle.textContent, /無法使用/);
+  assert.match(nodes.bridgeCardChoiceReason.textContent, /指定黃色.*持有黃色.*必須跟色/);
+  assert.equal(nodes.bridgeConfirmCardChoice.hidden, true);
+  nodes.bridgeCloseCardChoice.click();
+  assert.equal(nodes.bridgeCardChoiceDialog.open, false);
+  nodes.bridgeHand.children[0].click(); nodes.bridgeCancelCardChoice.click();
+  assert.equal(view.selected, null);
+  assert.equal(s.me.hand.length, 2);
+  assert.deepEqual(calls, []);
+});
+
+test('Bridge card confirmation rechecks updates and invalidates dialogs from an older round', async t => {
+  const nodes = mount(t);
+  const { BridgeBoardView } = await import('../public/js/games/bridge/board-view.js');
+  const s = bridgeState('playing'), calls = [];
+  s.me.hand = [{ number: 1, color: 'red' }];
+  s.room.bridge.legalMoves = [{ cardNumber: 1, targets: [1] }];
+  const team = s.room.bridge.teams[0];
+  const view = new BridgeBoardView({ bridge: (...args) => calls.push(args) });
+  view.render(s, team); nodes.bridgeHand.children[0].click();
+  const waiting = { ...team, done: true, turn: null };
+  view.render(s, waiting);
+  assert.match(nodes.bridgeCardChoiceReason.textContent, /本隊已完成/);
+  nodes.bridgeConfirmCardChoice.click();
+  assert.equal(view.selected, null);
+  assert.deepEqual(calls, []);
+  const newer = { ...s, room: { ...s.room, bridge: { ...s.room.bridge, round: 2 } } };
+  view.render(newer, team);
+  assert.equal(nodes.bridgeCardChoiceDialog.open, false);
+  nodes.bridgeHand.children[0].click();
+  view.hide();
+  assert.equal(nodes.bridgeCardChoiceDialog.open, false);
+});
+
+test('waiting Bridge teams see which team is playing and cannot select a card for placement', async t => {
+  const nodes = mount(t), s = bridgeState('playing');
+  const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
+  s.me.hand = [{ number: 1, color: 'red' }];
+  s.room.bridge.activeTeamId = 'team-2';
+  s.room.bridge.teams[0].turn = null;
+  s.room.bridge.legalMoves = [{ cardNumber: 1, targets: [] }];
+  const calls = [], view = new BridgeRoomView({ bridge: (...args) => calls.push(args) });
+  view.render(s);
+  assert.match(nodes.bridgeStatus.textContent, /目前由 隊伍 2 出牌/);
+  assert.match(nodes.bridgeRound.textContent, /隊伍 2 出牌中/);
+  assert.equal(nodes.bridgeBoard.children.every(cell => cell.disabled), true);
+  nodes.bridgeHand.children[0].click();
+  assert.match(nodes.bridgeCardChoiceReason.textContent, /目前由 隊伍 2 出牌/);
+  assert.equal(nodes.bridgeConfirmCardChoice.hidden, true);
+  assert.deepEqual(calls, []);
+});
+
+test('Bridge card issues distinguish room phase, connection, turn, team and missing card', async () => {
+  const { cardPlayIssue } = await import('../public/js/games/bridge/card-choice-view.js');
+  const s = bridgeState('playing'), team = s.room.bridge.teams[0];
+  s.me.hand = [{ number: 1, color: 'blue' }];
+  s.room.bridge.legalMoves = [{ cardNumber: 1, targets: [1] }];
+  assert.equal(cardPlayIssue(s, team, 1), '');
+  assert.match(cardPlayIssue({ ...s, connected: false }, team, 1), /斷線/);
+  assert.match(cardPlayIssue({ ...s, busy: true }, team, 1), /處理中/);
+  assert.match(cardPlayIssue({ ...s, room: { ...s.room, phase: 'lobby' } }, team, 1), /尚未開始/);
+  assert.match(cardPlayIssue({ ...s, room: { ...s.room, phase: 'finished' } }, team, 1), /已結束/);
+  assert.match(cardPlayIssue(s, { ...team, id: 'team-2' }, 1), /其他隊伍/);
+  assert.match(cardPlayIssue(s, { ...team, turn: 'other' }, 1), /尚未輪到/);
+  assert.match(cardPlayIssue(s, team, 99), /已不在/);
+});
+
+test('Bridge same-round tie result opens once and leaves the board visible after closing', async t => {
+  const nodes = mount(t);
+  const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
+  const view = new BridgeRoomView({ bridge() {} });
+  const s = bridgeState('finished'); s.room.winners = ['team-1', 'team-2'];
+  view.render(s);
+  assert.equal(nodes.bridgeResultDialog.open, true);
+  assert.match(nodes.bridgeResultTitle.textContent, /平手/);
+  nodes.bridgeCloseResults.click(); view.render(s);
+  assert.equal(nodes.bridgeResultDialog.open, false);
+  assert.equal(nodes.bridgeGame.hidden, false);
+  assert.equal(nodes.bridgeViewResults.hidden, false);
+});
+
+test('game picker is available for hosts and hidden on join and Bridge pages', async t => {
+  const nodes = mount(t);
+  const { EntryView } = await import('../public/js/views/entry-view.js');
+  const original = globalThis.location;
+  t.after(() => { if (original === undefined) delete globalThis.location; else globalThis.location = original; });
+  for (const pathname of ['/', '/join', '/bridge-bingo']) {
+    globalThis.location = { pathname, search: '' };
+    const view = new EntryView({ name: '', roomCode: 'OLD01' }, () => {});
+    assert.equal(nodes.gameChoice.hidden, pathname !== '/');
+    assert.equal(nodes.code.value, pathname === '/' ? '' : 'OLD01');
+    assert.equal(view.shouldRestore('ROOM01'), false, 'a plain page must not auto-join the remembered room');
+    view.query = new URLSearchParams('?room=room01');
+    assert.equal(view.shouldRestore('ROOM01'), true);
+    assert.equal(view.shouldRestore('OTHER'), false);
+    assert.equal(view.shouldRestore(''), false);
+    nodes.gameType.value = 'bridge-bingo';
+    assert.equal(view.identity.gameType, 'bridge-bingo');
+  }
+});
+
 test('owner can cancel unanswered cards via close, backdrop or Escape without dismissing inside clicks', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/bingo/views/shared-card-view.js');
   const cancelled = [];
   const view = new SharedCardView({ cancelCard: id => cancelled.push(id) });
   const active = { id: 'session', playerId: 'host', stage: 'question', card: { name: 'Card', options: ['A', 'B'], question: 'Q' } };
@@ -82,7 +342,7 @@ test('owner can cancel unanswered cards via close, backdrop or Escape without di
 test('draw area keeps its back while a dealt card opens an effect dialog only once', async t => {
   const nodes = mount(t);
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const { DrawCardView } = await import('../public/js/views/draw-card-view.js');
+  const { DrawCardView } = await import('../public/js/games/bingo/views/draw-card-view.js');
   const view = new DrawCardView();
   const s = { room: { code: 'ROOM', phase: 'playing', boardVersion: 0, called: [], turn: 'me' }, playerId: 'me' };
   view.render(s);
@@ -112,7 +372,7 @@ test('draw area keeps its back while a dealt card opens an effect dialog only on
 
 test('drawn hand cards use their unique ID and are playable only during the owner turn', async t => {
   const nodes = mount(t);
-  const { HandView } = await import('../public/js/views/hand-view.js');
+  const { HandView } = await import('../public/js/games/bingo/views/hand-view.js');
   const used = [];
   const view = new HandView({ useCard: id => used.push(id) });
   const s = { hand: [{ id: 'held-1', definitionId: 'star', name: '星光指引', symbol: '✧', type: '祝福', theme: 'gold', description: 'Card' }],
@@ -131,7 +391,7 @@ test('drawn hand cards use their unique ID and are playable only during the owne
 
 test('other boards show question marks before start regardless of readiness and reveal after start', async t => {
   const nodes = mount(t);
-  const { BoardView } = await import('../public/js/views/board-view.js');
+  const { BoardView } = await import('../public/js/games/bingo/views/board-view.js');
   const view = new BoardView({});
   for (const size of [3, 4, 5, 6, 7, 8, 9]) {
     const cells = Array.from({ length: size ** 2 }, (_, i) => ({ number: i + 1, isCovered: false }));
@@ -163,7 +423,7 @@ test('other boards show question marks before start regardless of readiness and 
 
 test('reroll prize control is enabled only for the connected idle host before start', async t => {
   const nodes = mount(t);
-  const { HostControlsView } = await import('../public/js/views/host-controls-view.js');
+  const { HostControlsView } = await import('../public/js/games/bingo/views/host-controls-view.js');
   const commands = [];
   const view = new HostControlsView({ command: kind => commands.push(kind) });
   const s = { room: { host: 'host', phase: 'lobby', size: 3, goal: 1, players: [] }, me: { id: 'host' }, busy: false, connected: true };
@@ -187,7 +447,7 @@ test('reroll prize control is enabled only for the connected idle host before st
 test('award notice names only the newly gained items and groups duplicate rewards', async t => {
   const nodes = mount(t);
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const { LineNoticeView } = await import('../public/js/views/line-notice-view.js');
+  const { LineNoticeView } = await import('../public/js/games/bingo/views/line-notice-view.js');
   const view = new LineNoticeView();
   view.show([]);
   assert.equal(nodes.lineNotices.children.length, 0);
@@ -204,7 +464,7 @@ test('award notice names only the newly gained items and groups duplicate reward
 
 test('line prize view places each diagonal in its own corner and preserves row and column slots', async t => {
   const nodes = mount(t);
-  const { LinePrizesView } = await import('../public/js/views/line-prizes-view.js');
+  const { LinePrizesView } = await import('../public/js/games/bingo/views/line-prizes-view.js');
   const view = new LinePrizesView();
   for (const size of [3, 5, 9]) {
     const cells = Array.from({ length: size * size }, (_, index) => ({ isCovered: index % (size + 1) === 0 }));
@@ -224,7 +484,7 @@ test('line prize view places each diagonal in its own corner and preserves row a
 
 test('final reward dialog aggregates items and stays closed after dismissal until reopened', async t => {
   const nodes = mount(t);
-  const { RewardsView, rewardTotals } = await import('../public/js/views/rewards-view.js');
+  const { RewardsView, rewardTotals } = await import('../public/js/games/bingo/views/rewards-view.js');
   const rewards = [{ item: '突襲券' }, { item: '突襲券' }, { item: '傳送石' }];
   assert.deepEqual(rewardTotals(rewards), [{ item: '突襲券', count: 2 }, { item: '傳送石', count: 1 }]);
   const room = { code: 'ROOM', phase: 'finished', players: [{ name: 'Alice', rewards }, { name: 'Bob', rewards: [] }] };
@@ -248,7 +508,7 @@ test('final reward dialog aggregates items and stays closed after dismissal unti
 
 test('hand count includes visible preview cards and only shows empty text when all cards are gone', async t => {
   const nodes = mount(t);
-  const { HandView } = await import('../public/js/views/hand-view.js');
+  const { HandView } = await import('../public/js/games/bingo/views/hand-view.js');
   const hand = new HandView();
   hand.render({ hand: [] });
   assert.equal(nodes.handCount.textContent, '0 張');
@@ -270,8 +530,8 @@ test('hand count includes visible preview cards and only shows empty text when a
 
 test('preview card flow requires a choice and updates displayed hand count after use', async t => {
   const nodes = mount(t);
-  const { HandView } = await import('../public/js/views/hand-view.js');
-  const { CardPreviewView } = await import('../public/js/views/card-preview-view.js');
+  const { HandView } = await import('../public/js/games/bingo/views/hand-view.js');
+  const { CardPreviewView } = await import('../public/js/games/bingo/views/card-preview-view.js');
   const hand = new HandView();
   const preview = new CardPreviewView(count => hand.setPreviewCount(count));
   preview.render(state()); hand.render({ hand: [] });
@@ -296,7 +556,7 @@ test('preview card flow requires a choice and updates displayed hand count after
 
 test('closing an unanswered card keeps it in hand; repeated room updates do not refill used cards', async t => {
   const nodes = mount(t);
-  const { CardPreviewView } = await import('../public/js/views/card-preview-view.js');
+  const { CardPreviewView } = await import('../public/js/games/bingo/views/card-preview-view.js');
   const preview = new CardPreviewView();
   preview.render(state());
   nodes.previewCardList.children[0].children[0].click();
@@ -314,7 +574,7 @@ test('closing an unanswered card keeps it in hand; repeated room updates do not 
 
 test('host confirmation closes the local card preview without consuming it', async t => {
   const nodes = mount(t);
-  const { CardPreviewView } = await import('../public/js/views/card-preview-view.js');
+  const { CardPreviewView } = await import('../public/js/games/bingo/views/card-preview-view.js');
   const preview = new CardPreviewView(); preview.render(state());
   nodes.previewCardList.children[0].children[0].click();
   preview.render(state({ room: { code: 'ROOM01', host: 'host', pending: { number: 1 } } }));
@@ -324,7 +584,7 @@ test('host confirmation closes the local card preview without consuming it', asy
 
 test('drawer opens and closes through its buttons, keeping accessibility state in sync', async t => {
   const nodes = mount(t);
-  const { HandDrawerView } = await import('../public/js/views/hand-drawer-view.js');
+  const { HandDrawerView } = await import('../public/js/games/bingo/views/hand-drawer-view.js');
   const drawer = new HandDrawerView(); drawer.render(state());
   assert.equal(nodes.handDock.hidden, false);
   assert.equal(document.body.classList.contains('has-hand-dock'), true);
@@ -340,7 +600,7 @@ test('drawer opens and closes through its buttons, keeping accessibility state i
 
 test('drawer ignores inside clicks and closes for clicks outside its bounds', async t => {
   const nodes = mount(t);
-  const { HandDrawerView } = await import('../public/js/views/hand-drawer-view.js');
+  const { HandDrawerView } = await import('../public/js/games/bingo/views/hand-drawer-view.js');
   const drawer = new HandDrawerView(); drawer.render(state()); nodes.openHand.click();
   nodes.handPanel.emit('click', { clientX: 50, clientY: 150 });
   assert.equal(nodes.handPanel.open, true);
@@ -352,7 +612,7 @@ test('drawer ignores inside clicks and closes for clicks outside its bounds', as
 
 test('drawer stays open on ordinary snapshots, closes for host approval, and cleans up on leave', async t => {
   const nodes = mount(t);
-  const { HandDrawerView } = await import('../public/js/views/hand-drawer-view.js');
+  const { HandDrawerView } = await import('../public/js/games/bingo/views/hand-drawer-view.js');
   const drawer = new HandDrawerView(); drawer.render(state()); nodes.openHand.click();
   drawer.render(state());
   assert.equal(nodes.handPanel.open, true);
@@ -368,7 +628,7 @@ test('drawer stays open on ordinary snapshots, closes for host approval, and cle
 });
 
 test('card model ignores invalid choices and prevents used cards being played twice', async () => {
-  const { CardPreview } = await import('../public/js/state/card-preview.js');
+  const { CardPreview } = await import('../public/js/games/bingo/state/card-preview.js');
   const first = new CardPreview(), second = new CardPreview();
   first.open('missing'); first.flip(); first.choose(0);
   assert.equal(first.submit(), false);
@@ -397,7 +657,7 @@ function sharedState(playerId = 'owner', stage = 'question') {
 
 test('shared question is visible to spectators but only its owner can submit', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/bingo/views/shared-card-view.js');
   const calls = [];
   const view = new SharedCardView({ answerCard: (...args) => calls.push(args), finishCard() {} });
   view.render(sharedState('spectator'));
@@ -423,7 +683,7 @@ test('shared question is visible to spectators but only its owner can submit', a
 
 test('shared results require owner or host to continue, and cannot be dismissed with Escape', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/bingo/views/shared-card-view.js');
   const calls = [];
   const view = new SharedCardView({ answerCard() {}, finishCard: id => calls.push(id) });
   view.render(sharedState('host'));
@@ -444,7 +704,7 @@ test('shared results require owner or host to continue, and cannot be dismissed 
 
 test('selecting an online hand card immediately sends use to the server without a private preview', async t => {
   const nodes = mount(t);
-  const { CardPreviewView } = await import('../public/js/views/card-preview-view.js');
+  const { CardPreviewView } = await import('../public/js/games/bingo/views/card-preview-view.js');
   const calls = [];
   const view = new CardPreviewView(() => {}, { useCard: id => calls.push(id) });
   const online = state({ connected: true, busy: false });
@@ -463,7 +723,7 @@ test('selecting an online hand card immediately sends use to the server without 
 
 test('online hand cards cannot be used outside the owner turn or while the game is paused', async t => {
   const nodes = mount(t);
-  const { CardPreviewView } = await import('../public/js/views/card-preview-view.js');
+  const { CardPreviewView } = await import('../public/js/games/bingo/views/card-preview-view.js');
   const calls = [];
   const view = new CardPreviewView(() => {}, { useCard: id => calls.push(id) });
   const make = extra => state({ connected: true, busy: false, ...extra,
@@ -480,7 +740,7 @@ test('online hand cards cannot be used outside the owner turn or while the game 
 
 test('submitted answers lock all options and show judgment controls exclusively to the host', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/bingo/views/shared-card-view.js');
   const decisions = [];
   const view = new SharedCardView({ judgeCard: (...args) => decisions.push(args), answerCard() {}, finishCard() {} });
   const review = sharedState('owner', 'review'); review.room.activeCard.choice = 0;
@@ -505,7 +765,7 @@ test('submitted answers lock all options and show judgment controls exclusively 
 
 test('in-game card results make it clear that continuing ends the current turn', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/bingo/views/shared-card-view.js');
   const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} });
   const playing = sharedState('owner', 'result'); playing.room.phase = 'playing';
   view.render(playing);
@@ -515,7 +775,7 @@ test('in-game card results make it clear that continuing ends the current turn',
 
 test('all players see the card effect and question through answering, host review, and results', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/bingo/views/shared-card-view.js');
   const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} });
   for (const player of ['owner', 'host', 'spectator']) {
     for (const stage of ['question', 'review', 'result']) {
@@ -532,7 +792,7 @@ test('all players see the card effect and question through answering, host revie
 
 test('verdict rerenders and transitions show only the current outcome without stale result text', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/bingo/views/shared-card-view.js');
   const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} });
   for (const correct of [true, true, false, false, true]) {
     const next = sharedState('spectator', 'result'); next.room.activeCard.correct = correct;

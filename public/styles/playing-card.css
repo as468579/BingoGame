@@ -1,0 +1,26 @@
+/* One face and one back for both games. Layout dimensions belong to each game. */
+.game-card.game-card-front{
+  --ink:#755520;--wash:var(--card-face-tint,#eee0b8);
+  position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:center;
+  border:2px solid var(--card-face-rim,var(--card-gold-rim));border-radius:12px;overflow:hidden;
+  background:var(--card-paper-grain),radial-gradient(ellipse at 25% 10%,#ffffff99,transparent 65%),linear-gradient(145deg,var(--card-face-light,var(--card-paper-light)),var(--card-face-tint,var(--card-paper-neutral)));
+  color:var(--ink);box-shadow:inset 0 1px #fff,0 4px 0 var(--card-face-edge,var(--card-paper-edge)),0 8px 14px #1d211c2b;
+}
+.game-card.game-card-front:before{content:"";position:absolute;inset:4px;border:1px solid var(--card-face-rim,#c9b78388);border-radius:8px;pointer-events:none}
+.game-card.game-card-front:hover:enabled{background:var(--card-paper-grain),linear-gradient(145deg,var(--card-face-light,var(--card-paper-light)),var(--card-face-tint,var(--card-paper-neutral)));filter:brightness(1.03)}
+.game-card-front .game-card-type{position:relative;border:1px solid #c9b78399;border-radius:20px;padding:2px 8px;background:#fff7;letter-spacing:1px;line-height:1.2;opacity:1;color:var(--ink);font-weight:800}
+.game-card-front .game-card-art{display:grid;place-items:center;flex-shrink:0;border-radius:50%;border:1px solid #fff9;outline:1px solid #b39b6344;outline-offset:3px;background:radial-gradient(circle at 35% 25%,#fffdf3,var(--wash) 78%);color:var(--ink);text-shadow:0 1px #fff9;font-family:Georgia,serif;line-height:1}
+.game-card-front.red{--ink:#843c32}.game-card-front.yellow{--ink:#75551e}.game-card-front.blue{--ink:#315b73}
+.game-card-front.green{--ink:#285b49}.game-card-front.violet{--ink:#615080}
+.bridge-number-card.game-card-front{justify-content:center;gap:7px}
+.bridge-number-card .game-card-type{font-size:16px;padding:1px 5px;letter-spacing:0}
+.bridge-number-card .game-card-art{width:46px;height:46px;font-size:32px;margin:2px auto}
+.game-card.game-card-back{
+  position:relative;display:grid;place-items:center;isolation:isolate;
+  border:5px double #b4d7ed;border-radius:12px;
+  background:radial-gradient(ellipse at 40% 30%,#3d7ba3,#153553 85%);
+  box-shadow:inset 0 1px 0 #e0f4ff44,0 4px 0 #507c9c,0 8px 14px #0003;
+}
+.game-card-back:before{content:"";position:absolute;inset:5px;border:1px solid #b4d7ed88;border-radius:5px;pointer-events:none}
+.game-card-back .card-back-anchor{position:relative;width:64%;height:auto;max-width:86px;aspect-ratio:5 / 6;fill:none;stroke:#dbf1ff;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 2px 1px #102d4b88) drop-shadow(0 0 9px #a0d9ff44)}
+@media(max-width:700px){.bridge-number-card .game-card-art{width:40px;height:40px;font-size:29px}}

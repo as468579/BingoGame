@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { createApplication } = require('../src/app');
-const { addToHand } = require('../src/domain/hand');
+const { addToHand } = require('../src/games/bingo/hand');
 
 function fixture(t) {
   const rooms = new Map();

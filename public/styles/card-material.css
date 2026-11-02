@@ -1,0 +1,8 @@
+/* Shared card material tokens. Each game keeps its own dimensions, colors and interaction rules. */
+:root{
+  --card-paper-light:#fffdf2;
+  --card-paper-neutral:#f1e9d4;
+  --card-gold-rim:#c9b783;
+  --card-paper-edge:#dacdb1;
+  --card-paper-grain:repeating-linear-gradient(0deg,#ffffff24 0 1px,transparent 1px 4px);
+}

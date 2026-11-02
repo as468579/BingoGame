@@ -1,7 +1,7 @@
 'use strict';
 const { createApplication } = require('./src/app');
-const { lines } = require('./src/domain/board');
-const { canUndo, initialGameState } = require('./src/domain/game-history');
+const { lines } = require('./src/games/bingo/board');
+const { canUndo, initialGameState } = require('./src/games/bingo/history');
 const { server } = createApplication();
 
 if (require.main === module) {

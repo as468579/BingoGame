@@ -1,3 +1,3 @@
-import { BingoApp } from './js/app.js';
+import { GameApp } from './js/app.js';
 
-new BingoApp().start();
+new GameApp().start();

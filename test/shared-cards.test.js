@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { createApplication } = require('../src/app');
-const { demoCards } = require('../src/domain/card-catalog');
+const { demoCards } = require('../src/games/bingo/card-catalog');
 
 function fixture() {
   const rooms = new Map();
@@ -76,7 +76,7 @@ test('cards cannot be refunded after submitting an answer, judgment or finishing
 
 test('legacy active cards can recover the consumed hand from their pre-use undo snapshot', () => {
   const f = fixture(); f.prepare();
-  const { drawForNumber } = require('../src/domain/card-actions');
+  const { drawForNumber } = require('../src/games/bingo/card-actions');
   const held = drawForNumber(f.room.players[0]);
   f.send('cardUse', f.hostToken, { cardId: held.id });
   for (const key of ['returnCard', 'handIndex', 'undoDepth']) delete f.room.activeCard[key];

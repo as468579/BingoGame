@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createApplication } = require('../src/app');
-const { ITEMS, createLinePrizes, ensureLinePrizes, awardLinePrizes } = require('../src/domain/line-prizes');
+const { ITEMS, createLinePrizes, ensureLinePrizes, awardLinePrizes } = require('../src/games/bingo/prizes');
 const { migrateRoom } = require('../src/domain/room-migration');
 
 function fixture(options, size = 3) {
@@ -58,7 +58,7 @@ for (const [oldName, newName] of [['mp_potion', '活力藥水'], ['hp_potion', '
 });
 
 test('random prize selection includes both potions and uses a fresh draw for each slot', async () => {
-  const { linePrizeItems } = await import('../public/js/views/line-prizes-view.js');
+  const { linePrizeItems } = await import('../public/js/games/bingo/views/line-prizes-view.js');
   assert.deepEqual(linePrizeItems, ITEMS);
   assert.ok(ITEMS.includes('紅色藥水') && ITEMS.includes('活力藥水'));
   let draws = 0;

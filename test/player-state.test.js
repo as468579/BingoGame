@@ -5,9 +5,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { createApplication } = require('../src/app');
-const { createPlayer } = require('../src/domain/player');
-const { createBoard, createCells, coverNumber, coveredLines } = require('../src/domain/board');
-const { addToHand, removeFromHand } = require('../src/domain/hand');
+const { createPlayer } = require('../src/games/bingo/player');
+const { createBoard, createCells, coverNumber, coveredLines } = require('../src/games/bingo/board');
+const { addToHand, removeFromHand } = require('../src/games/bingo/hand');
 const { migrateRoom } = require('../src/domain/room-migration');
 
 function fixture(t) {

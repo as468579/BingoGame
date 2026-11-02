@@ -8,7 +8,7 @@ const CONTENT_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javasc
 
 function serveStatic(request, response, pathname, publicDirectory) {
   try { pathname = decodeURIComponent(pathname); } catch { fail('找不到頁面。', 404); }
-  const entry = ['/', '/join', '/join/'].includes(pathname) ? 'index.html' : pathname.slice(1);
+  const entry = ['/', '/join', '/join/', '/bridge-bingo', '/bridge-bingo/'].includes(pathname) ? 'index.html' : pathname.slice(1);
   // Only public source assets are served. Data, credentials, dotfiles, and traversal stay inaccessible.
   if (request.method !== 'GET' || (!/^(?:[a-zA-Z0-9_/-]+\.(?:js|css)|[\p{L}\p{N}_/-]+\.png)$/u.test(entry) && entry !== 'index.html')) {
     fail('找不到頁面。', 404);

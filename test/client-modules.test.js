@@ -20,7 +20,7 @@ function snapshot(overrides = {}) {
 
 test('chalk lines follow horizontal, vertical and diagonal cell centers for every supported size', async () => {
   const { completedBoardLines } = await import('../public/js/views/board-lines.js');
-  const { coveredLines } = require('../src/domain/board');
+  const { coveredLines } = require('../src/games/bingo/board');
   for (let size = 3; size <= 9; size++) {
     const cells = Array.from({ length: size * size }, (_, index) => ({ number: index + 1, isCovered: false }));
     const groups = [
@@ -60,8 +60,8 @@ test('chalk lines disappear after undoing a cover and never infer marks from num
 });
 
 test('each row, column and diagonal has a stable prize that follows independent cover flags', async () => {
-  const { linePrizes, linePrizeItems } = await import('../public/js/views/line-prizes-view.js');
-  const { coveredLines } = require('../src/domain/board');
+  const { linePrizes, linePrizeItems } = await import('../public/js/games/bingo/views/line-prizes-view.js');
+  const { coveredLines } = require('../src/games/bingo/board');
   for (let size = 3; size <= 9; size++) {
     const cells = Array.from({ length: size * size }, (_, index) => ({ number: index + 1, isCovered: false }));
     const initial = linePrizes(cells, size);
@@ -79,7 +79,7 @@ test('each row, column and diagonal has a stable prize that follows independent 
 });
 
 test('prize availability follows the viewed board and undo, with no shared earned state', async () => {
-  const { linePrizes } = await import('../public/js/views/line-prizes-view.js');
+  const { linePrizes } = await import('../public/js/games/bingo/views/line-prizes-view.js');
   const first = Array.from({ length: 9 }, (_, index) => ({ number: index + 1, isCovered: index % 4 === 0 }));
   const second = first.map(cell => ({ ...cell, isCovered: false }));
   const original = structuredClone(first);
@@ -92,7 +92,7 @@ test('prize availability follows the viewed board and undo, with no shared earne
 });
 
 test('a completed line does not imply a reward when another player already owns that slot', async () => {
-  const { linePrizes } = await import('../public/js/views/line-prizes-view.js');
+  const { linePrizes } = await import('../public/js/games/bingo/views/line-prizes-view.js');
   const cells = Array.from({ length: 9 }, (_, index) => ({ isCovered: index < 3 }));
   const pool = [{ id: 'row-0', item: '突襲券', claimedBy: 'first' }];
   const late = linePrizes(cells, 3, pool, 'second')[0];
@@ -102,7 +102,7 @@ test('a completed line does not imply a reward when another player already owns 
 });
 
 test('reward gains announce actual newly awarded prizes regardless of line ranking', async () => {
-  const { rewardGains } = await import('../public/js/state/line-progress.js');
+  const { rewardGains } = await import('../public/js/games/bingo/state/reward-progress.js');
   const players = [{ id: 'a', name: 'A', lines: 3 }, { id: 'b', name: 'B', lines: 0 }];
   const prizes = [{ id: 'row-0', item: '突襲券', claimedBy: 'a' },
     { id: 'row-1', item: '傳送石', claimedBy: null }, { id: 'column-0', item: '傳送石', claimedBy: null }];
@@ -128,7 +128,7 @@ test('reward gains announce actual newly awarded prizes regardless of line ranki
 });
 
 test('card preview requires an answer, consumes only local demo cards, and can restart', async () => {
-  const { CardPreview, demoCards } = await import('../public/js/state/card-preview.js');
+  const { CardPreview, demoCards } = await import('../public/js/games/bingo/state/card-preview.js');
   const preview = new CardPreview();
   preview.open('star');
   assert.equal(preview.submit(), false);
@@ -151,8 +151,8 @@ test('card preview requires an answer, consumes only local demo cards, and can r
 });
 
 test('client state ignores old snapshots, preserves drafts, and resets drafts on size changes', async () => {
-  const { GameState } = await import('../public/js/state/game-state.js');
-  const state = new GameState();
+  const { BingoState } = await import('../public/js/games/bingo/state.js');
+  const state = new BingoState();
   state.playerId = 'me';
   state.accept(snapshot());
   state.editCell(0, 9);
