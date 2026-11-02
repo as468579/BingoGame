@@ -92,13 +92,19 @@ test('BingoNext renders only its own shared board, team roster, team rewards and
     teams: [{ id: 'team-1', name: '隊伍 1', playerIds: ['host'], lines: 0, rewards: [] }, { id: 'team-2', name: '隊伍 2', playerIds: ['guest'], lines: 0, rewards: [] }],
     players: [{ id: 'host', name: 'Host', teamId: 'team-1', board, hand: [], handCount: 0, ready: true, online: true }, { id: 'guest', name: 'Guest', teamId: 'team-2', board, handCount: 0, ready: true, online: true }], availableDemoCards: [] });
   const lookup = document.getElementById, actions = { call() {}, command() {}, settingsChanged() {}, applySize() {}, undo() {} };
-  document.getElementById = id => { assert.ok(id.startsWith('next-'), `BingoNext touched another game's DOM: ${id}`); return lookup(id); };
+  document.getElementById = id => {
+    assert.ok(id.startsWith('next-'), `BingoNext touched another game's DOM: ${id}`);
+    assert.doesNotMatch(id, /(?:drawCardDisplay|drawnCardDialog|closeDrawnCard|drawnCardTitle|drawnCardContent)$/, 'The disabled draw view must not bind DOM or show results');
+    return lookup(id);
+  };
   const view = new BingoNextView(actions, { value: '', invitation: code => `http://localhost:3000/join?room=${code}` }, () => {}, () => s);
   view.render(s);
   assert.equal(document.title, '團隊賓果 · Alberta');
   assert.equal(nodes['next-root'].hidden, false); assert.equal(nodes['next-boardTitle'].textContent, '全場共用盤面');
   assert.equal(nodes['next-board'].children.length, 9); assert.equal(nodes['next-board'].children[0].dataset.team, 0);
   assert.equal(nodes['next-board'].children[0].disabled, true); assert.equal(nodes['next-board'].children[1].disabled, false);
+  s.room.lastDraw = { id: 'drawn', name: '星光指引', theme: 'gold', symbol: '✧' };
+  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, false);
   s.room.phase = 'finished'; s.room.winners = ['team-1']; view.render(s);
   assert.equal(nodes['next-gameResultsDialog'].open, true); assert.equal(nodes['next-gameResultsList'].children.length, 2);
   view.hide(); assert.equal(nodes['next-root'].hidden, true); assert.equal(nodes['next-gameResultsDialog'].open, false);
@@ -201,6 +207,33 @@ test('entry views restore Alberta titles and accept login only after text compos
   const view = new EntryView({ name: 'Alice', roomCode: 'ABC123' }, () => {});
   view.switchPlayer('DEF456');
   assert.equal(nodes.code.value, 'DEF456'); assert.equal(nodes.name.value, ''); assert.equal(nodes.name.focused, true);
+});
+
+test('pending hands show only placeholders in both games without mutating or using stored cards', async t => {
+  const nodes = mount(t);
+  const { PendingHandView } = await import('../public/js/views/pending-hand-view.js');
+  const held = { id: 'held', name: '星光指引', symbol: '✧', effect: '舊效果', description: '舊說明' };
+  const demo = { id: 'demo', name: '森林守護', description: '示範說明' };
+  const s = { hand: [held], room: { availableDemoCards: [demo] } }, original = structuredClone(s);
+  for (const prefix of ['', 'next-']) {
+    const view = new PendingHandView(id => nodes[prefix + id]);
+    view.render(s);
+    assert.equal(nodes[prefix + 'handCount'].textContent, '2 張');
+    assert.equal(nodes[prefix + 'handEmpty'].hidden, true);
+    for (const id of ['handList', 'previewCardList']) {
+      const card = nodes[prefix + id].children[0].children[0];
+      assert.equal(card.tagName, 'div'); assert.equal(card.textContent, '待定');
+      assert.equal(card.onclick, undefined); card.click();
+    }
+    assert.equal(nodes[prefix + 'sharedCardDialog'].open, false);
+    assert.equal(nodes[prefix + 'cardPreviewDialog'].open, false);
+    view.render({ hand: [], room: { availableDemoCards: [] } });
+    assert.equal(nodes[prefix + 'handCount'].textContent, '0 張');
+    assert.equal(nodes[prefix + 'handEmpty'].hidden, false); assert.equal(nodes[prefix + 'handEmpty'].textContent, '待定');
+    assert.equal(nodes[prefix + 'handList'].children.length, 0); assert.equal(nodes[prefix + 'previewCardList'].children.length, 0);
+    assert.equal(nodes[prefix + 'previewCardsEmpty'].hidden, true);
+  }
+  assert.deepEqual(s, original);
 });
 
 test('both games use shared card faces and concealed backs without changing card content', async t => {

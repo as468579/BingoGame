@@ -24,3 +24,4 @@
 .game-card-back:before{content:"";position:absolute;inset:5px;border:1px solid #b4d7ed88;border-radius:5px;pointer-events:none}
 .game-card-back .card-back-anchor{position:relative;width:64%;height:auto;max-width:86px;aspect-ratio:5 / 6;fill:none;stroke:#dbf1ff;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 2px 1px #102d4b88) drop-shadow(0 0 9px #a0d9ff44)}
 @media(max-width:700px){.bridge-number-card .game-card-art{width:40px;height:40px;font-size:29px}}
+.game-card.pending-hand-card{justify-content:center;cursor:default}

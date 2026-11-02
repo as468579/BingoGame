@@ -1,4 +1,4 @@
-#next-root .bingo-sign{font-size:clamp(27px,3.5vw,42px);letter-spacing:3px}
+
 .next-team-settings{display:flex;gap:12px;margin-bottom:16px}.next-team-settings input{width:100px}
 #next-root [data-team="0"]{--team-ink:#b84840;--team-wash:#b8484040}
 #next-root [data-team="1"]{--team-ink:#488ac9;--team-wash:#488ac940}

@@ -4,12 +4,13 @@ import { BoardView } from './views/board-view.js';
 import { HostControlsView } from './views/host-controls-view.js';
 import { ApprovalView } from './views/approval-view.js';
 import { InvitationView } from '../../views/invitation-view.js';
-import { HandView } from './views/hand-view.js';
-import { CardPreviewView } from './views/card-preview-view.js';
+import { PendingHandView } from '../../views/pending-hand-view.js';
+// Original hand and preview views are retained while card contents are pending.
 import { HandDrawerView } from './views/hand-drawer-view.js';
 import { SharedCardView } from './views/shared-card-view.js';
 import { RewardsView } from './views/rewards-view.js';
-import { DrawCardView } from './views/draw-card-view.js';
+// Draw area is temporarily disabled; retain the implementation for later use.
+// import { DrawCardView } from './views/draw-card-view.js';
 
 export class BingoView {
   constructor(actions, address, notify, getState) {
@@ -18,12 +19,12 @@ export class BingoView {
     this.hostControls = new HostControlsView(actions);
     this.approval = new ApprovalView(actions);
     this.invitation = new InvitationView(address, notify, getState);
-    this.hand = new HandView(actions);
-    this.cardPreview = new CardPreviewView(count => this.hand.setPreviewCount(count), actions);
+    this.hand = new PendingHandView($);
+    // this.cardPreview = new CardPreviewView(count => this.hand.setPreviewCount(count), actions);
     this.handDrawer = new HandDrawerView();
     this.sharedCard = new SharedCardView(actions);
     this.rewards = new RewardsView();
-    this.drawCards = new DrawCardView();
+    // this.drawCards = new DrawCardView();
   }
 
   render(state) {
@@ -38,13 +39,13 @@ export class BingoView {
     this.players.render(state);
     this.board.render(state);
     this.hostControls.render(state);
-    this.cardPreview.render(state);
+    // this.cardPreview.render(state);
     this.handDrawer.render(state);
     this.approval.render(state);
     this.hand.render(state);
     this.sharedCard.render(state);
     this.rewards.render(state);
-    this.drawCards.render(state);
+    // this.drawCards.render(state);
     $('rulesText').textContent = `本局 ${room.size} × ${room.size}，數字 1～${room.size ** 2}。每回合選號並抽一張卡，或使用一張卡；使用卡牌後換人。房主確認選號後同步標記並發卡，先完成 ${room.goal} 條線獲勝，可同時獲勝。`;
     $('winner').textContent = room.winners.length
       ? `✳ ${room.players.filter(player => room.winners.includes(player.id)).map(player => player.name).join('、')} Bingo！` : '';
@@ -54,10 +55,10 @@ export class BingoView {
     $('game').hidden = true;
     $('handPanel').hidden = true;
     this.approval.close();
-    this.cardPreview.close();
+    // this.cardPreview.close();
     this.handDrawer.hide();
     this.sharedCard.close();
     this.rewards.hide();
-    this.drawCards.hide();
+    // this.drawCards.hide();
   }
 }

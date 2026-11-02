@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 // Validate public markup contracts without a browser dependency. Interactive views are tested separately.
-const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
 const tags = [...html.matchAll(/<([a-z][\w:-]*)\b([^<>]*?)\/?>/gi)].map(match => ({
   name: match[1].toLowerCase(), start: match.index, end: match.index + match[0].length,
   attrs: Object.fromEntries([...match[2].matchAll(/([^\s=]+)\s*=\s*(["'])(.*?)\2/g)].map(attribute => [attribute[1], attribute[3]]))
@@ -66,7 +66,7 @@ test('simplified login keeps its accessible title and create/join controls witho
 test('Chinese game selection and Team Bingo board title retain stable game and route identifiers', () => {
   const options = tags.filter(tag => tag.name === 'option' && tag.start > byId('gameType').start && tag.start < html.indexOf('</select>', byId('gameType').end));
   assert.deepEqual(options.map(tag => [tag.attrs.value, text(tag)]), [
-    ['bingo', 'Bingo'], ['bridge-bingo', 'Bridge Bingo'], ['bingo-next', '團隊賓果']
+    ['bingo', '單人賓果'], ['bridge-bingo', '橋牌賓果'], ['bingo-next', '團隊賓果']
   ]);
   const teamTitle = tags.find(tag => hasClass(tag, 'bingo-sign') && tag.start > byId('next-root').start);
   const titleMarkup = content(teamTitle).split('<span')[0].trim();
@@ -74,4 +74,14 @@ test('Chinese game selection and Team Bingo board title retain stable game and r
   const settings = byId('next-boardSize');
   const selected = tags.find(tag => tag.name === 'option' && tag.start > settings.start && tag.start < html.indexOf('</select>', settings.end) && /\bselected\b/.test(html.slice(tag.start, tag.end)));
   assert.equal(selected.attrs.value, '8');
+});
+
+test('draw panels and result dialogs are disabled while both games retain hand controls', () => {
+  assert.equal(tags.some(tag => hasClass(tag, 'draw-card-panel')), false);
+  for (const prefix of ['', 'next-']) {
+    assert.equal(tags.some(tag => tag.attrs.id === `${prefix}drawnCardDialog`), false);
+    for (const id of ['openHand', 'handPanel', 'sharedCardDialog']) byId(prefix + id);
+  }
+  const layouts = tags.filter(tag => hasClass(tag, 'game-layout'));
+  assert.equal(layouts.length, 2); assert.ok(layouts.every(tag => hasClass(tag, 'no-draw')));
 });

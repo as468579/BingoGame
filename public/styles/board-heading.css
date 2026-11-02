@@ -1,0 +1,5 @@
+/* Fixed typography shared by all games, independent of board size and viewport. */
+:root{--game-title-size:42px;--game-progress-size:16px}
+.board-card>.bingo-sign{font-size:var(--game-title-size);line-height:1.25;letter-spacing:3px;word-spacing:4px}
+.board-card>.section-title>.pill{font-size:var(--game-progress-size);font-weight:600;line-height:1.4}
+.board-card>.section-title>.pill :is(.line-total,.line-goal){font-size:inherit;font-weight:inherit;line-height:inherit}

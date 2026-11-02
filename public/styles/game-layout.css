@@ -1,0 +1,4 @@
+/* Reclaim the draw column while that view is temporarily disabled. */
+.game-layout.no-draw{grid-template-columns:280px minmax(0,1fr)}
+@media(max-width:1050px){.game-layout.no-draw{grid-template-columns:210px minmax(0,1fr)}}
+@media(max-width:700px){.game-layout.no-draw{grid-template-columns:1fr}}

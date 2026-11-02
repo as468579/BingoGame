@@ -5,7 +5,7 @@ export function cardFace({ tag = 'div', className = '', type, art, name, descrip
   const card = element(tag, `game-card game-card-front ${className}`.trim());
   if (tag === 'button') card.type = 'button';
   if (type) card.append(element('span', 'game-card-type spell-type', type));
-  card.append(element('strong', 'game-card-art spell-art', art));
+  if (art !== undefined) card.append(element('strong', 'game-card-art spell-art', art));
   if (name) card.append(element('strong', 'spell-name', name));
   if (description) card.append(element('span', 'spell-description', description));
   if (footer) card.append(element('span', 'spell-lock', footer));
