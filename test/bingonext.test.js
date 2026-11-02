@@ -19,6 +19,18 @@ function fixture(options = {}) {
   const play = number => send('call', { number }, room.players.find(p => p.id === room.turn).token);
   return { ...app, token, send, play, room, code, start };
 }
+test('new team Bingo rooms default to 8 by 8 without changing other games or saved sizes', () => {
+  const { getGame } = require('../src/games');
+  const initial = getGame('bingo-next').initializeRoom();
+  assert.equal(initial.size, 8); assert.equal(initial.board.length, 64); assert.equal(initial.cells.length, 64);
+  assert.deepEqual(initial.board, Array.from({ length: 64 }, (_, i) => i + 1));
+  assert.equal(initial.linePrizes.length, 18);
+  assert.equal(getGame('bingo').initializeRoom().size, 5);
+  assert.equal(getGame('bridge-bingo').initializeRoom().size, 5);
+  const f = fixture({ size: 5 }); getGame('bingo-next').migrate(f.room);
+  assert.equal(f.room.size, 5); assert.equal(f.room.board.length, 25);
+});
+
 test('BingoNext registers as a separate game with team identities and one authoritative board', () => {
   const f = fixture({ p: 2 });
   const snapshot = f.service.snapshot(f.room, f.room.host);

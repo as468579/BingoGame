@@ -99,7 +99,7 @@ function rerollPrizes(room, player) {
 const handlers = { settings, board, team, ready, start, call, scan, skip, reset, undo, rerollPrizes,
   cardUse: useCard, cardCancel: cancelCard, cardAnswer: answerCard, cardJudge: judgeCard, cardFinish: finishCard };
 function applyGameAction(room, player, data, presence) {
-  if (!Object.hasOwn(handlers, data.kind)) fail('不支援的 BingoNext 操作。');
+  if (!Object.hasOwn(handlers, data.kind)) fail('不支援的團隊賓果操作。');
   if (room.activeCard && !['cardCancel', 'cardAnswer', 'cardJudge', 'cardFinish'].includes(data.kind)) fail('卡牌作答期間暫停遊戲。', 409);
   const before = REVERSIBLE_ACTIONS.has(data.kind) && room.phase === 'playing' ? captureGameState(room) : null;
   handlers[data.kind](room, player, data, presence);

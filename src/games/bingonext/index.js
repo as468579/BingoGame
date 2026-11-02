@@ -8,9 +8,9 @@ const { roomSnapshot } = require('./snapshot');
 module.exports = {
   id: 'bingo-next',
   initializeRoom() {
-    const board = createBoard(5);
-    return { size: 5, boardVersion: 0, board, cells: createCells(board), teamCount: 2, playersPerTeam: 2,
-      called: [], turn: null, winners: [], pending: null, lastDecision: null, history: [], linePrizes: createLinePrizes(5) };
+    const board = createBoard(8);
+    return { size: 8, boardVersion: 0, board, cells: createCells(board), teamCount: 2, playersPerTeam: 2,
+      called: [], turn: null, winners: [], pending: null, lastDecision: null, history: [], linePrizes: createLinePrizes(8) };
   },
   createPlayer: (room, name, token) => ({ ...createIdentity(name, token), teamId: null, hand: [], usedDemoCards: [], ready: false }),
   capacity: room => room.teamCount * room.playersPerTeam,

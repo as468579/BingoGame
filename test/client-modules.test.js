@@ -251,6 +251,48 @@ test('a replaced or closed event stream cannot update the new room', async () =>
   assert.deepEqual(statuses, [true]);
 });
 
+test('team reward notifications announce each new prize once per team and ignore stale or unrelated snapshots', async () => {
+  const { rewardGains } = await import('../public/js/games/bingonext/state/reward-progress.js');
+  const teams = [{ id: 'team-1', name: '隊伍 1', playerIds: ['a', 'b'], rewards: [] }, { id: 'team-2', name: '隊伍 2', playerIds: ['c'], rewards: [] }];
+  const before = snapshot({ gameType: 'bingo-next', phase: 'playing', teams, linePrizes: [
+    { id: 'row-0', item: '傳送石', claimedBy: null }, { id: 'column-0', item: '紅色藥水', claimedBy: null },
+    { id: 'row-1', item: '護身符', claimedBy: 'team-2' }
+  ] });
+  const after = { ...before, revision: 2, linePrizes: before.linePrizes.map((prize, i) => i < 2 ? { ...prize, claimedBy: 'team-1' } : prize) };
+  const notices = rewardGains(before, after);
+  assert.equal(notices.length, 1); assert.equal(notices[0].id, 'team-1');
+  assert.deepEqual(notices[0].rewards.map(prize => prize.item), ['傳送石', '紅色藥水']);
+  assert.deepEqual(rewardGains(after, after), []);
+  assert.deepEqual(rewardGains(after, before), []);
+  assert.deepEqual(rewardGains(null, after), []);
+  assert.deepEqual(rewardGains(before, { ...after, code: 'OTHER' }), []);
+  assert.deepEqual(rewardGains(before, { ...after, boardVersion: 1 }), []);
+  assert.deepEqual(rewardGains(before, { ...after, phase: 'lobby' }), []);
+  const undone = { ...before, revision: 3 };
+  assert.deepEqual(rewardGains(after, undone), []);
+  assert.equal(rewardGains(undone, { ...after, revision: 4 })[0].rewards.length, 2);
+  assert.equal(rewardGains(before, { ...after, phase: 'finished' }).length, 1);
+});
+
+test('team board drafts survive teammate updates but reset on layout changes, room switches and leaving', async () => {
+  const { BingoNextState } = await import('../public/js/games/bingonext/state.js');
+  const state = new BingoNextState(); state.playerId = 'me';
+  const initial = snapshot({ gameType: 'bingo-next' });
+  state.accept(initial); state.editCell(0, 9);
+  const draft = [...state.draft];
+  state.accept({ ...initial, revision: 2, players: [...initial.players, { id: 'guest', ready: true }] });
+  assert.deepEqual(state.draft, draft); assert.equal(state.draftDirty, true);
+  assert.equal(state.accept({ ...initial, revision: 1 }), false);
+  assert.deepEqual(state.draft, draft);
+  const larger = Array.from({ length: 64 }, (_, i) => i + 1);
+  state.accept({ ...initial, revision: 3, size: 8, boardVersion: 1, players: [{ id: 'me', board: larger }] });
+  assert.deepEqual(state.draft, larger); assert.equal(state.draftDirty, false);
+  state.editCell(0, 64); state.settingsDirty = true;
+  state.accept({ ...initial, code: 'NEWROOM', revision: 1 });
+  assert.deepEqual(state.draft, initial.players[0].board); assert.equal(state.settingsDirty, false);
+  state.leave(); assert.deepEqual(state.draft, []); assert.equal(state.room, null); assert.equal(state.draftDirty, false);
+});
+
 test('public-address storage validates invitation origins without mixing player sessions', async () => {
   const { PublicAddress } = await import('../public/js/storage/public-address.js');
   const address = new PublicAddress(storage());

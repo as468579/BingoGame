@@ -1,4 +1,4 @@
-# Alberta Events｜多人自訂尺寸賓果
+# Alberta｜多人自訂尺寸賓果
 
 支援最多 16 人連線的賓果遊戲，可自訂盤面尺寸、查看其他玩家盤面，並以卡牌問答取代選號。卡牌效果目前待定，已可體驗全房同步作答與房主判定流程。
 
@@ -116,7 +116,7 @@ npm run check
 npm test
 ```
 
-目前共 **178 項測試**，包含單元測試與整合測試；`npm run check` 檢查 **117 個 JavaScript 檔案**的語法。
+目前共 **186 項測試**，包含單元測試與整合測試；`npm run check` 檢查 **118 個 JavaScript 檔案**的語法。
 
 | 測試檔案 | 主要範圍 |
 | --- | --- |
@@ -128,7 +128,8 @@ npm test
 | `test/participants.test.js` | 玩家掃描刪除、多分頁連線、重新加入與名額釋出 |
 | `test/player-state.test.js` | 格子布林狀態、正式手牌隱私、存檔遷移及還原 |
 | `test/client-modules.test.js` | 前端快照、草稿、分頁身分、API 重試、獎品取得通知、各尺寸粉筆連線位置及逐線獎品狀態 |
-| `test/card-ui.test.js` | 手牌數量、抽屜、全房卡牌展示、房主判定控制及結果文字切換 |
+| `test/card-ui.test.js` | 手牌數量、抽屜、全房卡牌展示、房主判定控制、結果文字切換及登入互動 |
+| `test/page-contract.test.js` | 頁面 ID 與無障礙連結、Alberta 船錨品牌、單句標語、登入表單、中文選單與 Team Bingo 標題 |
 | `test/shared-cards.test.js` | 作答與判定權限、暫停、重送去重、用牌後換人及整次用牌撤回 |
 | `test/line-prizes.test.js` | 獎品獨占、同時連線順序、重送去重、結算、撤回、舊歷史遷移與存檔重啟 |
 
@@ -142,6 +143,6 @@ npm test
 
 遊戲程式分別放在 `src/games/bingo`、`src/games/bridge` 與 `public/js/games/` 對應目錄，透過共用 registry 接到房間服務與應用程式。共用邊界與新增遊戲方式見 [架構與物件關係](docs/architecture.md)，可執行 `npm run test:architecture` 驗證隔離。
 
-## BingoNext
+## 團隊賓果
 
-首頁新增獨立遊戲 **BingoNext**：隊伍共用一張盤面，選號立即佔領並抽卡，不需房主確認；只有整條線屬於同隊才能獲得隊伍獎品。達到邊長 − 2 條線獲勝，盤面滿時按連線數結算。原版 Bingo 與 Bridge Bingo 保留。玩法與平衡待討論項目見 [BingoNext 說明](docs/bingo-next.md)。
+首頁新增獨立遊戲 **團隊賓果**：隊伍共用一張盤面，選號立即佔領並抽卡，不需房主確認；只有整條線屬於同隊才能獲得隊伍獎品。達到邊長 − 2 條線獲勝，盤面滿時按連線數結算。原版 Bingo 與 Bridge Bingo 保留。玩法與平衡待討論項目見 [團隊賓果 說明](docs/bingo-next.md)。

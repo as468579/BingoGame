@@ -26,6 +26,7 @@ function mount(t) {
     showModal() { this.open = true; }
     close() { this.open = false; this.emit('close'); }
     getBoundingClientRect() { return { left: 20, right: 400, top: 100, bottom: 500 }; }
+    focus() { this.focused = true; }
   }
   const ids = [
     'handCount', 'handEmpty', 'handList', 'handPanel', 'openHand', 'closeHand', 'handDock',
@@ -94,6 +95,7 @@ test('BingoNext renders only its own shared board, team roster, team rewards and
   document.getElementById = id => { assert.ok(id.startsWith('next-'), `BingoNext touched another game's DOM: ${id}`); return lookup(id); };
   const view = new BingoNextView(actions, { value: '', invitation: code => `http://localhost:3000/join?room=${code}` }, () => {}, () => s);
   view.render(s);
+  assert.equal(document.title, '團隊賓果 · Alberta');
   assert.equal(nodes['next-root'].hidden, false); assert.equal(nodes['next-boardTitle'].textContent, '全場共用盤面');
   assert.equal(nodes['next-board'].children.length, 9); assert.equal(nodes['next-board'].children[0].dataset.team, 0);
   assert.equal(nodes['next-board'].children[0].disabled, true); assert.equal(nodes['next-board'].children[1].disabled, false);
@@ -175,6 +177,30 @@ test('BingoNext start controls require occupied teams and readiness rather than 
   assert.equal(nodes['next-start'].disabled, true); assert.match(nodes['next-start'].textContent, /分隊/);
   players[1].teamId = 'team-2'; view.render({ ...s, connected: false }); assert.equal(nodes['next-start'].disabled, true);
   view.render({ ...s, busy: true }); assert.equal(nodes['next-start'].disabled, true);
+});
+
+test('entry views restore Alberta titles and accept login only after text composition finishes', async t => {
+  const nodes = mount(t), sent = [], originalLocation = globalThis.location;
+  t.after(() => { if (originalLocation === undefined) delete globalThis.location; else globalThis.location = originalLocation; });
+  const { EntryView } = await import('../public/js/views/entry-view.js');
+  document.querySelectorAll = selector => { assert.equal(selector, '.entry button'); return [nodes.create, nodes.join]; };
+  for (const pathname of ['/', '/join', '/bridge-bingo', '/bingo-next']) {
+    globalThis.location = { pathname, search: '?room=ABC123' };
+    const view = new EntryView({ name: 'Alice', roomCode: 'ABC123' }, kind => sent.push(kind));
+    document.title = 'Previous game title'; view.show();
+    assert.equal(document.title, pathname === '/' ? 'Alberta · 多人賓果' : '加入朋友的房間 · Alberta');
+    assert.equal(nodes.welcome.hidden, false); view.hide(); assert.equal(nodes.welcome.hidden, true);
+    view.setBusy(true); nodes.join.click(); assert.equal(sent.length, 0);
+    view.setBusy(false); assert.equal(nodes.join.disabled, false); assert.equal(nodes.create.disabled, false);
+  }
+  const enter = nodes.name.listeners.keydown.at(-1);
+  enter({ key: 'Enter', isComposing: true }); assert.deepEqual(sent, []);
+  enter({ key: 'Escape', isComposing: false }); assert.deepEqual(sent, []);
+  enter({ key: 'Enter', isComposing: false }); assert.deepEqual(sent, ['join']);
+  nodes.join.click(); assert.deepEqual(sent, ['join', 'join']);
+  const view = new EntryView({ name: 'Alice', roomCode: 'ABC123' }, () => {});
+  view.switchPlayer('DEF456');
+  assert.equal(nodes.code.value, 'DEF456'); assert.equal(nodes.name.value, ''); assert.equal(nodes.name.focused, true);
 });
 
 test('both games use shared card faces and concealed backs without changing card content', async t => {

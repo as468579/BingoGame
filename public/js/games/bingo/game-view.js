@@ -29,7 +29,7 @@ export class BingoView {
   render(state) {
     const { room, me, target } = state;
     if (!me || !target) return;
-    document.title = 'Bingo · Alberta Events';
+    document.title = 'Bingo · Alberta';
     $('game').hidden = false;
     $('game').dataset.phase = room.phase;
     $('handPanel').hidden = false;

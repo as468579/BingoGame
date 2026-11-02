@@ -27,7 +27,7 @@ export class BingoNextView {
   render(state) {
     const { room, me, target } = state;
     if (!me || !target) return;
-    document.title = 'BingoNext · Alberta Events';
+    document.title = '團隊賓果 · Alberta';
     $('root').hidden = false;
     $('game').hidden = false;
     $('game').dataset.phase = room.phase;

@@ -6,7 +6,7 @@ export class EntryView {
     this.joinPage = /^\/(?:join|bridge-bingo|bingo-next)\/?$/.test(location.pathname);
     $('gameChoice').hidden = this.joinPage;
     if (this.joinPage) {
-      document.title = '加入朋友的房間 · Alberta Events';
+      document.title = '加入朋友的房間 · Alberta';
       $('create').hidden = true;
       $('joinDivider').hidden = true;
       $('hostEntry').hidden = false;
@@ -31,7 +31,7 @@ export class EntryView {
   setBusy(busy) { document.querySelectorAll('.entry button').forEach(button => { button.disabled = busy; }); }
   show() {
     $('welcome').hidden = false;
-    document.title = this.joinPage ? '加入朋友的房間 · Alberta Events' : 'Alberta Events · 多人賓果';
+    document.title = this.joinPage ? '加入朋友的房間 · Alberta' : 'Alberta · 多人賓果';
   }
   hide() { $('welcome').hidden = true; }
   useRoom(code) { $('code').value = code; }

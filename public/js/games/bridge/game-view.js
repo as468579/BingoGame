@@ -40,7 +40,7 @@ export class BridgeRoomView {
     this.key = key; this.phase = room.phase;
     const viewed = game.teams.find(team => team.id === this.viewedTeam) || game.teams.find(team => team.id === me.teamId) || game.teams[0];
     this.viewedTeam = viewed.id;
-    document.title = 'Bridge Bingo · Alberta Events';
+    document.title = 'Bridge Bingo · Alberta';
     $('bridgeGame').hidden = false;
     $('bridgeRoomCode').textContent = room.code;
     $('bridgeSettingsPanel').hidden = room.host !== playerId || room.phase !== 'lobby';
