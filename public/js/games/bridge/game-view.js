@@ -10,7 +10,7 @@ export class BridgeRoomView {
     this.roster = new TeamRosterView({ list: $('bridgeTeams'), controls: $('bridgeJoinControls'), ownTeam: $('bridgeOwnTeam'),
       ready: $('bridgeReady'), count: $('bridgePlayerCount'), summary: $('bridgePresenceSummary') }, {
       onAssign: (playerId, teamId) => this.actions.bridge('bridgeTeam', { playerId, teamId }),
-      onReady: ready => this.actions.bridge('bridgeReady', { ready }),
+      onReady: ready => this.board.ready(ready),
       onCaptain: (teamId, playerId) => this.actions.bridge('bridgeCaptain', { teamId, playerId }),
       onInspect: teamId => { this.viewedTeam = teamId; this.board.selected = null; this.render(this.state); }
     });

@@ -2,20 +2,24 @@
 const { randomUUID } = require('node:crypto');
 const { fail } = require('../../domain/errors');
 const { requireHost } = require('../../domain/room-access');
-const { createBoard, boardValid, createCells, createSpecialCells, winningLineGoal } = require('./board');
+const { createBoard, boardValid, createCells, createSpecialCells } = require('./board');
 const { teams, assignPlayer } = require('./teams');
 const { teamHand } = require('./team-hands');
 const { advanceTurn } = require('./turns');
 const { captureGameState, undoGame, REVERSIBLE_ACTIONS } = require('./history');
-const { createLinePrizes, awardLinePrizes, teamLines } = require('./prizes');
+const { createLinePrizes, awardLinePrizes } = require('./prizes');
+const { settleVictory } = require('./victory');
+const { DEFAULT_TEAM_MINUTES, validateTeamMinutes, initializeTeamClock, syncTeamClock } = require('./team-clock');
 const { useCard, cancelCard, answerCard, judgeCard, finishCard, drawForNumber } = require('./card-actions');
+const { drawCardDefinition } = require('./card-catalog');
 function settings(room, player, data) {
   requireHost(room, player, '只有房主可以修改遊戲設定。');
   if (room.phase !== 'lobby') fail('請先重新開局，再修改設定。');
-  const { size = room.size, teamCount = room.teamCount, playersPerTeam = room.playersPerTeam } = data;
+  const { size = room.size, teamCount = room.teamCount, playersPerTeam = room.playersPerTeam, teamTimeMinutes = room.teamTimeMinutes ?? DEFAULT_TEAM_MINUTES } = data;
+  validateTeamMinutes(teamTimeMinutes);
   if (![size, teamCount, playersPerTeam].every(Number.isInteger) || size < 3 || size > 9 || teamCount < 2 ||
       playersPerTeam < 1 || teamCount * playersPerTeam > 16 || room.players.length > teamCount * playersPerTeam) fail('請設定至少 2 隊、共最多 16 人，以及 3～9 的盤面。');
-  Object.assign(room, { size, teamCount, playersPerTeam, board: createBoard(size), boardVersion: room.boardVersion + 1 });
+  Object.assign(room, { size, teamCount, playersPerTeam, teamTimeMinutes, board: createBoard(size), boardVersion: room.boardVersion + 1 });
   resetProgress(room);
   room.players.forEach(p => { p.teamId = null; p.ready = false; p.hand = []; });
   room.players.forEach(p => assignPlayer(room, p));
@@ -74,18 +78,12 @@ function call(room, player, data) {
   if (!Number.isInteger(data.number) || data.number < 1 || data.number > room.size ** 2) fail('無效的號碼。');
   const cell = room.cells.find(c => c.number === data.number);
   if (cell.isCovered) fail('這個格子已被佔領，不能重複選取。');
+  const drawnDefinition = cell.isSpecial ? drawCardDefinition() : null;
   Object.assign(cell, { isCovered: true, teamId: player.teamId, playerId: player.id });
   room.called.push(data.number);
-  room.lastDecision = { id: randomUUID(), playerId: player.id, teamId: player.teamId, number: data.number, approved: true, drawnCardId: cell.isSpecial ? drawForNumber({ hand: teamHand(room, player.teamId) }).id : null };
+  room.lastDecision = { id: randomUUID(), playerId: player.id, teamId: player.teamId, number: data.number, approved: true, drawnCardId: cell.isSpecial ? drawForNumber({ hand: teamHand(room, player.teamId) }, drawnDefinition).id : null };
   awardLinePrizes(room);
-  room.winners = teams(room).filter(t => teamLines(room, t.id) >= winningLineGoal(room.size)).map(t => t.id);
-  if (room.winners.length || room.called.length === room.size ** 2) {
-    if (!room.winners.length) {
-      const best = Math.max(...teams(room).map(t => teamLines(room, t.id)));
-      room.winners = teams(room).filter(t => teamLines(room, t.id) === best).map(t => t.id);
-    }
-    room.phase = 'finished'; room.turn = null;
-  } else advanceTurn(room);
+  if (!settleVictory(room)) advanceTurn(room);
 }
 function scan(room, player, data, presence) {
   requireHost(room, player, '只有房主可以重新掃描玩家。');
@@ -103,7 +101,7 @@ function skip(room, player, data, presence) {
 }
 function resetProgress(room) {
   Object.assign(room, { cells: createSpecialCells(room.board), called: [], turn: null, winners: [], pending: null, lastDecision: null,
-    activeCard: null, history: [], roundStart: null, teamHands: {}, linePrizes: createLinePrizes(room.size) });
+    activeCard: null, history: [], roundStart: null, teamHands: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(room.size) });
   room.players.forEach(p => { p.usedDemoCards = []; });
 }
 function reset(room, player) {
@@ -119,11 +117,13 @@ function rerollPrizes(room, player) {
 }
 const handlers = { settings, board, team, captain, ready, start, call, scan, skip, reset, undo, rerollPrizes,
   cardUse: useCard, cardCancel: cancelCard, cardAnswer: answerCard, cardJudge: judgeCard, cardFinish: finishCard };
-function applyGameAction(room, player, data, presence) {
+function applyGameAction(room, player, data, presence, now = Date.now()) {
   if (!Object.hasOwn(handlers, data.kind)) fail('不支援的團隊賓果操作。');
   if (room.activeCard && !['cardCancel', 'cardAnswer', 'cardJudge', 'cardFinish'].includes(data.kind)) fail('卡牌作答期間暫停遊戲。', 409);
   const before = REVERSIBLE_ACTIONS.has(data.kind) && room.phase === 'playing' ? captureGameState(room) : null;
-  handlers[data.kind](room, player, data, presence);
+  handlers[data.kind](room, player, data, presence, now);
+  if (data.kind === 'start') initializeTeamClock(room, now);
+  else syncTeamClock(room, now);
   if (before) room.history.push(before);
 }
 module.exports = { applyGameAction };

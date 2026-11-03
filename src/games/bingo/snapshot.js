@@ -20,7 +20,7 @@ function roomSnapshot(room, presence, viewerId) {
     pending: room.pending || null, lastDecision: room.lastDecision || null,
     lastDraw: room.lastDecision?.approved && room.lastDecision.playerId === viewerId
       ? viewer?.hand.find(held => held.id === room.lastDecision.drawnCardId) || null : null,
-    availableDemoCards: viewer ? demoCards.filter(candidate => !viewer.usedDemoCards?.includes(candidate.id)).map(publicCard) : [],
+    availableDemoCards: viewer ? demoCards.filter(candidate => candidate.enabled !== false && !viewer.usedDemoCards?.includes(candidate.id)).map(publicCard) : [],
     activeCard: card ? { id: active.id, playerId: active.playerId, cardId: active.cardId, stage: active.stage,
       ...(active.choice !== undefined ? { choice: active.choice } : {}),
       ...(active.correct !== undefined ? { correct: active.correct } : {}), card: publicCard(card) } : null,

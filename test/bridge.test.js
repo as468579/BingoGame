@@ -69,9 +69,12 @@ test('balanced three-color decks contain every number exactly once at every supp
 });
 
 test('teams have independently shuffled boards and share a color map with complete independently dealt decks', () => {
-  const f = fixture({ size: 5, p: 3 }); f.start();
+  const f = fixture({ size: 5, p: 3 });
+  const prepared = f.service.snapshot(f.room, f.host.playerId).bridge.teams.map(team => team.cells.map(cell => cell.number));
+  f.start();
   const game = f.room.bridge;
   for (const team of game.teams) {
+    assert.deepEqual(team.cells.map(cell => cell.number), prepared[game.teams.indexOf(team)]);
     assert.deepEqual(team.cells.map(cell => cell.number).sort((a, b) => a - b), [...game.board].sort((a, b) => a - b));
     assert.ok(team.cells.every(cell => cell.card === null));
     const cards = team.playerIds.flatMap(id => game.hands[id]);
@@ -85,6 +88,56 @@ test('teams have independently shuffled boards and share a color map with comple
   game.teams[0].cells.reverse();
   game.teams[0].cells[0].card = { number: 1, color: 'red' };
   assert.deepEqual(game.teams[1].cells, otherBoard, 'team arrangements and occupancy are independent');
+});
+
+test('Bridge lobby snapshots preserve random team layouts through ready, scan and reset', () => {
+  const f = fixture({ size: 5 });
+  const layouts = structuredClone(f.room.bridge.teamBoards);
+  for (const team of f.service.snapshot(f.room, f.host.playerId).bridge.teams) {
+    assert.deepEqual(team.cells.map(cell => cell.number), layouts[team.id]);
+    assert.deepEqual([...layouts[team.id]].sort((a, b) => a - b), Array.from({ length: 25 }, (_, i) => i + 1));
+  }
+  f.send('bridgeReady', f.hostToken, { ready: true });
+  f.send('bridgeScan');
+  assert.deepEqual(f.room.bridge.teamBoards, layouts);
+  f.send('bridgeReset');
+  assert.equal(Object.keys(f.room.bridge.teamBoards).length, 2);
+  assert.ok(f.room.bridge.teams.length === 0);
+  const updated = structuredClone(f.room.bridge.teamBoards);
+  assert.deepEqual(f.service.snapshot(f.room, f.host.playerId).bridge.teams[0].cells.map(cell => cell.number), updated['team-1']);
+});
+
+test('any team member can save their team board with readiness and leave other teams unchanged', () => {
+  const f = fixture(), [host, teammate, opponent] = f.room.players;
+  teammate.ready = true; opponent.ready = true;
+  const otherBoard = [...f.room.bridge.teamBoards['team-2']];
+  const board = [...f.room.bridge.teamBoards['team-1']].reverse();
+  f.send('bridgeReady', host.token, { ready: true, board, boardVersion: 0 });
+  assert.equal(host.ready, true); assert.equal(teammate.ready, false); assert.equal(opponent.ready, true);
+  assert.deepEqual(f.room.bridge.teamBoards['team-1'], board);
+  assert.deepEqual(f.room.bridge.teamBoards['team-2'], otherBoard);
+  const snapshot = f.service.snapshot(f.room, teammate.id);
+  assert.deepEqual(snapshot.bridge.teams[0].cells.map(cell => cell.number), board);
+  assert.equal(snapshot.bridge.teams[0].boardVersion, 1);
+  const revised = [...board].reverse();
+  f.send('bridgeBoard', teammate.token, { board: revised, boardVersion: 1 });
+  assert.equal(host.ready, false);
+  f.start();
+  assert.deepEqual(f.room.bridge.teams[0].cells.map(cell => cell.number), revised);
+});
+
+test('Bridge board edits reject wrong teams, invalid numbers, stale versions and active games atomically', () => {
+  const f = fixture(), player = f.room.players[0];
+  const board = [...f.room.bridge.teamBoards['team-1']];
+  for (const data of [{ teamId: 'team-2', board }, { board: Array(9).fill(1) }, { board: board.map(() => 99) }, { board, boardVersion: -1 }]) {
+    const before = structuredClone(f.room);
+    assert.throws(() => f.send('bridgeBoard', player.token, { boardVersion: 0, ...data }));
+    assert.deepEqual(f.room, before);
+  }
+  player.ready = true;
+  assert.throws(() => f.send('bridgeBoard', player.token, { board, boardVersion: 0 }), /取消準備/);
+  f.start();
+  assert.throws(() => f.send('bridgeBoard', player.token, { board, boardVersion: 0 }), /開始後/);
 });
 
 test('only the owner receives their hand or legal moves, including when the viewer is host', () => {

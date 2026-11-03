@@ -2,8 +2,8 @@
 const { randomInt } = require('node:crypto');
 const { createBoard, boardValid, coveredLines } = require('../../shared/number-grid');
 
-function winningLineGoal(size = 5) {
-  return size - 2;
+function winningLineGoal() {
+  return 1;
 }
 
 
@@ -13,11 +13,11 @@ function createCells(board, called = []) {
   return board.map(number => ({ number, isCovered: covered.has(number) }));
 }
 
-// Sample positions without replacement so every layout has exactly ceil(N * 15 / 100) specials.
+// Sample positions without replacement so every layout has exactly ceil(N * 12 / 100) specials.
 function createSpecialCells(board, pick = randomInt) {
   const cells = createCells(board).map(cell => ({ ...cell, isSpecial: false }));
   const positions = cells.map((_, index) => index);
-  for (let i = 0; i < Math.ceil(cells.length * 15 / 100); i++) {
+  for (let i = 0; i < Math.ceil(cells.length * 12 / 100); i++) {
     const selected = i + pick(cells.length - i);
     [positions[i], positions[selected]] = [positions[selected], positions[i]];
     cells[positions[i]].isSpecial = true;

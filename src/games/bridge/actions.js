@@ -2,6 +2,7 @@
 
 const { fail } = require('../../domain/errors');
 const { requireHost } = require('../../domain/room-access');
+const { boardValid } = require('../../shared/number-grid');
 const { createBridgeState, teamId, assignBridgePlayer, shuffle, coloredDeck, lineCount, beginBridgeRound, activeBridgeTeam, legalPlacements, canDiscard } = require('./game');
 
 function scan(room, player, data, presence) {
@@ -53,10 +54,25 @@ function captain(room, player, data) {
   else room.bridge.captains[data.teamId] = data.playerId;
 }
 
+function board(room, player, data) {
+  if (room.phase !== 'lobby') fail('開始後不能修改盤面。');
+  if (!player.teamId || (data.teamId !== undefined && data.teamId !== player.teamId)) fail('只能修改自己隊伍的盤面。', 403);
+  if (player.ready) fail('請先取消準備，再修改盤面。');
+  const game = room.bridge, id = player.teamId;
+  if (data.boardVersion !== game.teamBoardVersions[id]) fail('隊伍盤面已更新，請查看最新盤面後重新確認。', 409);
+  if (!boardValid(data.board, game.size)) fail(`請填入 1～${game.size ** 2}，每個數字只能出現一次。`);
+  if (data.board.some((number, index) => number !== game.teamBoards[id][index])) {
+    game.teamBoards[id] = [...data.board];
+    game.teamBoardVersions[id]++;
+    room.players.filter(member => member.teamId === id).forEach(member => { member.ready = false; });
+  }
+}
+
 function ready(room, player, data) {
   if (room.phase !== 'lobby') fail('遊戲已開始。');
   if (!player.teamId) fail('請先加入隊伍。');
   if (typeof data.ready !== 'boolean') fail('無效的準備狀態。');
+  if (data.ready && data.board !== undefined) board(room, player, data);
   player.ready = data.ready;
 }
 
@@ -74,7 +90,7 @@ function start(room, player) {
     for (const id of recipients) game.hands[id] = [];
     shuffle(game.deck).forEach((card, index) => game.hands[recipients[index % recipients.length]].push({ ...card }));
     return { id: teamId(i), name: `隊伍 ${i + 1}`, playerIds: roster.map(member => member.id),
-      cells: shuffle(game.board).map(number => ({ number, card: null })), order: [], cursor: 0, leadColor: null, done: false };
+      cells: game.teamBoards[teamId(i)].map(number => ({ number, card: null })), order: [], cursor: 0, leadColor: null, done: false };
   });
   game.round = 1;
   game.winners = [];
@@ -123,7 +139,7 @@ function reset(room, player) {
   room.players.forEach(member => { member.ready = false; });
 }
 
-const handlers = { bridgeScan: scan, bridgeSettings: settings, bridgeTeam: chooseTeam, bridgeCaptain: captain, bridgeReady: ready, bridgeStart: start, bridgePlay: play, bridgeReset: reset };
+const handlers = { bridgeScan: scan, bridgeSettings: settings, bridgeTeam: chooseTeam, bridgeCaptain: captain, bridgeBoard: board, bridgeReady: ready, bridgeStart: start, bridgePlay: play, bridgeReset: reset };
 function applyBridgeAction(room, player, data, presence) {
   const handler = handlers[data.kind];
   if (!Object.hasOwn(handlers, data.kind) || !handler) fail('不支援的 Bridge Bingo 操作。');

@@ -13,6 +13,9 @@ function createApplication({ dataDirectory = process.env.DATA_DIR || path.join(_
   connections = new ConnectionHub() } = {}) {
   const service = new RoomService(repository, connections);
   const server = http.createServer(createRequestHandler(service, connections, publicDirectory));
+  let clockTimer;
+  server.on('listening', () => { clockTimer = setInterval(() => service.tick(), 250); clockTimer.unref(); });
+  server.on('close', () => { clearInterval(clockTimer); clockTimer = null; });
   return { server, service, repository, connections };
 }
 

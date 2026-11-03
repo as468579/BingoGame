@@ -43,7 +43,7 @@ function mount(t) {
     'gameResultsDialog', 'gameResultsList', 'closeGameResults', 'viewGameResults', 'drawCardDisplay',
     'drawnCardDialog', 'drawnCardTitle', 'drawnCardContent', 'closeDrawnCard',
     'bridgeGame', 'bridgeRoomCode', 'bridgeCopyCode', 'welcome', 'game', 'leave', 'switchPlayer',
-    'gameChoice', 'gameType', 'code', 'name', 'create', 'join',
+    'gameChoice', 'gameType', 'teamTimeSettings', 'entryTeamMinutes', 'code', 'name', 'create', 'join',
     'joinDivider', 'hostEntry', 'connection',
     'bridgeTeamCount', 'bridgePlayersPerTeam', 'bridgeSize', 'bridgeApplySettings', 'bridgeOwnTeam',
     'bridgeReady', 'bridgeStart', 'bridgeScan', 'bridgeScanHint', 'bridgeReset', 'bridgeCloseResults', 'bridgeViewResults', 'bridgeResultDialog',
@@ -147,6 +147,103 @@ test('Team Bingo shared hand renders usable cards only during the member turn an
   assert.equal(nodes['next-handList'].children[0].children[0].disabled, true);
 });
 
+test('team hand updates counts and removes stale cards when cards are acquired and consumed', async t => {
+  const nodes = mount(t);
+  const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
+  const calls = [], view = new HandView({ useCard: id => calls.push(id) });
+  const s = { hand: [], playerId: 'member', connected: true, busy: false, room: { phase: 'playing', turn: 'member' } };
+  view.render(s);
+  assert.equal(nodes['next-handCount'].textContent, '0 張');
+  assert.equal(nodes['next-handEmpty'].hidden, false);
+  assert.equal(nodes['next-handEmpty'].textContent, '隊伍目前沒有卡片');
+  const card = { definitionId: 'star', name: '星光指引', type: '祝福', theme: 'gold', symbol: '✧', description: '效果' };
+  const hand = Object.freeze([Object.freeze({ ...card, id: 'first' }), Object.freeze({ ...card, id: 'second' })]);
+  view.render({ ...s, hand });
+  assert.equal(nodes['next-handCount'].textContent, '2 張');
+  assert.equal(nodes['next-handEmpty'].hidden, true);
+  assert.deepEqual(nodes['next-handList'].children.map(item => item.dataset.cardId), ['first', 'second']);
+  nodes['next-handList'].children[1].children[0].click();
+  assert.deepEqual(calls, ['second'], 'duplicate card definitions still use their unique instance IDs');
+  view.render({ ...s, hand: hand.slice(0, 1) });
+  assert.equal(nodes['next-handCount'].textContent, '1 張');
+  assert.equal(nodes['next-handList'].children.length, 1);
+  view.render(s);
+  assert.equal(nodes['next-handList'].children.length, 0);
+  assert.equal(nodes['next-handEmpty'].hidden, false);
+  assert.equal(hand.length, 2, 'rendering does not mutate the authoritative hand');
+});
+
+test('team hand blocks card clicks for every unavailable state and enables them again when eligible', async t => {
+  const nodes = mount(t);
+  const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
+  const calls = [], view = new HandView({ useCard: id => calls.push(id) });
+  const s = { hand: [{ id: 'card', definitionId: 'star', name: '星光指引' }], playerId: 'member', connected: true, busy: false,
+    room: { phase: 'playing', turn: 'member' } };
+  for (const override of [{ busy: true }, { connected: false }, { room: { ...s.room, turn: 'teammate' } },
+    { room: { ...s.room, phase: 'lobby' } }, { room: { ...s.room, phase: 'finished' } },
+    { room: { ...s.room, pending: { id: 'pending' } } }, { room: { ...s.room, activeCard: { id: 'question' } } }]) {
+    view.render({ ...s, ...override });
+    const button = nodes['next-handList'].children[0].children[0];
+    assert.equal(button.disabled, true); button.click();
+  }
+  assert.deepEqual(calls, []);
+  view.render(s);
+  nodes['next-handList'].children[0].children[0].click();
+  assert.deepEqual(calls, ['card']);
+});
+
+test('team hand view touches only Team Bingo DOM and never modifies another game hand', async t => {
+  const nodes = mount(t);
+  const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
+  nodes.handCount.textContent = '保留原遊戲手牌'; nodes.handEmpty.hidden = false;
+  const find = document.getElementById;
+  document.getElementById = id => { assert.ok(id.startsWith('next-')); return find(id); };
+  const s = { hand: [{ id: 'team-card', definitionId: 'star', name: '星光指引' }], playerId: 'member', connected: true, busy: false,
+    room: { phase: 'playing', turn: 'member' } };
+  new HandView({ useCard() {} }).render(s);
+  assert.equal(nodes.handCount.textContent, '保留原遊戲手牌');
+  assert.equal(nodes.handEmpty.hidden, false);
+  assert.equal(nodes.handList.children.length, 0);
+  assert.equal(nodes['next-handList'].children.length, 1);
+});
+
+test('team hand drawer closes for card use, room switches and game completion without opening other games', async t => {
+  const nodes = mount(t);
+  const { HandDrawerView } = await import('../public/js/games/bingonext/views/hand-drawer-view.js');
+  const view = new HandDrawerView();
+  const s = { playerId: 'member', me: { id: 'member' }, room: { code: 'ROOM', phase: 'playing', host: 'host' } };
+  view.render(s); nodes['next-openHand'].click();
+  assert.equal(nodes['next-handPanel'].open, true);
+  assert.equal(nodes['next-openHand'].attributes['aria-expanded'], 'true');
+  view.render({ ...s, room: { ...s.room, activeCard: { id: 'session' } } });
+  assert.equal(nodes['next-handPanel'].open, false);
+  assert.equal(nodes['next-openHand'].attributes['aria-expanded'], 'false');
+  view.render(s); nodes['next-openHand'].click();
+  view.render({ ...s, room: { ...s.room, code: 'OTHER' } });
+  assert.equal(nodes['next-handPanel'].open, false);
+  nodes['next-openHand'].click();
+  view.render({ ...s, room: { ...s.room, phase: 'finished' } });
+  assert.equal(nodes['next-handPanel'].open, false); assert.equal(nodes['next-handDock'].hidden, true);
+  assert.equal(nodes.handPanel.open, false);
+  assert.equal(document.body.classList.contains('has-hand-dock'), false);
+});
+
+test('entry exposes the common team duration only when creating Team Bingo rooms', async t => {
+  const nodes = mount(t), originalLocation = globalThis.location;
+  globalThis.location = { pathname: '/', search: '' };
+  t.after(() => { if (originalLocation === undefined) delete globalThis.location; else globalThis.location = originalLocation; });
+  const { EntryView } = await import('../public/js/views/entry-view.js');
+  nodes.gameType.value = 'bingo-next'; nodes.entryTeamMinutes.value = '8';
+  const view = new EntryView({ name: 'Host', roomCode: '' }, () => {});
+  assert.equal(nodes.teamTimeSettings.hidden, false); assert.equal(view.identity.teamTimeMinutes, 8);
+  nodes.entryTeamMinutes.value = '12'; assert.equal(view.identity.teamTimeMinutes, 12);
+  nodes.gameType.value = 'bridge-bingo'; nodes.gameType.onchange();
+  assert.equal(nodes.teamTimeSettings.hidden, true); assert.equal(view.identity.teamTimeMinutes, undefined);
+  globalThis.location = { pathname: '/join', search: '' }; nodes.gameType.value = 'bingo-next';
+  const join = new EntryView({ name: 'Guest', roomCode: 'ABC123' }, () => {});
+  assert.equal(nodes.teamTimeSettings.hidden, true); assert.equal(join.identity.teamTimeMinutes, undefined);
+});
+
 test('BingoNext uses the Bridge-style own-team selector and limits member assignment controls to the host', async t => {
   const nodes = mount(t), sent = [];
   const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
@@ -184,7 +281,7 @@ test('Bridge Bingo and BingoNext instantiate the same roster component and share
   const s = bridgeState(); bridge.render(s);
   assert.equal(nodes.bridgeTeams.className, nodes['next-players'].className);
   assert.equal(nodes.bridgeJoinControls.className, nodes['next-joinControls'].className);
-  nodes.bridgeReady.click(); assert.deepEqual(sent.at(-1), ['bridgeReady', { ready: true }]);
+  nodes.bridgeReady.click(); assert.deepEqual(sent.at(-1), ['bridgeReady', { ready: true, board: [1, 2, 3, 4, 5, 6, 7, 8, 9], boardVersion: 0 }]);
   nodes.bridgeOwnTeam.value = ''; nodes.bridgeOwnTeam.onchange();
   assert.deepEqual(sent.at(-1), ['bridgeTeam', { playerId: 'host', teamId: null }]);
   nodes.bridgeTeams.children[1].children[0].click(); assert.equal(bridge.viewedTeam, 'team-2');
@@ -212,6 +309,178 @@ test('Bridge Bingo and BingoNext instantiate the same roster component and share
   s.me.teamId = null; next.render(snapshot);
   assert.equal(nodes['next-ready'].disabled, true);
   assert.match(nodes['next-players'].children.at(-1).textContent, /未分隊/);
+});
+
+test('Team Bingo board displays the active team countdown and freezes it while questions pause play', async t => {
+  const nodes = mount(t);
+  const { BoardView } = await import('../public/js/games/bingonext/views/board-view.js');
+  const s = bridgeState('playing');
+  s.room.board = s.room.bridge.teams[0].cells.map(cell => cell.number);
+  s.room.cells = s.room.board.map(number => ({ number, isCovered: false }));
+  s.room.called = []; s.room.linePrizes = [];
+  s.room.teams = s.room.bridge.teams.map(team => ({ ...team, rewards: [], timeRemainingMs: 600000, clockRunning: team.id === 'team-1' }));
+  s.room.turn = s.playerId; s.draft = s.room.board;
+  const view = new BoardView({ shuffle() {}, call() {} }); t.after(() => view.hide());
+  view.render(s);
+  const started = view.actionClock.receivedAt;
+  view.updateClock(started + 1000);
+  assert.match(nodes['next-phaseText'].textContent, /隊伍 1 剩餘 09:59/);
+  s.room.activeCard = { id: 'question' }; s.room.teams[0].clockRunning = false;
+  view.render(s); view.updateClock(Date.now() + 120000);
+  assert.match(nodes['next-phaseText'].textContent, /10:00.*暫停計時/);
+  view.hide(); assert.equal(view.clockTimer, null);
+});
+
+function boardClockState() {
+  const s = bridgeState('playing');
+  s.room.board = s.room.bridge.teams[0].cells.map(cell => cell.number);
+  s.room.cells = s.room.board.map(number => ({ number, isCovered: false }));
+  s.room.called = []; s.room.linePrizes = [];
+  s.room.players.push({ id: 'guest', name: 'Guest', teamId: 'team-2' });
+  s.room.teams = s.room.bridge.teams.map(team => ({ ...team, rewards: [], timeRemainingMs: 600000, clockRunning: team.id === 'team-1' }));
+  s.room.turn = s.playerId; s.draft = s.room.board;
+  return s;
+}
+
+test('board countdown switches teams with one timer and releases it when the game ends or view hides', async t => {
+  const nodes = mount(t), timers = new Set();
+  t.mock.method(globalThis, 'setInterval', () => { const timer = { unref() {} }; timers.add(timer); return timer; });
+  t.mock.method(globalThis, 'clearInterval', timer => timers.delete(timer));
+  const { BoardView } = await import('../public/js/games/bingonext/views/board-view.js');
+  const view = new BoardView({ shuffle() {}, call() {} }), s = boardClockState();
+  view.render(s); assert.equal(timers.size, 1);
+  assert.match(nodes['next-phaseText'].textContent, /隊伍 1 剩餘 10:00/);
+  s.room.turn = 'guest'; s.room.teams[0].clockRunning = false;
+  s.room.teams[1].clockRunning = true; s.room.teams[1].timeRemainingMs = 123000;
+  view.render(s); assert.equal(timers.size, 1);
+  assert.match(nodes['next-phaseText'].textContent, /隊伍 2 剩餘 02:03/);
+  assert.doesNotMatch(nodes['next-phaseText'].textContent, /隊伍 1 剩餘/);
+  s.room.phase = 'finished'; view.render(s);
+  assert.equal(timers.size, 0); assert.equal(view.actionClock, null);
+  assert.equal(nodes['next-phaseText'].hidden, true);
+  s.room.phase = 'playing'; view.render(s); view.hide();
+  assert.equal(timers.size, 0); assert.equal(view.clockTimer, null);
+});
+
+test('board countdown rounds remaining partial seconds upward and never displays negative time', async t => {
+  const nodes = mount(t);
+  const { BoardView } = await import('../public/js/games/bingonext/views/board-view.js');
+  const view = new BoardView({ shuffle() {}, call() {} }), s = boardClockState();
+  t.after(() => view.hide());
+  s.room.teams[0].timeRemainingMs = 1; view.render(s);
+  const received = view.actionClock.receivedAt;
+  view.updateClock(received); assert.match(nodes['next-phaseText'].textContent, /00:01/);
+  view.updateClock(received + 1); assert.match(nodes['next-phaseText'].textContent, /00:00/);
+  view.updateClock(received + 10000); assert.match(nodes['next-phaseText'].textContent, /00:00/);
+  assert.doesNotMatch(nodes['next-phaseText'].textContent, /-\d/);
+});
+
+test('team clocks count down locally while paused teams stay unchanged and expired teams are marked', async t => {
+  const nodes = mount(t);
+  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const s = bridgeState('playing');
+  s.room.teams = s.room.bridge.teams.map((team, index) => ({ ...team, rewards: [], timeRemainingMs: index ? 300000 : 600000, clockRunning: index === 0 }));
+  s.room.playersPerTeam = 1; s.room.turn = 'host';
+  const view = new PlayersView({ team() {}, ready() {}, captain() {} }); t.after(() => view.hide());
+  view.render(s);
+  const started = view.roster.clockLabels[0].receivedAt;
+  const heading = nodes['next-players'].children[0].children[0];
+  assert.equal(heading.className, 'team-roster-heading');
+  assert.equal(heading.children[0].className, 'team-roster-title');
+  assert.equal(heading.children[1], view.roster.clockLabels[0].label);
+  assert.equal(heading.children[1].tagName, 'span');
+  view.roster.updateClocks(started + 1000);
+  assert.match(view.roster.clockLabels[0].label.textContent, /09:59/);
+  assert.match(view.roster.clockLabels[1].label.textContent, /05:00/);
+  view.roster.updateClocks(started + 600000);
+  assert.equal(view.roster.clockLabels[0].label.textContent, '時間用完');
+  assert.match(view.roster.clockLabels[0].label.title, /自動跳過/);
+  s.room.teams[0].clockRunning = false; s.room.teams[0].timeRemainingMs = 540000;
+  view.render(s); view.roster.updateClocks(Date.now() + 3600000);
+  assert.match(view.roster.clockLabels[0].label.textContent, /09:00/);
+  view.hide(); assert.equal(view.clockTimer, null);
+  assert.equal(nodes.bridgeTeams.children.length, 0);
+});
+
+test('each team keeps exactly one countdown inside its own heading after roster updates', async t => {
+  const nodes = mount(t);
+  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const view = new PlayersView({ team() {}, ready() {}, captain() {} }), s = boardClockState();
+  t.after(() => view.hide());
+  s.room.goal = 1; s.room.playersPerTeam = 1;
+  s.room.teams[0].timeRemainingMs = 480000;
+  s.room.teams[1].timeRemainingMs = 123000;
+  const verify = times => nodes['next-players'].children.forEach((group, index) => {
+    const heading = group.children[0];
+    assert.equal(heading.className, 'team-roster-heading');
+    assert.equal(heading.children[0].textContent, `隊伍 ${index + 1} · ${s.room.teams[index].lines} / 1 條`);
+    assert.equal(heading.children.length, 2);
+    assert.equal(heading.children[1], view.roster.clockLabels[index].label);
+    assert.equal(heading.children[1].textContent, `剩餘 ${times[index]}`);
+    assert.equal(group.children.some(child => child.className === 'team-roster-clock'), false);
+  });
+  view.render(s); verify(['08:00', '02:03']);
+  s.room.teams[0].lines = 1;
+  s.room.teams[0].timeRemainingMs = 420000;
+  s.room.teams[1].timeRemainingMs = 120000;
+  view.render(s); verify(['07:00', '02:00']);
+  assert.equal(view.roster.clockLabels.length, 2);
+});
+
+test('heading countdown rounds upward, pauses, expires without negative values and resumes on server update', async t => {
+  mount(t);
+  t.mock.method(Date, 'now', () => 1000);
+  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const view = new PlayersView({ team() {}, ready() {}, captain() {} }), s = boardClockState();
+  t.after(() => view.hide());
+  s.room.teams[0].timeRemainingMs = 1001;
+  s.room.teams[1].timeRemainingMs = 60000;
+  view.render(s);
+  const [running, paused] = view.roster.clockLabels.map(entry => entry.label);
+  assert.equal(running.textContent, '剩餘 00:02');
+  assert.equal(running.title, '計時中');
+  assert.equal(paused.title, '暫停計時');
+  view.roster.updateClocks(1001);
+  assert.equal(running.textContent, '剩餘 00:01');
+  view.roster.updateClocks(999999);
+  assert.equal(running.textContent, '時間用完');
+  assert.equal(running.title, '時間用完 · 自動跳過');
+  assert.equal(running.classList.contains('is-expired'), true);
+  assert.equal(paused.textContent, '剩餘 01:00');
+  assert.equal(paused.classList.contains('is-expired'), false);
+  s.room.teams[0].timeRemainingMs = 120000;
+  view.render(s);
+  const restored = view.roster.clockLabels[0].label;
+  assert.equal(restored.textContent, '剩餘 02:00');
+  assert.equal(restored.classList.contains('is-expired'), false);
+});
+
+test('shared team headings omit clocks when no budget exists and retain team inspection actions', async t => {
+  const nodes = mount(t);
+  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const view = new PlayersView({ team() {}, ready() {}, captain() {} }), s = boardClockState();
+  t.after(() => view.hide());
+  view.render(s);
+  const inspected = [];
+  view.roster.onInspect = teamId => inspected.push(teamId);
+  view.roster.render({ ...view.roster.model, activeTeamId: 'team-1', teams: s.room.teams.map(team => ({ ...team, timeRemainingMs: undefined })) });
+  assert.equal(view.roster.clockLabels.length, 0);
+  nodes['next-players'].children.forEach((group, index) => {
+    const heading = group.children[0];
+    assert.equal(heading.tagName, 'button');
+    assert.equal(heading.children.length, 1);
+    assert.equal(heading.children[0].className, 'team-roster-title');
+    if (index === 0) assert.match(heading.children[0].textContent, /出牌中/);
+    heading.click();
+  });
+  assert.deepEqual(inspected, ['team-1', 'team-2']);
+});
+
+test('exhausted team clocks show a game result without falsely declaring a winner', async t => {
+  const nodes = mount(t);
+  const { RewardsView } = await import('../public/js/games/bingonext/views/rewards-view.js');
+  new RewardsView().render({ room: { code: 'TIMEOUT', phase: 'finished', endReason: 'time-exhausted', winners: [], teams: [] } });
+  assert.equal(nodes['next-gameResultsTitle'].textContent, '遊戲結束・無勝者');
 });
 
 test('BingoNext start controls require occupied teams and readiness rather than full capacity', async t => {
@@ -396,6 +665,29 @@ test('Bridge host can select captains and all players see badges without guest a
   s.room.host = 'other'; view.render(s);
   assert.ok(nodes.bridgeTeams.children.every(group => !group.children.some(child => child.className === 'team-roster-captain-control')));
   assert.match(nodes.bridgeTeams.textContent, /隊長/);
+});
+
+test('Bridge lobby edits validate duplicates, retain drafts through teammate updates and save with readiness', async t => {
+  const nodes = mount(t);
+  const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
+  const calls = [], view = new BridgeRoomView({ bridge: (...args) => calls.push(args) }), s = bridgeState();
+  view.render(s);
+  assert.ok(nodes.bridgeBoard.children.every(cell => cell.tagName === 'input'));
+  nodes.bridgeBoard.children[0].value = '2'; nodes.bridgeBoard.children[0].emit('input');
+  assert.equal(nodes.bridgeReady.disabled, true);
+  nodes.bridgeBoard.children[1].value = '1'; nodes.bridgeBoard.children[1].emit('input');
+  assert.equal(nodes.bridgeReady.disabled, false);
+  view.render(s);
+  assert.equal(nodes.bridgeBoard.children[0].value, 2);
+  nodes.bridgeReady.click();
+  assert.deepEqual(calls.at(-1), ['bridgeReady', { ready: true, board: [2, 1, 3, 4, 5, 6, 7, 8, 9], boardVersion: 0 }]);
+  s.room.bridge.teams[0].boardVersion = 1;
+  view.render(s);
+  assert.equal(nodes.bridgeBoard.children[0].value, 1);
+  view.viewedTeam = 'team-2'; view.render(s);
+  assert.ok(nodes.bridgeBoard.children.every(cell => cell.tagName === 'button' && cell.disabled));
+  view.viewedTeam = 'team-1'; s.me.ready = true; view.render(s);
+  assert.ok(nodes.bridgeBoard.children.every(cell => cell.tagName === 'button'));
 });
 
 test('Bridge Bingo renders teams, a plain numbered board and preparation controls independently of Bingo', async t => {
@@ -1046,6 +1338,77 @@ test('in-game card results make it clear that continuing ends the current turn',
   view.render(playing);
   assert.equal(nodes.finishSharedCard.textContent, '結束回合，換下一位');
   assert.match(nodes.sharedCardStatus.textContent, /換下一位/);
+});
+
+test('question countdown does not restart on selection and timeout locks answers while retaining host review', async t => {
+  const nodes = mount(t); let now = 1000; t.mock.method(Date, 'now', () => now);
+  const { SharedCardView } = await import('../public/js/games/bingonext/views/shared-card-view.js');
+  const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} }); t.after(() => view.close());
+  const s = sharedState('owner'); s.room.activeCard.answerRemainingMs = 60000;
+  view.render(s); assert.match(nodes['next-sharedCardStatus'].textContent, /01:00/);
+  assert.equal(nodes['next-sharedCardStatus'].dataset.countdown, 'true');
+  now = 31000; nodes['next-sharedCardOptions'].children[0].click();
+  assert.match(nodes['next-sharedCardStatus'].textContent, /00:30/);
+  now = 61000; view.updateAnswerClock();
+  assert.equal(nodes['next-answerSharedCard'].disabled, true);
+  assert.ok(nodes['next-sharedCardOptions'].children.every(option => option.disabled));
+  const review = sharedState('host', 'review'); review.room.activeCard.timedOut = true;
+  view.render(review); assert.match(nodes['next-sharedCardResult'].textContent, /未於時限內作答/);
+  assert.equal(nodes['next-judgeCardCorrect'].hidden, false); assert.equal(nodes['next-judgeCardWrong'].hidden, false);
+  assert.equal(view.answerTimer, null);
+  assert.equal(nodes['next-sharedCardStatus'].dataset.countdown, 'false');
+});
+
+test('question clock accepts shorter server updates but cannot be extended until a new question starts', async t => {
+  const nodes = mount(t); let now = 1000; t.mock.method(Date, 'now', () => now);
+  const { SharedCardView } = await import('../public/js/games/bingonext/views/shared-card-view.js');
+  const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} }); t.after(() => view.close());
+  const s = sharedState('owner'); s.room.activeCard.answerRemainingMs = 60000;
+  view.render(s);
+  now = 21000; s.room.activeCard.answerRemainingMs = 20000; view.render(s);
+  assert.match(nodes['next-sharedCardStatus'].textContent, /00:20/);
+  now = 22000; s.room.activeCard.answerRemainingMs = 60000; view.render(s);
+  assert.match(nodes['next-sharedCardStatus'].textContent, /00:19/);
+  now = 41000; view.updateAnswerClock();
+  assert.equal(nodes['next-answerSharedCard'].disabled, true);
+  assert.ok(nodes['next-sharedCardOptions'].children.every(option => option.disabled));
+  s.room.activeCard.id = 'new-session'; view.render(s);
+  assert.match(nodes['next-sharedCardStatus'].textContent, /01:00/);
+  assert.ok(nodes['next-sharedCardOptions'].children.every(option => !option.disabled));
+  view.close(); assert.equal(view.answerTimer, null);
+});
+
+test('Team Bingo reference answers are visible only to the judging host and blank answers stay blank', async t => {
+  const nodes = mount(t);
+  const { SharedCardView } = await import('../public/js/games/bingonext/views/shared-card-view.js');
+  const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} });
+  const host = sharedState('host', 'review'); host.room.activeCard.referenceAnswer = 'B：15';
+  view.render(host);
+  assert.match(nodes['next-sharedCardResult'].textContent, /正確答案：B：15/);
+  host.room.activeCard.referenceAnswer = ''; view.render(host);
+  assert.ok(nodes['next-sharedCardResult'].textContent.endsWith('正確答案：'));
+  for (const player of ['owner', 'spectator']) {
+    const s = sharedState(player, 'review'); s.room.activeCard.referenceAnswer = 'B：15';
+    view.render(s); assert.doesNotMatch(nodes['next-sharedCardResult'].textContent, /正確答案|B：15/);
+  }
+  const question = sharedState('host', 'question'); question.room.activeCard.referenceAnswer = 'B：15';
+  view.render(question); assert.doesNotMatch(nodes['next-sharedCardResult'].textContent, /正確答案/);
+});
+
+test('Team Bingo does not display question difficulty to any viewer throughout the answer workflow', async t => {
+  const nodes = mount(t);
+  const { SharedCardView } = await import('../public/js/games/bingonext/views/shared-card-view.js');
+  const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} });
+  for (const player of ['owner', 'host', 'spectator']) {
+    for (const difficulty of ['簡單', '普通', '困難']) {
+      for (const stage of ['question', 'review', 'result']) {
+        const s = sharedState(player, stage); s.room.activeCard.card.difficulty = difficulty;
+        view.render(s);
+        assert.doesNotMatch(nodes['next-sharedCardStatus'].textContent, /難度|簡單|普通|困難/);
+        assert.equal(nodes['next-sharedCardQuestion'].textContent, '問題');
+      }
+    }
+  }
 });
 
 test('all players see the card effect and question through answering, host review, and results', async t => {

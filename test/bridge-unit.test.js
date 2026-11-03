@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { COLORS, shuffle, createBridgeState, assignBridgePlayer, coloredDeck,
   beginBridgeRound, legalPlacements, canDiscard, lineCount } = require('../src/games/bridge/game');
 const { bridgeSnapshot } = require('../src/games/bridge/snapshot');
+const { migrateBridgeRoom } = require('../src/games/bridge/migration');
 
 function position(hand, leadColor = 'yellow') {
   const team = { id: 'team-1', name: 'Team 1', playerIds: ['a', 'b'], order: ['a', 'b'], cursor: 0, done: false,
@@ -18,6 +19,21 @@ test('Bridge state instances have independent boards, hands and result collectio
   assert.deepEqual(second.hands, {}); assert.deepEqual(second.winners, []);
   assert.equal(second.round, 0); assert.equal(second.teamCount, 3); assert.equal(second.playersPerTeam, 4);
   assert.equal(second.size, 6);
+});
+
+test('Bridge layout migration initializes old lobbies once and preserves occupied active boards', () => {
+  const room = { phase: 'lobby', players: [], bridge: createBridgeState() };
+  delete room.bridge.teamBoards;
+  migrateBridgeRoom(room);
+  const prepared = structuredClone(room.bridge.teamBoards);
+  migrateBridgeRoom(room); assert.deepEqual(room.bridge.teamBoards, prepared);
+  const { game, team } = position([]);
+  team.cells.reverse(); team.cells[0].card = { number: 3, color: 'blue' };
+  delete game.teamBoards;
+  const active = { phase: 'playing', players: [], bridge: game }, original = structuredClone(team.cells);
+  migrateBridgeRoom(active);
+  assert.deepEqual(game.teamBoards[team.id], original.map(cell => cell.number));
+  assert.deepEqual(team.cells, original);
 });
 
 test('shuffle preserves its input and supports deterministic random choices including empty decks', () => {

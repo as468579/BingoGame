@@ -25,6 +25,7 @@ class RoomService {
   }
 
   connected(room, player) {
+    this.advanceTime(room);
     if (getGame(room.gameType).restorePlayer(room, player)) this.repository.save();
     this.broadcast(room);
   }
@@ -35,13 +36,26 @@ class RoomService {
     if (typeof requestId !== 'string' || requestId.length > 80 || !requestId) fail('缺少操作識別碼。');
     if (kind === 'create' || kind === 'join') return this.enter(data);
     const { room, player } = this.authenticate(String(data.code).toUpperCase(), token);
+    const now = Date.now();
+    this.advanceTime(room, now);
     if (player.requests.includes(requestId)) return { room: this.snapshot(room, player.id), playerId: player.id };
-    getGame(room.gameType).applyAction(room, player, data, this.connections);
+    getGame(room.gameType).applyAction(room, player, data, this.connections, now);
     player.requests.push(requestId);
     room.revision++;
     this.repository.save();
     this.broadcast(room);
     return { room: this.snapshot(room, player.id), playerId: player.id };
+  }
+
+  advanceTime(room, now = Date.now()) {
+    if (!getGame(room.gameType).tick?.(room, now)) return false;
+    room.revision++;
+    this.repository.save(); this.broadcast(room);
+    return true;
+  }
+
+  tick(now = Date.now()) {
+    for (const room of this.repository.all()) this.advanceTime(room, now);
   }
 
   enter(data) {
@@ -55,7 +69,7 @@ class RoomService {
         if (this.repository.all().length >= 1000) fail('房間已達上限。', 503);
         let code;
         do { code = randomBytes(3).toString('hex').toUpperCase(); } while (this.repository.get(code));
-        room = createRoom(code, data.requestId, data.gameType);
+        room = createRoom(code, data.requestId, data.gameType, data);
         this.repository.add(room);
       }
     } else room = this.repository.get(String(data.code).toUpperCase());

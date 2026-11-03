@@ -8,6 +8,7 @@ const { migrateRoom } = require('./migration');
 
 module.exports = {
   id: 'bingo',
+  cardLibrary: require('./card-catalog').cards,
   initializeRoom: () => ({ called: [], turn: null, winners: [], pending: null, lastDecision: null,
     history: [], size: 5, boardVersion: 0, linePrizes: createLinePrizes(5) }),
   createPlayer: (room, name, token) => createPlayer(name, token, room.size || 5),

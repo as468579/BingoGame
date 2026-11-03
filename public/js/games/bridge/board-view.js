@@ -19,6 +19,14 @@ export class BridgeBoardView {
     this.state = state; this.team = team;
     const { room, me, playerId, busy, connected } = state;
     const mine = team.id === me.teamId;
+    const ownTeam = room.bridge.teams.find(candidate => candidate.id === me.teamId);
+    const draftKey = `${room.code}:${room.boardVersion}:${me.teamId}:${ownTeam?.boardVersion || 0}`;
+    if (this.draftKey !== draftKey) {
+      this.draftKey = draftKey;
+      this.draft = ownTeam?.cells.map(cell => cell.number) || [];
+    }
+    const editing = room.phase === 'lobby' && mine && !me.ready;
+    const focused = document.activeElement?.dataset?.bridgeCell;
     const canPlay = room.phase === 'playing' && mine && team.turn === playerId && !busy && connected;
     const hand = me.hand || [], moves = room.bridge.legalMoves || [];
     if (this.key !== `${room.code}:${room.boardVersion}` || !canPlay || !hand.some(card => card.number === this.selected)) this.selected = null;
@@ -28,7 +36,20 @@ export class BridgeBoardView {
     const targets = selected ? moves.find(move => move.cardNumber === selected.number)?.targets || [] : [];
     $('bridgeBoard').dataset.size = room.size;
     $('bridgeBoard').setAttribute('aria-label', `${team.name} ${room.size} 乘 ${room.size} 盤面`);
-    $('bridgeBoard').replaceChildren(...team.cells.map(cell => {
+    $('bridgeBoard').replaceChildren(...team.cells.map((cell, index) => {
+      if (editing) {
+        const input = element('input', 'cell');
+        Object.assign(input, { type: 'number', min: '1', max: room.size ** 2, inputMode: 'numeric', value: this.draft[index] || '', disabled: busy || !connected });
+        input.dataset.bridgeCell = index;
+        input.setAttribute('title', String(this.draft[index] || '未填寫'));
+        input.setAttribute('aria-label', `${team.name} 第 ${Math.floor(index / room.size) + 1} 列第 ${index % room.size + 1} 格`);
+        input.oninput = () => {
+          this.draft[index] = input.value === '' ? 0 : Number(input.value);
+          input.setAttribute('title', String(this.draft[index] || '未填寫'));
+          this.validate();
+        };
+        return input;
+      }
       const button = element('button', `cell${cell.card ? ' marked' : ''}${targets.includes(cell.number) ? ' bridge-target' : ''}`);
       button.append(element('span', 'bridge-cell-base', cell.number));
       button.setAttribute('title', `${cell.number}`);
@@ -38,6 +59,10 @@ export class BridgeBoardView {
       button.onclick = () => this.actions.bridge('bridgePlay', { cardNumber: this.selected, targetNumber: cell.number, round: room.bridge.round });
       return button;
     }));
+    if (editing) {
+      this.validate();
+      if (focused !== undefined) $('bridgeBoard').querySelector(`[data-bridge-cell="${focused}"]`)?.focus();
+    }
     $('bridgeLines').replaceChildren(...renderBoardLines(team.cells.map(cell => ({ isCovered: Boolean(cell.card) })), room.size));
     $('bridgeMoveHint').textContent = selected ? `${colorNames[selected.color]} ${selected.number}：${missingSuit ? '手中缺少指定顏色，可自由放置' : '須放在相同數字格'}，請點亮起的空格。`
       : room.phase === 'lobby' ? ''
@@ -64,5 +89,17 @@ export class BridgeBoardView {
     this.choice.refresh();
   }
 
-  hide() { this.selected = null; this.choice.close(); }
+  validate() {
+    const count = this.state.room.size ** 2;
+    const valid = number => Number.isInteger(number) && number >= 1 && number <= count && this.draft.filter(n => n === number).length === 1;
+    [...$('bridgeBoard').children].forEach((cell, index) => cell.classList.toggle('invalid', !valid(this.draft[index])));
+    if (!this.state.me.ready) $('bridgeReady').disabled = this.state.busy || !this.state.connected || !this.draft.every(valid);
+  }
+
+  ready(ready) {
+    const ownTeam = this.state.room.bridge.teams.find(team => team.id === this.state.me.teamId);
+    this.actions.bridge('bridgeReady', ready ? { ready, board: [...this.draft], boardVersion: ownTeam.boardVersion || 0 } : { ready });
+  }
+
+  hide() { this.selected = null; this.draftKey = null; this.choice.close(); }
 }

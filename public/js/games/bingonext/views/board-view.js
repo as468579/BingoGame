@@ -16,7 +16,18 @@ export class BoardView {
     $('phaseText').hidden = room.phase === 'finished';
     $('phaseText').textContent = room.activeCard ? '卡牌作答中，遊戲暫停。'
       : room.phase === 'lobby' ? host ? '房主可排列共用盤面；每隊至少 1 人且全員準備後即可開始，不需滿員。' : '房主設定共用盤面，選擇隊伍後請準備。'
-        : room.turn === me.id ? '輪到你：選一個空格為自己的隊伍佔領，選中特殊格可獲得一張卡。' : `等待 ${turn?.name || '玩家'} 選號${turn && !turn.online ? '（離線，等待重連）' : '…'}`;
+        : room.turn === me.id ? '輪到你：圈選一個數字，或使用一張隊伍卡牌，本回合只能擇一。' : `等待 ${turn?.name || '玩家'} 行動${turn && !turn.online ? '（離線，等待重連）' : '…'}`;
+    this.stopClock();
+    const activeTeam = room.teams.find(candidate => candidate.id === turn?.teamId);
+    if (room.phase === 'playing' && Number.isFinite(activeTeam?.timeRemainingMs)) {
+      this.actionClock = { label: element('span', 'next-action-clock'), name: activeTeam.name, remainingMs: activeTeam.timeRemainingMs,
+        running: Boolean(activeTeam.clockRunning), receivedAt: Date.now() };
+      this.actionClock.label.setAttribute('role', 'timer');
+      $('phaseText').append(this.actionClock.label);
+      this.updateClock();
+      this.clockTimer = setInterval(() => this.updateClock(), 250);
+      this.clockTimer.unref?.();
+    }
     $('board').setAttribute('aria-label', `${room.size} 乘 ${room.size} 共用賓果盤面`);
     $('board').dataset.size = room.size; $('board').dataset.phase = room.phase;
     const focused = document.activeElement?.dataset?.cell;
@@ -53,10 +64,20 @@ export class BoardView {
     this.prizes.render(room.cells, room.size, room.phase, room.linePrizes, me.teamId, room.teams);
     $('editTools').hidden = !host || room.phase !== 'lobby';
     $('shuffle').hidden = !host || room.phase !== 'lobby'; $('shuffle').disabled = busy || !connected;
-    $('boardHint').textContent = '✦ 特殊格：數量為總格數 × 15%（無條件進位），位置隨機，佔領可獲得一張卡。整條線都屬於同隊才能獲獎。';
+    $('boardHint').textContent = '特殊格：首次佔領時，隊伍可獲得一張效果卡。';
     if (editing) { this.validate(state); if (focused !== undefined) $('board').querySelector(`[data-cell="${focused}"]`)?.focus(); }
   }
   validate({ room, draft }) {
     [...$('board').children].forEach((cell, i) => cell.classList.toggle('invalid', !Number.isInteger(draft[i]) || draft[i] < 1 || draft[i] > room.size ** 2 || draft.filter(n => n === draft[i]).length > 1));
   }
+
+  updateClock(now = Date.now()) {
+    const clock = this.actionClock;
+    if (!clock) return;
+    const seconds = Math.max(0, Math.ceil((clock.remainingMs - (clock.running ? Math.max(0, now - clock.receivedAt) : 0)) / 1000));
+    clock.label.textContent = `${clock.name} 剩餘 ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}${clock.running ? '' : ' · 暫停計時'}`;
+  }
+
+  stopClock() { clearInterval(this.clockTimer); this.clockTimer = null; this.actionClock = null; }
+  hide() { this.stopClock(); }
 }

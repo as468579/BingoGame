@@ -13,19 +13,21 @@ export class SharedCardView {
     const { room, me, busy, connected } = state;
     const active = room.activeCard;
     if (!active) { this.close(); this.sessionId = null; return; }
-    if (this.sessionId !== active.id) { this.choice = null; this.sessionId = active.id; }
+    if (this.sessionId !== active.id) { this.choice = null; this.sessionId = active.id; this.answerDeadline = undefined; }
     const owner = room.players.find(player => player.id === active.playerId);
     const mine = active.playerId === me.id;
     const result = active.stage === 'result';
     const reviewing = active.stage === 'review';
+    $('sharedCardStatus').dataset.countdown = String(active.stage === 'question' && Number.isFinite(active.answerRemainingMs));
     $('cancelSharedCard').hidden = !mine || active.stage !== 'question';
     $('cancelSharedCard').disabled = busy || !connected;
     $('sharedCardTitle').textContent = `${owner?.name || '玩家'} 使用了「${active.card.name}」`;
     $('sharedCardSymbol').textContent = active.card.symbol || '✦';
     $('sharedCardDescription').textContent = active.card.description || '';
     $('sharedCardEffect').textContent = `卡牌效果：${active.card.effect || '能力待定'}`;
-    $('sharedCardStatus').textContent = result ? (room.phase === 'playing' ? '房主判定結果 · 確認後換下一位' : '房主判定結果 · 確認後繼續遊戲')
-      : reviewing ? '遊戲暫停 · 等待房主判定' : '遊戲暫停 · 等待作答';
+    const status = result ? (room.phase === 'playing' ? '房主判定結果 · 確認後換下一位' : '房主判定結果 · 確認後繼續遊戲')
+      : reviewing ? active.timedOut ? '作答逾時 · 等待房主判定' : '遊戲暫停 · 等待房主判定' : '遊戲暫停 · 等待作答';
+    $('sharedCardStatus').textContent = status;
     $('sharedCardQuestion').textContent = active.card.question;
     $('sharedCardOptions').replaceChildren(...active.card.options.map((label, index) => {
       const selected = result || reviewing ? active.choice === index : this.choice === index;
@@ -38,11 +40,16 @@ export class SharedCardView {
     }));
     const resultText = $('sharedCardResult');
     resultText.textContent = result ? ''
-      : reviewing ? `${owner?.name || '玩家'} 已提交答案，等待房主判定。`
+      : reviewing ? `${owner?.name || '玩家'} ${active.timedOut ? '未於時限內作答' : '已提交答案'}，等待房主判定。`
         : mine ? '請選擇答案。' : `等待 ${owner?.name || '玩家'} 回答…`;
     if (result) resultText.append(
       element('strong', `card-verdict ${active.correct ? 'is-correct' : 'is-wrong'}`, active.correct ? '回答正確！' : '回答錯誤')
     );
+    if (reviewing && me.id === room.host) {
+      const reference = element('span', 'host-reference-answer');
+      reference.append(element('strong', '', '正確答案：'), element('span', '', active.referenceAnswer || ''));
+      resultText.append(reference);
+    }
     const answer = $('answerSharedCard');
     answer.hidden = !mine || result || reviewing;
     answer.disabled = busy || !connected || this.choice === null;
@@ -58,10 +65,30 @@ export class SharedCardView {
     finish.disabled = busy || !connected;
     finish.textContent = result ? (room.phase === 'playing' ? '結束回合，換下一位' : '繼續遊戲') : '結束作答';
     finish.onclick = () => this.actions.finishCard(active.id);
+    clearInterval(this.answerTimer); this.answerTimer = null;
+    if (active.stage === 'question' && Number.isFinite(active.answerRemainingMs)) {
+      const deadline = Date.now() + active.answerRemainingMs;
+      this.answerDeadline = Math.min(this.answerDeadline ?? deadline, deadline);
+      this.updateAnswerClock();
+      this.answerTimer = setInterval(() => this.updateAnswerClock(), 250);
+      this.answerTimer.unref?.();
+    }
     if (!this.dialog.open) this.dialog.showModal();
   }
 
-  close() { if (this.dialog.open) this.dialog.close(); }
+  updateAnswerClock(now = Date.now()) {
+    const seconds = Math.max(0, Math.ceil((this.answerDeadline - now) / 1000));
+    $('sharedCardStatus').textContent = seconds > 0 ? `作答剩餘 ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}` : '作答時間已到 · 等待房主判定';
+    if (seconds === 0) {
+      $('answerSharedCard').disabled = true; $('cancelSharedCard').disabled = true;
+      for (const option of $('sharedCardOptions').children) option.disabled = true;
+    }
+  }
+
+  close() {
+    clearInterval(this.answerTimer); this.answerTimer = null; this.answerDeadline = undefined;
+    if (this.dialog.open) this.dialog.close();
+  }
 
   cancel() {
     const { room, me, busy, connected } = this.state || {};

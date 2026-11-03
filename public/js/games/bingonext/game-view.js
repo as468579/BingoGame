@@ -43,12 +43,14 @@ export class BingoNextView {
     this.sharedCard.render(state);
     this.rewards.render(state);
     // this.drawCards.render(state);
-    $('rulesText').textContent = `全場共用盤面，選號後直接為自己的隊伍佔領；建立或隨機排列時，隨機選出總格數 × 15%（無條件進位）個特殊格，選中特殊格獲得一張隨機卡，一般格不抽卡。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線獲勝；盤面滿時按連線數結算。`;
-    $('winner').textContent = room.winners.length
+    $('rulesText').textContent = `每回合只能圈選一個數字或使用一張隊伍卡牌，二擇一。圈選後直接佔領並換人；卡牌作答完成後，無論正誤都換人。建立或隨機排列時，隨機選出總格數 × 12%（無條件進位）個特殊格，圈選特殊格可獲得一張卡，當回合不能接著使用。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線獲勝；盤面滿時按連線數結算。`;
+    $('winner').textContent = room.endReason === 'time-exhausted' ? '所有隊伍行動時間已用完，本局無勝者。' : room.winners.length
       ? `✳ ${room.teams.filter(team => room.winners.includes(team.id)).map(team => team.name).join('、')}${room.winners.length > 1 ? ' 並列獲勝' : ' 獲勝'}！` : '';
   }
 
   hide() {
+    this.players.hide();
+    this.board.hide();
     $('root').hidden = true;
     $('game').hidden = true;
     $('handPanel').hidden = true;

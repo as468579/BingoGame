@@ -1,14 +1,13 @@
 'use strict';
 
-const { randomUUID, randomInt } = require('node:crypto');
+const { randomUUID } = require('node:crypto');
 const { fail } = require('../../domain/errors');
-const { demoCards, publicCard } = require('./card-catalog');
+const { demoCards, publicCard, drawCardDefinition } = require('./card-catalog');
 const { addToHand, removeFromHand } = require('./hand');
 const { isParticipant } = require('./participants');
 const { advanceTurn } = require('./turns');
 
-function drawForNumber(player) {
-  const definition = demoCards[randomInt(demoCards.length)];
+function drawForNumber(player, definition = drawCardDefinition()) {
   return addToHand(player, { ...publicCard(definition), definitionId: definition.id });
 }
 
@@ -19,7 +18,7 @@ function useCard(room, player, data) {
   if (room.phase === 'playing' && room.turn !== player.id) fail('請在自己的選號回合使用卡片。', 403);
   const held = player.hand.find(candidate => candidate.id === data.cardId);
   const card = demoCards.find(candidate => candidate.id === (held?.definitionId || data.cardId));
-  if (!card || (!held && player.usedDemoCards?.includes(card.id))) fail('這張卡片無法使用。');
+  if (!card || (!held && (card.enabled === false || player.usedDemoCards?.includes(card.id)))) fail('這張卡片無法使用。');
   const handIndex = held ? player.hand.indexOf(held) : -1;
   if (held) removeFromHand(player, held.id);
   else {

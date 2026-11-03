@@ -9,6 +9,7 @@ const { advanceTurn } = require('./turns');
 const { REVERSIBLE_ACTIONS, captureGameState, undoGame } = require('./history');
 const { participants } = require('./participants');
 const { useCard, cancelCard, answerCard, judgeCard, finishCard, drawForNumber } = require('./card-actions');
+const { drawCardDefinition } = require('./card-catalog');
 const { createLinePrizes, ensureLinePrizes, awardLinePrizes } = require('./prizes');
 
 function scan(room, player, data, presence) {
@@ -88,13 +89,14 @@ function decide(room, player, data) {
   requireHost(room, player, '只有房主可以確認或拒絕選號。');
   if (room.phase !== 'playing' || !room.pending) fail('目前沒有待確認的號碼。');
   if (data.pendingId !== room.pending.id) fail('此選號已處理，請以最新畫面為準。', 409);
+  const drawnDefinition = data.kind === 'approve' ? drawCardDefinition() : null;
   room.lastDecision = { ...room.pending, approved: data.kind === 'approve' };
   if (data.kind === 'approve') {
     room.called.push(room.pending.number);
     participants(room).forEach(candidate => coverNumber(candidate.cells, room.pending.number));
     awardLinePrizes(room);
     const caller = room.players.find(candidate => candidate.id === room.pending.playerId);
-    room.lastDecision.drawnCardId = drawForNumber(caller).id;
+    room.lastDecision.drawnCardId = drawForNumber(caller, drawnDefinition).id;
   }
   room.pending = null;
   const size = room.size || 5;

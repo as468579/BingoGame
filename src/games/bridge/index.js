@@ -7,6 +7,7 @@ const { migrateBridgeRoom } = require('./migration');
 
 module.exports = {
   id: 'bridge-bingo',
+  cardLibrary: require('./card-catalog').cards,
   initializeRoom: () => {
     const bridge = createBridgeState();
     return { bridge, size: bridge.size, boardVersion: 0 };

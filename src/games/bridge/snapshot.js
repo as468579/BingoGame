@@ -13,9 +13,10 @@ function bridgeSnapshot(room, presence, viewerId) {
     return team ? { id, name: team.name, playerIds: team.playerIds, cells: team.cells, lines: lineCount(team, game.size),
       leadColor: team.leadColor, done: team.done, order: team.order, turn: team.id === active?.id ? team.order[team.cursor] : null }
       : { id, name: `隊伍 ${i + 1}`, playerIds: room.players.filter(player => player.teamId === id).map(player => player.id),
-        cells: game.board.map(number => ({ number, card: null })), lines: 0, leadColor: null, turn: null, done: false, order: [] };
+        cells: (game.teamBoards?.[id] || game.board).map(number => ({ number, card: null })), lines: 0, leadColor: null, turn: null, done: false, order: [] };
   });
   for (const team of teams) {
+    team.boardVersion = game.teamBoardVersions?.[team.id] || 0;
     const captainId = game.captains?.[team.id];
     team.captainId = team.playerIds.includes(captainId) ? captainId : null;
   }

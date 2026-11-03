@@ -1,5 +1,5 @@
 'use strict';
-const { createBridgeState, assignBridgePlayer } = require('./game');
+const { createBridgeState, assignBridgePlayer, ensureTeamBoards } = require('./game');
 
 function migrateBridgeRoom(room) {
   if (!room.bridge) {
@@ -7,6 +7,7 @@ function migrateBridgeRoom(room) {
     room.phase = 'lobby';
     for (const player of room.players) { player.ready = false; assignBridgePlayer(room, player); }
   }
+  ensureTeamBoards(room.bridge);
   return room;
 }
 

@@ -15,10 +15,21 @@ function shuffle(values, pick = randomInt) {
 }
 
 function createBridgeState({ teamCount = 3, playersPerTeam = 4, size = 6 } = {}) {
-  return { teamCount, playersPerTeam, size, board: createBoard(size), deck: [], hands: {}, teams: [], captains: {}, discards: [], round: 0, winners: [], lastPlay: null };
+  return ensureTeamBoards({ teamCount, playersPerTeam, size, board: createBoard(size), deck: [], hands: {}, teams: [], captains: {}, discards: [], round: 0, winners: [], lastPlay: null });
 }
 
 function teamId(index) { return `team-${index + 1}`; }
+
+function ensureTeamBoards(game) {
+  game.teamBoards ||= {};
+  game.teamBoardVersions ||= {};
+  for (let i = 0; i < game.teamCount; i++) {
+    const id = teamId(i);
+    game.teamBoards[id] ||= game.teams.find(team => team.id === id)?.cells.map(cell => cell.number) || shuffle(game.board);
+    game.teamBoardVersions[id] ??= 0;
+  }
+  return game;
+}
 
 function assignBridgePlayer(room, player) {
   const game = room.bridge;
@@ -83,4 +94,4 @@ function canDiscard(game, team, playerId, cardNumber) {
   return Boolean(choice && !choice.missingSuit && team.cells.some(cell => cell.number === cardNumber && cell.card));
 }
 
-module.exports = { COLORS, shuffle, createBridgeState, teamId, assignBridgePlayer, coloredDeck, lineCount, beginBridgeRound, activeBridgeTeam, legalPlacements, canDiscard };
+module.exports = { COLORS, shuffle, createBridgeState, ensureTeamBoards, teamId, assignBridgePlayer, coloredDeck, lineCount, beginBridgeRound, activeBridgeTeam, legalPlacements, canDiscard };

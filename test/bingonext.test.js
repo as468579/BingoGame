@@ -162,7 +162,7 @@ test('a full blocked board settles by team score including a zero-line tie', () 
   assert.deepEqual(f.room.winners, ['team-1', 'team-2']);
   assert.ok(f.room.linePrizes.every(p => !p.claimedBy));
 });
-test('a full board below the victory goal selects the team with the most lines', () => {
+test('a completed team line wins when a restored board is settled', () => {
   const f = fixture({ size: 4 }); f.start();
   const ownership = [1, 1, 1, 1, 1, 2, 1, 2, 2, 1, 2, 2, 2, 2, 1, 1];
   f.room.cells.forEach((cell, i) => { if (i < 15) Object.assign(cell, { isCovered: true, teamId: `team-${ownership[i]}` }); });
@@ -195,6 +195,44 @@ test('undo restores team ownership, prize ownership, hands and turn all the way 
   assert.ok(Object.values(f.room.teamHands).every(hand => !hand.length));
   assert.ok(f.room.cells.every(c => c.isSpecial));
 });
+test('choosing either a normal or special cell ends the player turn and prevents card use in that turn', () => {
+  const { drawForNumber } = require('../src/games/bingonext/card-actions');
+  for (const isSpecial of [false, true]) {
+    const f = fixture(); f.start();
+    const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
+    f.room.cells[0].isSpecial = isSpecial;
+    f.play(1);
+    const afterCall = structuredClone(f.room);
+    assert.throws(() => f.send('cardUse', { cardId: held.id }), /自己的選號回合/);
+    if (isSpecial) {
+      const drawn = f.room.teamHands['team-1'].at(-1);
+      assert.throws(() => f.send('cardUse', { cardId: drawn.id }), /自己的選號回合/);
+    }
+    assert.deepEqual(f.room, afterCall);
+    assert.equal(f.room.turn, f.room.players[1].id);
+  }
+});
+
+for (const correct of [true, false]) {
+  test(`using a card with verdict ${correct} prevents number selection through every stage and ends the turn`, () => {
+    const { drawForNumber } = require('../src/games/bingonext/card-actions');
+    const f = fixture(); f.start();
+    const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
+    f.send('cardUse', { cardId: held.id });
+    const id = f.room.activeCard.id;
+    assert.throws(() => f.send('call', { number: 1 }), /暫停/);
+    f.send('cardAnswer', { cardSessionId: id, choice: 0 });
+    assert.throws(() => f.send('call', { number: 1 }), /暫停/);
+    f.send('cardJudge', { cardSessionId: id, correct });
+    assert.throws(() => f.send('call', { number: 1 }), /暫停/);
+    f.send('cardFinish', { cardSessionId: id });
+    assert.equal(f.room.turn, f.room.players[1].id);
+    assert.throws(() => f.send('call', { number: 1 }), /輪到/);
+    assert.ok(f.room.cells.every(cell => !cell.isCovered));
+    f.play(1); assert.equal(f.room.cells[0].teamId, 'team-2');
+  });
+}
+
 test('card cancellation refunds without ending the turn; host judgment ends the turn without changing ownership', () => {
   const f = fixture(); f.start();
   const { drawForNumber } = require('../src/games/bingonext/card-actions');
@@ -232,9 +270,20 @@ test('teammates share acquired cards, use them on their own turn and publish onl
   const publicActive = f.service.snapshot(f.room, opponent.id).activeCard;
   const { findQuestion } = require('../src/games/bingonext/question-bank');
   assert.equal(publicActive.card.question, findQuestion(active.questionId).question);
+  assert.equal(publicActive.card.difficulty, undefined);
+  assert.equal(publicActive.card.questionDifficulty, undefined);
   assert.equal(publicActive.card.answer, undefined); assert.equal(publicActive.returnCard, undefined);
+  assert.equal(f.service.snapshot(f.room, host.id).activeCard.referenceAnswer, undefined);
+  active.questionId = 'removed-from-bank';
+  active.question.question = '已抽出的題目仍可繼續作答';
+  assert.equal(f.service.snapshot(f.room, opponent.id).activeCard.card.question, '已抽出的題目仍可繼續作答');
   assert.throws(() => f.send('cardAnswer', { cardSessionId: active.id, choice: 0 }, host.token), /只有使用/);
   f.send('cardAnswer', { cardSessionId: active.id, choice: 0 }, teammate.token);
+  assert.ok(f.service.snapshot(f.room, host.id).activeCard.referenceAnswer);
+  assert.equal(f.service.snapshot(f.room, teammate.id).activeCard.referenceAnswer, undefined);
+  assert.equal(f.service.snapshot(f.room, opponent.id).activeCard.referenceAnswer, undefined);
+  active.question.answer = null;
+  assert.equal(f.service.snapshot(f.room, host.id).activeCard.referenceAnswer, '');
   assert.throws(() => f.send('cardJudge', { cardSessionId: active.id, correct: true }, teammate.token), /只有房主/);
   f.send('cardJudge', { cardSessionId: active.id, correct: true });
   f.send('cardFinish', { cardSessionId: active.id }, teammate.token);
@@ -252,6 +301,30 @@ test('legacy personal cards and undo snapshots migrate into team hands exactly o
   assert.ok(room.players.every(p => !p.hand.length));
   assert.equal(room.history[0].teamHands['team-1'][0].id, 'old-card');
   assert.equal(room.history[0].activeCard.teamId, 'team-1');
+});
+
+test('server card configuration enforces hard questions and a missing match never consumes the shared card', t => {
+  const f = fixture(); f.start();
+  const { drawForNumber } = require('../src/games/bingonext/card-actions');
+  const { demoCards } = require('../src/games/bingonext/card-catalog');
+  const { questions } = require('../src/games/bingonext/question-bank');
+  const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
+  const definition = demoCards.find(card => card.id === held.definitionId);
+  const original = definition.questionDifficulty, bankLength = questions.length;
+  t.after(() => { definition.questionDifficulty = original; questions.splice(bankLength); });
+  definition.questionDifficulty = '困難';
+  held.questionDifficulty = '簡單';
+  assert.equal(f.service.snapshot(f.room, f.room.host).players[0].hand[0].questionDifficulty, undefined);
+  const before = structuredClone(f.room);
+  assert.throws(() => f.send('cardUse', { cardId: held.id, questionDifficulty: '簡單' }), /沒有啟用/);
+  assert.deepEqual(f.room, before);
+  questions.push({ id: 'hard-test', difficulty: '困難', question: '困難測試題', options: ['甲', '乙'], answer: 0, enabled: true });
+  f.send('cardUse', { cardId: held.id, questionDifficulty: '簡單' });
+  assert.equal(f.room.activeCard.questionId, 'hard-test');
+  const visible = f.service.snapshot(f.room, f.room.host).activeCard.card;
+  assert.equal(visible.question, '困難測試題');
+  assert.equal(visible.difficulty, undefined); assert.equal(visible.questionDifficulty, undefined);
+  assert.equal(f.room.teamHands['team-1'].length, 0);
 });
 
 test('question bank selection is independent of card definitions and exposes every sample question', () => {

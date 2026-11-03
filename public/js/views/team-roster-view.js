@@ -36,14 +36,22 @@ export class TeamRosterView {
     this.ready.textContent = this.viewer?.ready ? '取消準備' : '準備好了 ✓';
     this.ready.disabled = Boolean(disabled || !this.viewer?.teamId);
     const scroll = this.list.scrollTop;
+    this.clockLabels = [];
     const groups = teams.map(team => {
       const group = element('section', `team-roster-team${team.id === selectedTeamId ? ' is-selected' : ''}`);
-      const heading = element(this.onInspect ? 'button' : 'div', 'team-roster-heading', `${team.name} · ${team.lines} / ${goal} 條`);
+      const heading = element(this.onInspect ? 'button' : 'div', 'team-roster-heading');
+      const title = element('span', 'team-roster-title', `${team.name} · ${team.lines} / ${goal} 條`);
+      heading.append(title);
       if (this.onInspect) { heading.type = 'button'; heading.onclick = () => this.onInspect(team.id); }
-      if (team.id === activeTeamId) heading.append(element('span', 'team-roster-active', '出牌中'));
+      if (team.id === activeTeamId) title.append(element('span', 'team-roster-active', '出牌中'));
       group.append(heading);
       if (team.rewardCount !== undefined) group.append(element('p', 'team-roster-rewards', `獎品 ${team.rewardCount} 份`));
       if (team.handCount !== undefined) group.append(element('p', 'team-roster-count', `隊伍手牌 ${team.handCount} 張`));
+      if (Number.isFinite(team.timeRemainingMs)) {
+        const label = element('span', 'team-roster-clock');
+        this.clockLabels.push({ label, remainingMs: team.timeRemainingMs, running: Boolean(team.clockRunning), receivedAt: Date.now() });
+        heading.append(label);
+      }
       members.filter(member => member.teamId === team.id).forEach(member => group.append(this.member(member, team.turn, disabled)));
       if (this.onCaptain && lobby && viewerId === hostId) {
         const label = element('label', 'team-roster-captain-control', '隊長');
@@ -70,14 +78,25 @@ export class TeamRosterView {
     }
     this.list.replaceChildren(...groups);
     this.list.scrollTop = scroll;
+    this.updateClocks();
+  }
+
+  updateClocks(now = Date.now()) {
+    for (const entry of this.clockLabels || []) {
+      const remaining = Math.max(0, entry.remainingMs - (entry.running ? Math.max(0, now - entry.receivedAt) : 0));
+      const seconds = Math.ceil(remaining / 1000);
+      entry.label.textContent = seconds > 0 ? `剩餘 ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}` : '時間用完';
+      entry.label.title = seconds > 0 ? (entry.running ? '計時中' : '暫停計時') : '時間用完 · 自動跳過';
+      entry.label.classList.toggle('is-expired', seconds <= 0);
+    }
   }
 
   member(member, turn, disabled) {
     const { phase, viewerId, hostId, teams } = this.model;
     const row = element('div', `team-roster-member${phase === 'playing' && turn === member.id ? ' is-turn' : ''}`);
-    row.append(element('strong', '', `${phase === 'playing' && turn === member.id ? '▶ ' : ''}${member.name}${member.id === viewerId ? '（你）' : ''}`),
-      element('span', '', `${member.online ? '●' : '○ 離線'}${phase === 'lobby' ? ` · ${member.ready ? '已準備' : '未準備'}` : this.model.sharedHands ? '' : ` · 手牌 ${member.handCount} 張`}`));
+    row.append(element('strong', '', `${phase === 'playing' && turn === member.id ? '▶ ' : ''}${member.name}${member.id === viewerId ? '（你）' : ''}`));
     if (teams.some(team => team.id === member.teamId && team.captainId === member.id)) row.children[0].append(element('span', 'team-roster-captain-badge', '隊長'));
+    row.children[0].append(element('span', 'team-roster-status', `${member.online ? '●：目前在線' : '○：離線'}${phase === 'lobby' ? ` · ${member.ready ? '已準備' : '未準備'}` : this.model.sharedHands ? '' : ` · 手牌 ${member.handCount} 張`}`));
     if (phase === 'lobby' && hostId === viewerId) {
       const select = element('select', 'team-roster-select');
       select.setAttribute('aria-label', `分配 ${member.name} 的隊伍`);

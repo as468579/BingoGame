@@ -3,9 +3,9 @@ const { randomUUID } = require('node:crypto');
 const { fail } = require('./errors');
 const { getGame } = require('../games');
 
-function createRoom(code, createRequest, gameType = 'bingo') {
+function createRoom(code, createRequest, gameType = 'bingo', options = {}) {
   const game = getGame(gameType);
-  return { code, createRequest, gameType: game.id, phase: 'lobby', players: [], host: null, revision: 0, ...game.initializeRoom() };
+  return { code, createRequest, gameType: game.id, phase: 'lobby', players: [], host: null, revision: 0, ...game.initializeRoom(options) };
 }
 
 function joinRoom(room, name, token) {

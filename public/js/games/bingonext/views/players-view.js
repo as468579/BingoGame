@@ -15,5 +15,12 @@ export class PlayersView {
       turn: team.playerIds.includes(room.turn) ? room.turn : null })), members: room.players, viewerId: playerId,
       hostId: room.host, phase: room.phase, busy, connected, playersPerTeam: room.playersPerTeam, goal: room.goal,
       selectedTeamId: me?.teamId || room.players.find(player => player.id === playerId)?.teamId, sharedHands: true, paused: Boolean(room.activeCard) });
+    if (!this.clockTimer && room.phase === 'playing') {
+      this.clockTimer = setInterval(() => this.roster.updateClocks(), 250);
+      this.clockTimer.unref?.();
+    }
+    if (room.phase !== 'playing') this.hide();
   }
+
+  hide() { clearInterval(this.clockTimer); this.clockTimer = null; }
 }

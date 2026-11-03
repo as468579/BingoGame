@@ -8,7 +8,7 @@
 .team-roster-count,.team-roster-rewards{font-size:11px!important;margin:8px 0 0!important;color:#8e7953!important;line-height:1.5}
 .team-roster-member{padding:10px 2px 5px;display:grid;gap:4px}
 .team-roster-member strong{font-size:14px;overflow-wrap:anywhere}
-.team-roster-member>span{font-size:11px;color:#8d7954}
+.team-roster-status{display:inline;margin-left:8px;font-size:14px;font-weight:400;color:#8d7954;white-space:nowrap}
 .team-roster-member.is-turn strong{color:#a65d10}
 .team-roster-select{font:inherit;font-size:13px;background:#f6edd4;color:#514735;border:1px solid #c1ad7f;border-radius:6px;padding:6px;max-width:100%;width:100%}
 .team-roster-controls{margin-top:16px;display:grid;gap:8px}
@@ -19,4 +19,8 @@
 .team-roster-unassigned{font-size:14px;color:#655538}
 .team-roster-captain-control{display:grid;gap:4px;margin-top:10px;font-size:12px;color:#78603b}
 .team-roster-captain-badge{display:inline-block;margin-left:6px;padding:1px 5px;border:1px solid #b18b41;border-radius:4px;background:#f5e3ac;color:#78561f;font-size:11px;font-weight:600;vertical-align:middle}
+.team-roster-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.team-roster-title{min-width:0}
+.team-roster-clock{flex:none;margin:0 0 0 auto;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:#78561f;white-space:nowrap}
+.team-roster-clock.is-expired{color:#a14d3b}
 @media(max-width:700px){.team-roster-list{max-height:330px}}

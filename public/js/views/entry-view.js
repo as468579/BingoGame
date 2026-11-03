@@ -5,6 +5,9 @@ export class EntryView {
     this.query = new URLSearchParams(location.search);
     this.joinPage = /^\/(?:join|bridge-bingo|bingo-next)\/?$/.test(location.pathname);
     $('gameChoice').hidden = this.joinPage;
+    const updateTimeSetting = () => { $('teamTimeSettings').hidden = this.joinPage || $('gameType').value !== 'bingo-next'; };
+    $('gameType').onchange = updateTimeSetting;
+    updateTimeSetting();
     if (this.joinPage) {
       document.title = '加入朋友的房間 · Alberta';
       $('create').hidden = true;
@@ -21,7 +24,11 @@ export class EntryView {
     });
   }
 
-  get identity() { return { name: $('name').value, code: $('code').value.trim().toUpperCase(), gameType: $('gameType').value }; }
+  get identity() {
+    const gameType = $('gameType').value;
+    return { name: $('name').value, code: $('code').value.trim().toUpperCase(), gameType,
+      ...(!this.joinPage && gameType === 'bingo-next' ? { teamTimeMinutes: Number($('entryTeamMinutes').value) } : {}) };
+  }
   get path() { return this.joinPage ? '/join' : '/'; }
 
   shouldRestore(code) {
