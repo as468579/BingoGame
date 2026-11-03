@@ -116,7 +116,7 @@ npm run check
 npm test
 ```
 
-目前共 **316 項測試**，包含單元測試與整合測試；`npm run check` 檢查 **133 個 JavaScript 檔案**的語法。
+目前共 **321 項測試**，包含單元測試與整合測試；`npm run check` 檢查 **133 個 JavaScript 檔案**的語法。
 
 | 測試檔案 | 主要範圍 |
 | --- | --- |
@@ -141,7 +141,7 @@ npm test
 
 單獨執行 Bridge Bingo 核心單元測試：`npm run test:unit:bridge`。這組測試不啟動 HTTP 服務、不讀寫遊戲存檔；完整回歸測試仍使用 `npm test`。
 
-單獨執行團隊賓果核心單元測試：`npm run test:unit:team`。共 29 項，涵蓋特殊格數量與位置、盤面編輯、準備與開局、輪流順序、同隊連線與獎品、勝負及平手、卡牌回合互斥、作答權限、上一步及資料遷移；不啟動 HTTP 服務或讀寫存檔。
+單獨執行團隊賓果核心單元測試：`npm run test:unit:team`。共 30 項，涵蓋特殊格數量與位置、盤面編輯、準備與開局、輪流順序、同隊連線與獎品、勝負及平手、卡牌回合互斥、作答權限、全房獲卡資訊、上一步及資料遷移；不啟動 HTTP 服務或讀寫存檔。
 
 遊戲程式分別放在 `src/games/bingo`、`src/games/bridge` 與 `public/js/games/` 對應目錄，透過共用 registry 接到房間服務與應用程式。共用邊界與新增遊戲方式見 [架構與物件關係](docs/architecture.md)，可執行 `npm run test:architecture` 驗證隔離。
 

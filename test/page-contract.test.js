@@ -83,6 +83,9 @@ test('draw panels stay disabled while Team Bingo exposes a card award notificati
   }
   assert.equal(tags.some(tag => tag.attrs.id === 'drawnCardDialog'), false);
   assert.equal(byId('next-drawnCardDialog').name, 'dialog');
+  assert.doesNotMatch(content(byId('next-drawnCardDialog')), /drawn-card-caption|獲得一張效果卡/);
+  assert.doesNotMatch(content(byId('next-openHand')), /inventory-slots|✧|❈|☽/);
+  assert.match(content(byId('next-openHand')), /隊伍手牌/);
   assert.equal(text(byId('next-closeDrawnCard')), '知道了');
   const layouts = tags.filter(tag => hasClass(tag, 'game-layout'));
   assert.equal(layouts.length, 2); assert.ok(layouts.every(tag => hasClass(tag, 'no-draw')));

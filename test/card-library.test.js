@@ -19,6 +19,22 @@ test('each game owns independent card definitions even when it reuses an ID', ()
   first[0].options[0] = '修改'; assert.equal(second[0].options[0], '甲'); assert.equal(source[0].options[0], '甲');
 });
 
+test('Team Bingo draws only time cards while keeping Bingo sample cards in their own library', () => {
+  const { cards } = require('../src/games/teambingo/card-catalog');
+  const { drawForNumber } = require('../src/games/teambingo/card-actions');
+  assert.deepEqual(cards.filter(card => card.enabled).map(card => card.id), ['team-time-plus-2m']);
+  assert.equal(chooseCard(cards, bound => { assert.equal(bound, 1); return 0; }).name, '加時');
+  const player = { hand: [] };
+  for (let index = 0; index < 10; index++) {
+    const held = drawForNumber(player);
+    assert.equal(held.definitionId, 'team-time-plus-2m');
+    assert.equal(held.name, '加時'); assert.equal(held.symbol, 'pocket-watch');
+    assert.equal(held.questionDifficulty, undefined); assert.equal(held.effectId, undefined);
+  }
+  assert.equal(player.hand.length, 10);
+  assert.deepEqual(require('../src/games/bingo/card-catalog').cards.map(card => card.id), ['star', 'shield', 'moon']);
+});
+
 test('card file validation rejects malformed IDs, names, metadata and difficulty requirements', () => {
   assert.throws(() => parseCards({}), /JSON 陣列/);
   for (const invalid of [null, { id: '' }, { name: ' ' }, { enabled: 'yes' }, { effect: {} }, { questionDifficulty: 'hard' }]) {

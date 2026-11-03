@@ -20,6 +20,16 @@ test('JSON questions load with valid choices and preserve supplied categories, d
   }
 });
 
+test('time cards can draw every remaining easy party question and no removed or normal question', () => {
+  const { cards } = require('../src/games/teambingo/card-catalog');
+  const easy = ['party-quest-001', 'party-quest-002', 'party-quest-004', 'party-quest-005'];
+  const before = structuredClone(questions);
+  const selected = easy.map((_, index) => chooseQuestion(bound => { assert.equal(bound, 4); return index; }, questions, cards[0].questionDifficulty));
+  assert.deepEqual(selected.map(question => question.id), easy);
+  assert.ok(selected.every(question => question.category === '組對任務' && question.difficulty === '簡單'));
+  assert.deepEqual(questions, before);
+});
+
 test('question parsing normalizes letters and whitespace without mutating the file data', () => {
   const row = { ...sample(), id: ' q-001 ', question: ' 題目？ ', correctAnswer: 'b', category: ' 分類 ', options: [' 甲 ', ' 乙 '] };
   const original = structuredClone(row), [question] = parseQuestions([row]);

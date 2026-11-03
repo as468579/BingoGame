@@ -50,6 +50,23 @@ test('retired pending cards are removed from saved hands and undo history while 
   assert.deepEqual(cards.map(card => card.id), ['team-time-plus-2m']);
 });
 
+test('legacy personal hands migrate once, remove retired cards and preserve a valid paused question', t => {
+  const f = fixture(t), activeId = f.room.activeCard.id;
+  const old = { id: 'retired', definitionId: 'moon' };
+  delete f.room.teamHands;
+  f.room.players[0].hand = [old, f.held];
+  f.room.history = [{ playerStates: [{ id: f.room.host, hand: [old, f.held] }], activeCard: { cardId: 'shield' } }];
+  game.migrate(f.room);
+  assert.deepEqual(f.room.teamHands['team-1'], [f.held]);
+  assert.deepEqual(f.room.players[0].hand, []);
+  assert.deepEqual(f.room.history[0].teamHands['team-1'], [f.held]);
+  assert.equal(f.room.history[0].activeCard, null);
+  assert.equal(f.room.activeCard.id, activeId);
+  assert.equal(f.room.teamClock.activeTeamId, null);
+  const migrated = structuredClone(f.room);
+  game.migrate(f.room); assert.deepEqual(f.room, migrated);
+});
+
 test('correct host verdict grants exactly two minutes once, even across finish retries', t => {
   const f = fixture(t);
   assert.equal(f.room.activeCard.question.difficulty, '簡單');

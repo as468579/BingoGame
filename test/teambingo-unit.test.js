@@ -247,6 +247,30 @@ test('undo atomically restores a winning special claim, prizes, hand, turn and s
   assert.equal(room.cells[3].isSpecial, true); assert.equal(room.history.length, 0);
 });
 
+test('card award snapshots broadcast only the awarded card and undo removes that public award', () => {
+  const room = playing();
+  const earlier = giveCard(room, 'team-1'), opponentCard = giveCard(room, 'team-2');
+  room.cells[0].isSpecial = true;
+  act(room, { kind: 'call', number: 1 });
+  const granted = room.teamHands['team-1'].at(-1), before = structuredClone(room);
+  const snapshots = room.players.map(player => game.snapshot(room, { isOnline: () => true }, player.id));
+  for (const [index, snapshot] of snapshots.entries()) {
+    assert.equal(snapshot.lastDraw.id, granted.id);
+    assert.notEqual(snapshot.lastDraw.id, earlier.id); assert.notEqual(snapshot.lastDraw.id, opponentCard.id);
+    assert.equal(snapshot.lastDraw.teamId, 'team-1'); assert.equal(snapshot.lastDraw.teamName, '隊伍 1');
+    assert.equal(snapshot.lastDraw.symbol, 'pocket-watch');
+    for (const field of ['answer', 'correctAnswer', 'questionDifficulty', 'effectId']) assert.equal(snapshot.lastDraw[field], undefined);
+    assert.equal(snapshot.teamHands, undefined);
+    for (const other of snapshot.players.filter(player => player.id !== room.players[index].id)) assert.equal(other.hand, undefined);
+  }
+  assert.deepEqual(snapshots[0].lastDraw, snapshots[1].lastDraw);
+  assert.deepEqual(room, before);
+  act(room, { kind: 'undo', revision: room.revision });
+  for (const player of room.players) assert.equal(game.snapshot(room, { isOnline: () => true }, player.id).lastDraw, null);
+  assert.deepEqual(room.teamHands['team-1'], [earlier]);
+  assert.deepEqual(room.teamHands['team-2'], [opponentCard]);
+});
+
 test('Team Bingo requires only one line at every supported board size', () => {
   const { winningLineGoal } = require('../src/games/teambingo/board');
   for (let size = 3; size <= 9; size++) {

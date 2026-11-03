@@ -171,6 +171,29 @@ test('Team Bingo card awards wait for active questions or results and undo does 
   view.hide();
 });
 
+test('card award dialogs replace their content and discard pending notifications when leaving a room', async t => {
+  const nodes = mount(t);
+  const { DrawCardView } = await import('../public/js/games/teambingo/views/draw-card-view.js');
+  const view = new DrawCardView({ animate: false });
+  const s = { playerId: 'viewer', room: { code: 'FIRST', phase: 'playing', called: [1], lastDraw: { id: 'first', teamName: '隊伍 1', name: '加時', effect: '第一張效果' } } };
+  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, true);
+  s.room.called.push(2);
+  s.room.lastDraw = { id: 'second', teamName: '隊伍 2', name: '加時', effect: '第二張效果' };
+  view.render(s);
+  assert.equal(nodes['next-drawnCardTitle'].textContent, '隊伍 2 獲得「加時」');
+  assert.match(nodes['next-drawnCardContent'].textContent, /第二張效果/);
+  assert.doesNotMatch(nodes['next-drawnCardContent'].textContent, /第一張效果/);
+  view.close();
+  s.room.activeCard = { id: 'question' }; s.room.lastDraw.id = 'pending'; view.render(s);
+  assert.equal(nodes['next-drawnCardDialog'].open, false);
+  view.hide();
+  s.room = { code: 'SECOND', phase: 'lobby', called: [], lastDraw: null }; view.render(s);
+  nodes['next-gameResultsDialog'].emit('close');
+  assert.equal(nodes['next-drawnCardDialog'].open, false);
+  assert.equal(view.pendingResult, false); assert.equal(view.card, null);
+  view.hide();
+});
+
 test('Team Bingo renders the same simple black pocket watch in hands, award notices and questions', async t => {
   const nodes = mount(t);
   const { HandView } = await import('../public/js/games/teambingo/views/hand-view.js');
