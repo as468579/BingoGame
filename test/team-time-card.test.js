@@ -2,16 +2,16 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { createApplication } = require('../src/app');
-const game = require('../src/games/bingonext');
-const { cards } = require('../src/games/bingonext/card-catalog');
-const { drawForNumber } = require('../src/games/bingonext/card-actions');
-const { applyGameAction } = require('../src/games/bingonext/actions');
-const { remainingTime } = require('../src/games/bingonext/team-clock');
+const game = require('../src/games/teambingo');
+const { cards } = require('../src/games/teambingo/card-catalog');
+const { drawForNumber } = require('../src/games/teambingo/card-actions');
+const { applyGameAction } = require('../src/games/teambingo/actions');
+const { remainingTime } = require('../src/games/teambingo/team-clock');
 
 function fixture(t) {
   let now = 0; t.mock.method(Date, 'now', () => now);
   const rooms = new Map(), app = createApplication({ repository: { all: () => [...rooms.values()], get: code => rooms.get(code), add: room => rooms.set(room.code, room), save() {} } });
-  const token = randomUUID(), created = app.service.execute({ kind: 'create', gameType: 'bingo-next', teamTimeMinutes: 10, name: 'Host', token, requestId: randomUUID() });
+  const token = randomUUID(), created = app.service.execute({ kind: 'create', gameType: 'teambingo', teamTimeMinutes: 10, name: 'Host', token, requestId: randomUUID() });
   const room = rooms.get(created.room.code);
   const send = (kind, data = {}) => app.service.execute({ kind, code: room.code, token, requestId: randomUUID(), ...data });
   send('settings', { size: 3, teamCount: 2, playersPerTeam: 1 });
@@ -26,9 +26,28 @@ function fixture(t) {
 
 test('alarm card belongs only to Team Bingo and requires an easy question', () => {
   const alarm = cards.find(card => card.id === 'team-time-plus-2m');
-  assert.equal(alarm.symbol, '⏰'); assert.equal(alarm.questionDifficulty, '簡單'); assert.equal(alarm.enabled, true);
+  assert.equal(alarm.name, '加時');
+  assert.equal(alarm.symbol, 'pocket-watch'); assert.equal(alarm.questionDifficulty, '簡單'); assert.equal(alarm.enabled, true);
   assert.equal(require('../src/games/bingo/card-catalog').cards.some(card => card.id === alarm.id), false);
   assert.equal(require('../src/games/bridge/card-catalog').cards.some(card => card.id === alarm.id), false);
+});
+
+test('retired pending cards are removed from saved hands and undo history while time cards stay usable', t => {
+  const f = fixture(t);
+  const timeCard = { ...f.held, name: '加時鬧鐘', symbol: '⏰' };
+  const oldCards = ['star', 'shield', 'moon'].map(id => ({ id, definitionId: id }));
+  f.room.teamHands['team-1'] = [...oldCards, timeCard];
+  f.room.history = [{ teamHands: { 'team-1': structuredClone(f.room.teamHands['team-1']) } }];
+  f.room.activeCard = { id: 'old-question', cardId: 'star', playerId: f.room.host, stage: 'question' };
+  game.migrate(f.room);
+  assert.deepEqual(f.room.teamHands['team-1'], [timeCard]);
+  assert.deepEqual(f.room.history[0].teamHands['team-1'], [timeCard]);
+  assert.equal(f.room.activeCard, null);
+  assert.equal(f.room.turn, f.room.host);
+  assert.equal(f.room.teamClock.activeTeamId, 'team-1');
+  const visible = f.service.snapshot(f.room, f.room.host).players[0].hand[0];
+  assert.equal(visible.name, '加時'); assert.equal(visible.symbol, 'pocket-watch');
+  assert.deepEqual(cards.map(card => card.id), ['team-time-plus-2m']);
 });
 
 test('correct host verdict grants exactly two minutes once, even across finish retries', t => {
@@ -59,6 +78,18 @@ test('wrong answers, cancellations and host-aborted questions never grant bonus 
     assert.equal(remainingTime(f.room, 'team-1'), 590000);
     assert.equal(f.room.teamClock.bonuses['team-1'], undefined);
     assert.equal(f.room.teamHands['team-1'].length, outcome === 'cancel' ? 1 : 0);
+  }
+});
+
+test('every card definition rejects effects after an incorrect verdict without changing game state', () => {
+  const { applyCardEffect } = require('../src/games/teambingo/card-effects');
+  for (const definition of cards) {
+    const room = { teamClock: { remaining: { 'team-1': 480000 }, bonuses: {} } };
+    const active = { stage: 'result', correct: false, teamId: 'team-1', cardId: definition.id };
+    const before = structuredClone({ room, active });
+    assert.equal(applyCardEffect(room, active, definition, 0), false);
+    assert.equal(applyCardEffect(room, active, definition, 60000), false);
+    assert.deepEqual({ room, active }, before);
   }
 });
 

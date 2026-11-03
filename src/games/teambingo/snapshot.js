@@ -12,7 +12,12 @@ function roomSnapshot(room, presence, viewerId) {
   const card = active && demoCards.find(c => c.id === active.cardId);
   const question = active && (active.question || findQuestion(active.questionId || active.cardId));
   const now = Date.now();
-  const hand = viewer?.teamId ? (room.teamHands?.[viewer.teamId] || []).map(publicCard) : [];
+  const awardTeamId = room.lastDecision?.teamId;
+  const awarded = (room.teamHands?.[awardTeamId] || []).find(held => held.id === room.lastDecision?.drawnCardId);
+  const awardDefinition = awarded && demoCards.find(definition => definition.id === awarded.definitionId);
+  const hand = viewer?.teamId ? (room.teamHands?.[viewer.teamId] || []).map(held => publicCard({ ...held,
+    name: demoCards.find(definition => definition.id === held.definitionId)?.name || held.name,
+    symbol: demoCards.find(definition => definition.id === held.definitionId)?.symbol || held.symbol })) : [];
   const scores = teams(room).map(t => ({ ...t, playerIds: room.players.filter(p => p.teamId === t.id).map(p => p.id),
     lines: teamLines(room, t.id), handCount: room.teamHands?.[t.id]?.length || 0,
     timeRemainingMs: remainingTime(room, t.id, now), clockRunning: room.phase === 'playing' && room.teamClock?.activeTeamId === t.id,
@@ -22,7 +27,8 @@ function roomSnapshot(room, presence, viewerId) {
     turn: room.turn, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
     lastDecision: room.lastDecision, canUndo: canUndo(room), participantCount: room.players.length,
     lastScanAt: room.lastScanAt || null, lastScanRemovedCount: room.lastScanRemovedCount || 0,
-    lastDraw: hand.find(c => c.id === room.lastDecision?.drawnCardId) || null,
+    lastDraw: awarded ? { ...publicCard({ ...awarded, name: awardDefinition?.name || awarded.name, symbol: awardDefinition?.symbol || awarded.symbol }),
+      teamId: awardTeamId, teamName: scores.find(team => team.id === awardTeamId)?.name || '隊伍' } : null,
     availableDemoCards: [],
     activeCard: card && question ? { id: active.id, playerId: active.playerId, teamId: active.teamId, cardId: active.cardId, stage: active.stage,
       ...(active.stage === 'question' ? { answerRemainingMs: Math.max(0, (active.answerDeadlineAt ?? now) - now) } : {}),

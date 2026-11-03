@@ -5,14 +5,14 @@ const { parseCards, chooseCard, publicCard } = require('../src/shared/card-libra
 const { createApplication } = require('../src/app');
 
 test('each game owns independent card definitions even when it reuses an ID', () => {
-  const bingo = require('../src/games/bingo/card-catalog'), next = require('../src/games/bingonext/card-catalog');
+  const bingo = require('../src/games/bingo/card-catalog'), next = require('../src/games/teambingo/card-catalog');
   const bridge = require('../src/games/bridge/card-catalog');
   assert.notEqual(bingo.cards, next.cards); assert.notEqual(bingo.cards[0], next.cards[0]);
   assert.ok(bingo.cards[0].question); assert.equal(next.cards[0].question, undefined);
-  assert.equal(bingo.cards[0].id, next.cards[0].id); assert.deepEqual(bridge.cards, []);
+  assert.deepEqual(next.cards.map(card => card.id), ['team-time-plus-2m']); assert.deepEqual(bridge.cards, []);
   const { getGame } = require('../src/games');
   assert.equal(getGame('bingo').cardLibrary, bingo.cards);
-  assert.equal(getGame('bingo-next').cardLibrary, next.cards);
+  assert.equal(getGame('teambingo').cardLibrary, next.cards);
   assert.equal(getGame('bridge-bingo').cardLibrary, bridge.cards);
   const source = [{ id: 'same', name: '卡片', options: ['甲', '乙'] }];
   const first = parseCards(source), second = parseCards(source);
@@ -42,9 +42,9 @@ test('public card faces omit reference answers, difficulty and library control f
   assert.equal(card.questionDifficulty, '困難');
 });
 
-for (const gameType of ['bingo', 'bingo-next']) {
+for (const gameType of ['bingo', 'teambingo']) {
   test(`${gameType} cannot partially claim a number or consume a turn when its draw library is disabled`, t => {
-    const catalog = require(`../src/games/${gameType === 'bingo' ? 'bingo' : 'bingonext'}/card-catalog`);
+    const catalog = require(`../src/games/${gameType === 'bingo' ? 'bingo' : 'teambingo'}/card-catalog`);
     const enabled = catalog.cards.map(card => card.enabled);
     t.after(() => catalog.cards.forEach((card, index) => { card.enabled = enabled[index]; }));
     const rooms = new Map();

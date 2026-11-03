@@ -105,7 +105,7 @@ GameApp 只處理登入、建立／加入、進出房間、API、重試與 SSE�
 
 ## 團隊賓果 隔離
 
-新增 bingo-next 遊戲介面卡，伺服器與前端規則分別位於 src/games/bingonext/ 與 public/js/games/bingonext/。此版本以原 Bingo 為基礎建立獨立模組，保留卡牌操作，改用房間層級的 board/cells、隊伍獎勵與立即選號；不匯入其他遊戲實作。前端 DOM 使用 next- 前綴，既有視覺樣式以 :is 選擇器支援兩款 Bingo。共用邀請元件接受 DOM lookup，預設行為維持原版。
+新增 teambingo 遊戲介面卡，伺服器與前端規則分別位於 src/games/teambingo/ 與 public/js/games/teambingo/。此版本以原 Bingo 為基礎建立獨立模組，保留卡牌操作，改用房間層級的 board/cells、隊伍獎勵與立即選號；不匯入其他遊戲實作。前端 DOM 使用 next- 前綴，既有視覺樣式以 :is 選擇器支援兩款 Bingo。共用邀請元件接受 DOM lookup，預設行為維持原版。
 
 ### 共用隊伍元件
 

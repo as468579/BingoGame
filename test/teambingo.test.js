@@ -5,11 +5,11 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createApplication } = require('../src/app');
-const { prizeLines, teamLines, awardLinePrizes, createLinePrizes } = require('../src/games/bingonext/prizes');
+const { prizeLines, teamLines, awardLinePrizes, createLinePrizes } = require('../src/games/teambingo/prizes');
 function fixture(options = {}) {
   const rooms = new Map(), repository = { get: c => rooms.get(c), all: () => [...rooms.values()], add: r => rooms.set(r.code, r), save() {} };
   const app = createApplication(options.directory ? { dataDirectory: options.directory } : { repository });
-  const token = randomUUID(), result = app.service.execute({ kind: 'create', gameType: 'bingo-next', name: 'Host', token, requestId: randomUUID() });
+  const token = randomUUID(), result = app.service.execute({ kind: 'create', gameType: 'teambingo', name: 'Host', token, requestId: randomUUID() });
   const code = result.room.code;
   const send = (kind, data = {}, who = token) => app.service.execute({ kind, code, token: who, requestId: randomUUID(), ...data });
   send('settings', { size: options.size || 3, teamCount: options.t || 2, playersPerTeam: options.p || 1 });
@@ -21,26 +21,26 @@ function fixture(options = {}) {
 }
 test('new team Bingo rooms default to 8 by 8 without changing other games or saved sizes', () => {
   const { getGame } = require('../src/games');
-  const initial = getGame('bingo-next').initializeRoom();
+  const initial = getGame('teambingo').initializeRoom();
   assert.equal(initial.size, 8); assert.equal(initial.board.length, 64); assert.equal(initial.cells.length, 64);
   assert.deepEqual(initial.board, Array.from({ length: 64 }, (_, i) => i + 1));
   assert.equal(initial.linePrizes.length, 18);
   assert.equal(getGame('bingo').initializeRoom().size, 5);
   assert.equal(getGame('bridge-bingo').initializeRoom().size, 6);
-  const f = fixture({ size: 5 }); getGame('bingo-next').migrate(f.room);
+  const f = fixture({ size: 5 }); getGame('teambingo').migrate(f.room);
   assert.equal(f.room.size, 5); assert.equal(f.room.board.length, 25);
 });
 
-test('BingoNext registers as a separate game with team identities and one authoritative board', () => {
+test('TeamBingo registers as a separate game with team identities and one authoritative board', () => {
   const f = fixture({ p: 2 });
   const snapshot = f.service.snapshot(f.room, f.room.host);
-  assert.equal(snapshot.gameType, 'bingo-next');
+  assert.equal(snapshot.gameType, 'teambingo');
   assert.deepEqual(snapshot.teams.map(t => t.playerIds.length), [2, 2]);
   assert.ok(snapshot.players.every(p => JSON.stringify(p.board) === JSON.stringify(snapshot.board)));
   assert.ok(f.room.players.every(p => !('board' in p) && !('cells' in p)));
   const original = f.send('create', { name: 'Classic', gameType: 'bingo' }, randomUUID()).room;
   assert.equal(original.gameType, 'bingo'); assert.equal(original.teams, undefined);
-  assert.equal(f.room.gameType, 'bingo-next');
+  assert.equal(f.room.gameType, 'teambingo');
 });
 test('only the host edits the shared board and a changed layout cancels readiness', () => {
   const f = fixture(), other = f.room.players[1];
@@ -120,7 +120,7 @@ test('manual edits keep special positions but cancel readiness; shuffle refreshe
   assert.throws(() => f.send('board', { board: f.room.board, boardVersion: version, rerollSpecial: true }), /已更新/);
 });
 
-test('selecting a special number immediately claims a cell, draws exactly one private card and advances once', () => {
+test('selecting a special number grants one team card, broadcasts its award and advances once', () => {
   const f = fixture(); f.start(); const id = randomUUID();
   f.room.cells[0].isSpecial = true;
   const first = f.send('call', { number: 1, requestId: id }), again = f.send('call', { number: 1, requestId: id });
@@ -129,7 +129,13 @@ test('selecting a special number immediately claims a cell, draws exactly one pr
   assert.equal(f.room.turn, f.room.players[1].id); assert.equal(f.room.teamHands['team-1'].length, 1);
   assert.equal(first.room.lastDraw.id, again.room.lastDraw.id);
   const guest = f.service.snapshot(f.room, f.room.players[1].id);
-  assert.equal(guest.players[0].hand, undefined); assert.equal(guest.lastDraw, null);
+  assert.equal(guest.players[0].hand, undefined);
+  assert.deepEqual(guest.lastDraw, first.room.lastDraw);
+  assert.equal(guest.lastDraw.teamId, 'team-1');
+  assert.equal(guest.lastDraw.teamName, '隊伍 1');
+  assert.equal(guest.lastDraw.questionDifficulty, undefined);
+  assert.equal(guest.lastDraw.effectId, undefined);
+  for (const viewer of f.room.players) assert.deepEqual(f.service.snapshot(f.room, viewer.id).lastDraw, first.room.lastDraw);
   assert.equal(guest.players[0].token, undefined); assert.equal(guest.history, undefined);
   assert.throws(() => f.send('approve'), /不支援/);
 });
@@ -196,7 +202,7 @@ test('undo restores team ownership, prize ownership, hands and turn all the way 
   assert.ok(f.room.cells.every(c => c.isSpecial));
 });
 test('choosing either a normal or special cell ends the player turn and prevents card use in that turn', () => {
-  const { drawForNumber } = require('../src/games/bingonext/card-actions');
+  const { drawForNumber } = require('../src/games/teambingo/card-actions');
   for (const isSpecial of [false, true]) {
     const f = fixture(); f.start();
     const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
@@ -215,7 +221,7 @@ test('choosing either a normal or special cell ends the player turn and prevents
 
 for (const correct of [true, false]) {
   test(`using a card with verdict ${correct} prevents number selection through every stage and ends the turn`, () => {
-    const { drawForNumber } = require('../src/games/bingonext/card-actions');
+    const { drawForNumber } = require('../src/games/teambingo/card-actions');
     const f = fixture(); f.start();
     const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
     f.send('cardUse', { cardId: held.id });
@@ -235,7 +241,7 @@ for (const correct of [true, false]) {
 
 test('card cancellation refunds without ending the turn; host judgment ends the turn without changing ownership', () => {
   const f = fixture(); f.start();
-  const { drawForNumber } = require('../src/games/bingonext/card-actions');
+  const { drawForNumber } = require('../src/games/teambingo/card-actions');
   const card = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
   f.send('cardUse', { cardId: card.id });
   const turn = f.room.turn, session = f.room.activeCard.id;
@@ -268,7 +274,7 @@ test('teammates share acquired cards, use them on their own turn and publish onl
   const active = f.room.activeCard;
   assert.equal(active.teamId, 'team-1'); assert.equal(f.room.teamHands['team-1'].length, 0);
   const publicActive = f.service.snapshot(f.room, opponent.id).activeCard;
-  const { findQuestion } = require('../src/games/bingonext/question-bank');
+  const { findQuestion } = require('../src/games/teambingo/question-bank');
   assert.equal(publicActive.card.question, findQuestion(active.questionId).question);
   assert.equal(publicActive.card.difficulty, undefined);
   assert.equal(publicActive.card.questionDifficulty, undefined);
@@ -293,7 +299,7 @@ test('teammates share acquired cards, use them on their own turn and publish onl
 });
 
 test('legacy personal cards and undo snapshots migrate into team hands exactly once', () => {
-  const { migrateTeamHands } = require('../src/games/bingonext/team-hands');
+  const { migrateTeamHands } = require('../src/games/teambingo/team-hands');
   const room = { players: [{ id: 'a', teamId: 'team-1', hand: [{ id: 'a-card' }] }, { id: 'b', teamId: 'team-1', hand: [{ id: 'b-card' }] }],
     history: [{ playerStates: [{ id: 'a', hand: [{ id: 'old-card' }] }], activeCard: { playerId: 'a' } }] };
   migrateTeamHands(room); migrateTeamHands(room);
@@ -305,9 +311,9 @@ test('legacy personal cards and undo snapshots migrate into team hands exactly o
 
 test('server card configuration enforces hard questions and a missing match never consumes the shared card', t => {
   const f = fixture(); f.start();
-  const { drawForNumber } = require('../src/games/bingonext/card-actions');
-  const { demoCards } = require('../src/games/bingonext/card-catalog');
-  const { questions } = require('../src/games/bingonext/question-bank');
+  const { drawForNumber } = require('../src/games/teambingo/card-actions');
+  const { demoCards } = require('../src/games/teambingo/card-catalog');
+  const { questions } = require('../src/games/teambingo/question-bank');
   const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
   const definition = demoCards.find(card => card.id === held.definitionId);
   const original = definition.questionDifficulty, bankLength = questions.length;
@@ -328,7 +334,7 @@ test('server card configuration enforces hard questions and a missing match neve
 });
 
 test('question bank selection is independent of card definitions and exposes every sample question', () => {
-  const { questions, chooseQuestion } = require('../src/games/bingonext/question-bank');
+  const { questions, chooseQuestion } = require('../src/games/teambingo/question-bank');
   for (let index = 0; index < questions.length; index++) {
     assert.equal(chooseQuestion(bound => { assert.equal(bound, questions.length); return index; }).id, questions[index].id);
   }
@@ -365,7 +371,7 @@ test('host scan removes offline members only on request and reset preserves team
   assert.ok(f.room.players.every(p => !p.ready));
 });
 test('shared ownership, private hands and undo survive a repository restart and same-ID rejoin', t => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'bingo-next-')); t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'teambingo-')); t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const f = fixture({ directory });
   f.send('captain', { teamId: 'team-1', playerId: f.room.host });
   f.start(); f.room.cells[0].isSpecial = true; f.play(1);

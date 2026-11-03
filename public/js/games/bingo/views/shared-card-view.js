@@ -22,8 +22,10 @@ export class SharedCardView {
     $('cancelSharedCard').disabled = busy || !connected;
     $('sharedCardTitle').textContent = `${owner?.name || '玩家'} 使用了「${active.card.name}」`;
     $('sharedCardSymbol').textContent = active.card.symbol || '✦';
-    $('sharedCardDescription').textContent = active.card.description || '';
-    $('sharedCardEffect').textContent = `卡牌效果：${active.card.effect || '能力待定'}`;
+    $('sharedCardDescription').textContent = '';
+    $('sharedCardDescription').hidden = true;
+    $('sharedCardEffect').hidden = result && active.correct !== true;
+    $('sharedCardEffect').textContent = result && active.correct !== true ? '' : `卡牌效果：${active.card.effect || '能力待定'}`;
     $('sharedCardStatus').textContent = result ? (room.phase === 'playing' ? '房主判定結果 · 確認後換下一位' : '房主判定結果 · 確認後繼續遊戲')
       : reviewing ? '遊戲暫停 · 等待房主判定' : '遊戲暫停 · 等待作答';
     $('sharedCardQuestion').textContent = active.card.question;

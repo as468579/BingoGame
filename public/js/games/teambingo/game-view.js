@@ -7,10 +7,9 @@ import { HandView } from './views/hand-view.js';
 import { HandDrawerView } from './views/hand-drawer-view.js';
 import { SharedCardView } from './views/shared-card-view.js';
 import { RewardsView } from './views/rewards-view.js';
-// Draw area is temporarily disabled; retain the implementation for later use.
-// import { DrawCardView } from './views/draw-card-view.js';
+import { DrawCardView } from './views/draw-card-view.js';
 
-export class BingoNextView {
+export class TeamBingoView {
   constructor(actions, address, notify, getState) {
     this.players = new PlayersView(actions);
     this.board = new BoardView(actions);
@@ -21,7 +20,7 @@ export class BingoNextView {
     this.handDrawer = new HandDrawerView();
     this.sharedCard = new SharedCardView(actions);
     this.rewards = new RewardsView();
-    // this.drawCards = new DrawCardView();
+    this.drawCards = new DrawCardView({ animate: false });
   }
 
   render(state) {
@@ -42,7 +41,7 @@ export class BingoNextView {
     this.hand.render(state);
     this.sharedCard.render(state);
     this.rewards.render(state);
-    // this.drawCards.render(state);
+    this.drawCards.render(state);
     $('rulesText').textContent = `每回合只能圈選一個數字或使用一張隊伍卡牌，二擇一。圈選後直接佔領並換人；卡牌作答完成後，無論正誤都換人。建立或隨機排列時，隨機選出總格數 × 12%（無條件進位）個特殊格，圈選特殊格可獲得一張卡，當回合不能接著使用。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線獲勝；盤面滿時按連線數結算。`;
     $('winner').textContent = room.endReason === 'time-exhausted' ? '所有隊伍行動時間已用完，本局無勝者。' : room.winners.length
       ? `✳ ${room.teams.filter(team => room.winners.includes(team.id)).map(team => team.name).join('、')}${room.winners.length > 1 ? ' 並列獲勝' : ' 獲勝'}！` : '';
@@ -58,6 +57,6 @@ export class BingoNextView {
     this.handDrawer.hide();
     this.sharedCard.close();
     this.rewards.hide();
-    // this.drawCards.hide();
+    this.drawCards.hide();
   }
 }

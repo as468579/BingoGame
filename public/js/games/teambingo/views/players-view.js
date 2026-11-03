@@ -1,7 +1,7 @@
 import { $ } from '../dom.js';
 import { TeamRosterView } from '../../../views/team-roster-view.js';
 
-// Adapt BingoNext's room shape and commands to the same roster used by Bridge Bingo.
+// Adapt TeamBingo's room shape and commands to the same roster used by Bridge Bingo.
 export class PlayersView {
   constructor(actions) {
     this.roster = new TeamRosterView({ list: $('players'), controls: $('joinControls'), ownTeam: $('ownTeam'), ready: $('ready'),

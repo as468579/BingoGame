@@ -1,6 +1,6 @@
 import { $, element } from '../dom.js';
 import { CardPreview } from '../state/card-preview.js';
-import { cardFace } from '../../../views/playing-card.js';
+import { cardFace, renderCardArt } from '../../../views/playing-card.js';
 
 export class CardPreviewView {
   constructor(onCountChanged = () => {}, actions = null) {
@@ -17,7 +17,7 @@ export class CardPreviewView {
     $('previewCardsEmpty').hidden = this.model.remaining.length > 0;
     $('previewCardList').replaceChildren(...this.model.remaining.map(card => {
       const item = element('li');
-      const button = cardFace({ tag: 'button', className: `spell-card ${card.theme}`, type: card.type, art: card.symbol, name: card.name, description: card.description, footer: this.actions ? '使用卡片 →' : '◇ 回答問題以解鎖' });
+      const button = cardFace({ tag: 'button', className: `spell-card ${card.theme}`, type: card.type, art: card.symbol, name: card.name, description: card.effect || '能力待定', footer: this.actions ? '使用卡片 →' : '◇ 回答問題以解鎖' });
       button.type = 'button';
       button.setAttribute('aria-label', `${this.actions ? '使用' : '查看'}${card.name}，${card.type}示範卡`);
       if (this.actions) {
@@ -39,8 +39,10 @@ export class CardPreviewView {
     const action = $('previewCardAction');
     content.replaceChildren();
     if (stage === 'front') {
-      content.append(element('div', `spell-art preview-art ${card.theme}`, card.symbol),
-        element('p', 'preview-description', card.description), element('p', 'preview-ability', card.effect || '卡牌能力待定'));
+      const art = element('div', `spell-art preview-art ${card.theme}`);
+      renderCardArt(art, card.symbol);
+      content.append(art,
+        element('p', 'preview-ability', card.effect || '卡牌能力待定'));
       action.textContent = '使用卡片';
       action.disabled = this.actions && (!this.state?.connected || this.state.busy ||
         Boolean(this.state.room.pending) || this.state.room.phase === 'finished' ||

@@ -1,7 +1,7 @@
 import { GameState } from '../../state/game-state.js';
 
-// The host edits BingoNext shared-board drafts independently of other game sessions.
-export class BingoNextState extends GameState {
+// The host edits TeamBingo shared-board drafts independently of other game sessions.
+export class TeamBingoState extends GameState {
   constructor() {
     super();
     this.draft = [];

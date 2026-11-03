@@ -3,9 +3,9 @@ import { $ } from './dom.js';
 export class EntryView {
   constructor(session, onEnter) {
     this.query = new URLSearchParams(location.search);
-    this.joinPage = /^\/(?:join|bridge-bingo|bingo-next)\/?$/.test(location.pathname);
+    this.joinPage = /^\/(?:join|bridge-bingo|teambingo|bingo-next)\/?$/.test(location.pathname);
     $('gameChoice').hidden = this.joinPage;
-    const updateTimeSetting = () => { $('teamTimeSettings').hidden = this.joinPage || $('gameType').value !== 'bingo-next'; };
+    const updateTimeSetting = () => { $('teamTimeSettings').hidden = this.joinPage || $('gameType').value !== 'teambingo'; };
     $('gameType').onchange = updateTimeSetting;
     updateTimeSetting();
     if (this.joinPage) {
@@ -27,7 +27,7 @@ export class EntryView {
   get identity() {
     const gameType = $('gameType').value;
     return { name: $('name').value, code: $('code').value.trim().toUpperCase(), gameType,
-      ...(!this.joinPage && gameType === 'bingo-next' ? { teamTimeMinutes: Number($('entryTeamMinutes').value) } : {}) };
+      ...(!this.joinPage && gameType === 'teambingo' ? { teamTimeMinutes: Number($('entryTeamMinutes').value) } : {}) };
   }
   get path() { return this.joinPage ? '/join' : '/'; }
 

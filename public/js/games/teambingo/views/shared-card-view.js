@@ -1,5 +1,6 @@
 import { $, element } from '../dom.js';
 import { bindDialogDismiss } from '../../../views/dialog.js';
+import { renderCardArt } from '../../../views/playing-card.js';
 
 export class SharedCardView {
   constructor(actions) {
@@ -22,9 +23,11 @@ export class SharedCardView {
     $('cancelSharedCard').hidden = !mine || active.stage !== 'question';
     $('cancelSharedCard').disabled = busy || !connected;
     $('sharedCardTitle').textContent = `${owner?.name || '玩家'} 使用了「${active.card.name}」`;
-    $('sharedCardSymbol').textContent = active.card.symbol || '✦';
-    $('sharedCardDescription').textContent = active.card.description || '';
-    $('sharedCardEffect').textContent = `卡牌效果：${active.card.effect || '能力待定'}`;
+    renderCardArt($('sharedCardSymbol'), active.card.symbol || '✦');
+    $('sharedCardDescription').textContent = '';
+    $('sharedCardDescription').hidden = true;
+    $('sharedCardEffect').hidden = result && active.correct !== true;
+    $('sharedCardEffect').textContent = result && active.correct !== true ? '' : `卡牌效果：${active.card.effect || '能力待定'}`;
     const status = result ? (room.phase === 'playing' ? '房主判定結果 · 確認後換下一位' : '房主判定結果 · 確認後繼續遊戲')
       : reviewing ? active.timedOut ? '作答逾時 · 等待房主判定' : '遊戲暫停 · 等待房主判定' : '遊戲暫停 · 等待作答';
     $('sharedCardStatus').textContent = status;

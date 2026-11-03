@@ -1,13 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createBoard, createSpecialCells } = require('../src/games/bingonext/board');
-const { applyGameAction } = require('../src/games/bingonext/actions');
-const game = require('../src/games/bingonext');
-const { advanceTurn } = require('../src/games/bingonext/turns');
-const { teamHand } = require('../src/games/bingonext/team-hands');
-const { drawForNumber } = require('../src/games/bingonext/card-actions');
-const { captureGameState } = require('../src/games/bingonext/history');
-const { awardLinePrizes, teamLines } = require('../src/games/bingonext/prizes');
+const { createBoard, createSpecialCells } = require('../src/games/teambingo/board');
+const { applyGameAction } = require('../src/games/teambingo/actions');
+const game = require('../src/games/teambingo');
+const { advanceTurn } = require('../src/games/teambingo/turns');
+const { teamHand } = require('../src/games/teambingo/team-hands');
+const { drawForNumber } = require('../src/games/teambingo/card-actions');
+const { captureGameState } = require('../src/games/teambingo/history');
+const { awardLinePrizes, teamLines } = require('../src/games/teambingo/prizes');
 
 // Exercise domain actions directly: no HTTP, repository, timers or live room data.
 function lobby() {
@@ -248,7 +248,7 @@ test('undo atomically restores a winning special claim, prizes, hand, turn and s
 });
 
 test('Team Bingo requires only one line at every supported board size', () => {
-  const { winningLineGoal } = require('../src/games/bingonext/board');
+  const { winningLineGoal } = require('../src/games/teambingo/board');
   for (let size = 3; size <= 9; size++) {
     assert.equal(winningLineGoal(size), 1);
     const room = playing(size);
@@ -259,7 +259,7 @@ test('Team Bingo requires only one line at every supported board size', () => {
 });
 
 test('hidden victory is inactive by default and its future rule can settle without a line', () => {
-  const { winningTeams, settleVictory } = require('../src/games/bingonext/victory');
+  const { winningTeams, settleVictory } = require('../src/games/teambingo/victory');
   const room = playing();
   assert.deepEqual(winningTeams(room), []); assert.equal(settleVictory(room), false);
   assert.equal(room.phase, 'playing');

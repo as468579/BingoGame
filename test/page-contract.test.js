@@ -66,7 +66,7 @@ test('simplified login keeps its accessible title and create/join controls witho
 test('Chinese game selection and Team Bingo board title retain stable game and route identifiers', () => {
   const options = tags.filter(tag => tag.name === 'option' && tag.start > byId('gameType').start && tag.start < html.indexOf('</select>', byId('gameType').end));
   assert.deepEqual(options.map(tag => [tag.attrs.value, text(tag)]), [
-    ['bingo', '單人賓果'], ['bridge-bingo', '橋牌賓果'], ['bingo-next', '團隊賓果']
+    ['bingo', '單人賓果'], ['bridge-bingo', '橋牌賓果'], ['teambingo', '團隊賓果']
   ]);
   const teamTitle = tags.find(tag => hasClass(tag, 'bingo-sign') && tag.start > byId('next-root').start);
   const titleMarkup = content(teamTitle).split('<span')[0].trim();
@@ -76,12 +76,14 @@ test('Chinese game selection and Team Bingo board title retain stable game and r
   assert.equal(selected.attrs.value, '8');
 });
 
-test('draw panels and result dialogs are disabled while both games retain hand controls', () => {
+test('draw panels stay disabled while Team Bingo exposes a card award notification dialog', () => {
   assert.equal(tags.some(tag => hasClass(tag, 'draw-card-panel')), false);
   for (const prefix of ['', 'next-']) {
-    assert.equal(tags.some(tag => tag.attrs.id === `${prefix}drawnCardDialog`), false);
     for (const id of ['openHand', 'handPanel', 'sharedCardDialog']) byId(prefix + id);
   }
+  assert.equal(tags.some(tag => tag.attrs.id === 'drawnCardDialog'), false);
+  assert.equal(byId('next-drawnCardDialog').name, 'dialog');
+  assert.equal(text(byId('next-closeDrawnCard')), '知道了');
   const layouts = tags.filter(tag => hasClass(tag, 'game-layout'));
   assert.equal(layouts.length, 2); assert.ok(layouts.every(tag => hasClass(tag, 'no-draw')));
 });

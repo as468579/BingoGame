@@ -19,7 +19,7 @@ export class HandView {
       const item = element('li', 'hand-card');
       item.dataset.cardId = card.id;
       if (this.actions && card.definitionId) {
-        const button = cardFace({ tag: 'button', className: `spell-card ${card.theme}`, type: card.type, art: card.symbol, name: card.name, description: card.description, footer: '使用卡片 →' });
+        const button = cardFace({ tag: 'button', className: `spell-card ${card.theme}`, type: card.type, art: card.symbol, name: card.name, description: card.effect || '能力待定', footer: '使用卡片 →' });
         button.type = 'button';
         button.setAttribute('aria-label', `使用${card.name}`);
         button.disabled = busy || !connected || room.phase !== 'playing' || room.turn !== playerId || Boolean(room.pending) || Boolean(room.activeCard);

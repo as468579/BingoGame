@@ -1,13 +1,15 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { questions, parseQuestions, chooseQuestion, findQuestion } = require('../src/games/bingonext/question-bank');
+const { questions, parseQuestions, chooseQuestion, findQuestion } = require('../src/games/teambingo/question-bank');
 
 const sample = () => ({ id: 'q-001', category: '分類', question: '題目？', options: ['甲', '乙'], correctAnswer: 'B', enabled: true });
 
 test('JSON questions load with valid choices and preserve supplied categories, difficulties and answers', () => {
-  assert.equal(questions.length, 9);
+  assert.equal(questions.length, 6);
   assert.ok(questions.every(question => question.enabled && question.answer >= 0 && question.answer < question.options.length));
-  assert.equal(findQuestion('star').answer, 1);
+  assert.deepEqual([...new Set(questions.map(question => question.category))], ['組對任務']);
+  for (const id of ['star', 'shield', 'moon']) assert.equal(findQuestion(id), undefined);
+  assert.equal(questions.filter(question => question.difficulty === '簡單').length, 4);
   for (const [id, difficulty, correct] of [
     ['party-quest-001', '簡單', '15'], ['party-quest-002', '簡單', '天使猴'], ['party-quest-003', '普通', '90'],
     ['party-quest-004', '簡單', '星期二/黃色'], ['party-quest-005', '簡單', '1100'], ['party-quest-006', '普通', '2']
@@ -81,6 +83,6 @@ test('card difficulty filters enabled questions strictly, with no fallback or me
   assert.equal(chooseQuestion(() => 0, bank, '簡單').id, 'easy');
   assert.throws(() => chooseQuestion(() => 0, bank.slice(0, 3), '困難'), /沒有啟用/);
   assert.throws(() => chooseQuestion(() => 0, bank, 'unknown'), /設定無效/);
-  const { publicCard } = require('../src/games/bingonext/card-catalog');
+  const { publicCard } = require('../src/games/teambingo/card-catalog');
   assert.deepEqual(publicCard({ id: 'power', questionDifficulty: '困難', difficulty: '困難', answer: 1 }), { id: 'power' });
 });

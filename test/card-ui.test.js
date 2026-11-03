@@ -79,26 +79,26 @@ function bridgeState(phase = 'lobby') {
     ] } } };
 }
 
-test('BingoNext renders only its own shared board, team roster, team rewards and card controls', async t => {
+test('TeamBingo renders only its own shared board, team roster, team rewards and card controls', async t => {
   const nodes = mount(t), originalLocation = globalThis.location;
   globalThis.location = { origin: 'http://localhost:3000' };
   t.after(() => { if (originalLocation === undefined) delete globalThis.location; else globalThis.location = originalLocation; });
-  const { BingoNextView } = await import('../public/js/games/bingonext/game-view.js');
-  const { BingoNextState } = await import('../public/js/games/bingonext/state.js');
-  const s = new BingoNextState(); s.playerId = 'host'; s.connected = true;
+  const { TeamBingoView } = await import('../public/js/games/teambingo/game-view.js');
+  const { TeamBingoState } = await import('../public/js/games/teambingo/state.js');
+  const s = new TeamBingoState(); s.playerId = 'host'; s.connected = true;
   const board = Array.from({ length: 9 }, (_, i) => i + 1), cells = board.map(number => ({ number, isCovered: number === 1, ...(number === 1 ? { teamId: 'team-1' } : {}) }));
   cells[1].isSpecial = true;
-  s.accept({ code: 'NEXT', gameType: 'bingo-next', phase: 'playing', host: 'host', revision: 1, boardVersion: 0, size: 3, goal: 1,
+  s.accept({ code: 'NEXT', gameType: 'teambingo', phase: 'playing', host: 'host', revision: 1, boardVersion: 0, size: 3, goal: 1,
     turn: 'host', teamCount: 2, playersPerTeam: 1, onlineCount: 2, called: [1], cells, board, linePrizes: [], winners: [],
     teams: [{ id: 'team-1', name: '隊伍 1', playerIds: ['host'], lines: 0, rewards: [] }, { id: 'team-2', name: '隊伍 2', playerIds: ['guest'], lines: 0, rewards: [] }],
     players: [{ id: 'host', name: 'Host', teamId: 'team-1', board, hand: [], handCount: 0, ready: true, online: true }, { id: 'guest', name: 'Guest', teamId: 'team-2', board, handCount: 0, ready: true, online: true }], availableDemoCards: [] });
   const lookup = document.getElementById, actions = { call() {}, command() {}, settingsChanged() {}, applySize() {}, undo() {} };
   document.getElementById = id => {
-    assert.ok(id.startsWith('next-'), `BingoNext touched another game's DOM: ${id}`);
-    assert.doesNotMatch(id, /(?:drawCardDisplay|drawnCardDialog|closeDrawnCard|drawnCardTitle|drawnCardContent)$/, 'The disabled draw view must not bind DOM or show results');
+    assert.ok(id.startsWith('next-'), `TeamBingo touched another game's DOM: ${id}`);
+    assert.doesNotMatch(id, /drawCardDisplay$/, 'Card notifications must not restore the disabled draw area');
     return lookup(id);
   };
-  const view = new BingoNextView(actions, { value: '', invitation: code => `http://localhost:3000/join?room=${code}` }, () => {}, () => s);
+  const view = new TeamBingoView(actions, { value: '', invitation: code => `http://localhost:3000/join?room=${code}` }, () => {}, () => s);
   view.render(s);
   assert.equal(document.title, '團隊賓果 · Alberta');
   assert.equal(nodes['next-root'].hidden, false); assert.equal(nodes['next-boardTitle'].textContent, '全場共用盤面');
@@ -108,20 +108,101 @@ test('BingoNext renders only its own shared board, team roster, team rewards and
   assert.match(nodes['next-board'].children[1].attributes['aria-label'], /特殊格/);
   assert.match(nodes['next-board'].children[1].textContent, /✦/);
   s.room.lastDraw = { id: 'drawn', name: '星光指引', theme: 'gold', symbol: '✧' };
-  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, false);
+  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, true);
+  nodes['next-closeDrawnCard'].click();
   s.room.phase = 'finished'; s.room.winners = ['team-1']; view.render(s);
   assert.equal(nodes['next-gameResultsDialog'].open, true); assert.equal(nodes['next-gameResultsList'].children.length, 2);
   view.hide(); assert.equal(nodes['next-root'].hidden, true); assert.equal(nodes['next-gameResultsDialog'].open, false);
 });
 
+test('Team Bingo card awards notify immediately once per card and show the effect without descriptions', async t => {
+  const nodes = mount(t);
+  const { DrawCardView } = await import('../public/js/games/teambingo/views/draw-card-view.js');
+  const view = new DrawCardView({ animate: false });
+  const s = { playerId: 'member', room: { code: 'TEAM', phase: 'playing', called: [], boardVersion: 0 } };
+  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, false);
+  s.room.called.push(1);
+  s.room.lastDraw = { id: 'card-1', name: '加時', symbol: '⏰', effect: '隊伍行動時間增加2分鐘', description: '不顯示的說明' };
+  view.render(s);
+  assert.equal(nodes['next-drawnCardDialog'].open, true);
+  assert.equal(nodes['next-drawnCardTitle'].textContent, '加時');
+  assert.match(nodes['next-drawnCardContent'].textContent, /隊伍行動時間增加2分鐘/);
+  assert.doesNotMatch(nodes['next-drawnCardContent'].textContent, /不顯示的說明/);
+  assert.equal(nodes.drawnCardDialog.open, false);
+  nodes['next-closeDrawnCard'].click();
+  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, false);
+  s.room.lastDraw = { ...s.room.lastDraw, id: 'card-2' }; s.room.called.push(2);
+  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, true);
+  view.hide(); assert.equal(nodes['next-drawnCardDialog'].open, false);
+});
+
+test('Team Bingo card award dialogs identify the receiving team for every viewer', async t => {
+  const nodes = mount(t);
+  const { DrawCardView } = await import('../public/js/games/teambingo/views/draw-card-view.js');
+  const room = { code: 'TEAM', phase: 'playing', called: [1], lastDraw: { id: 'award', name: '加時', symbol: 'pocket-watch', effect: '隊伍行動時間增加 2 分鐘', teamId: 'team-1', teamName: '隊伍 1' } };
+  for (const playerId of ['recipient', 'teammate', 'opponent', 'host']) {
+    const view = new DrawCardView({ animate: false });
+    view.render({ playerId, room });
+    assert.equal(nodes['next-drawnCardDialog'].open, true);
+    assert.equal(nodes['next-drawnCardTitle'].textContent, '隊伍 1 獲得「加時」');
+    assert.match(nodes['next-drawnCardContent'].textContent, /隊伍行動時間增加 2 分鐘/);
+    nodes['next-closeDrawnCard'].click(); view.render({ playerId, room });
+    assert.equal(nodes['next-drawnCardDialog'].open, false);
+    view.hide();
+  }
+});
+
+test('Team Bingo card awards wait for active questions or results and undo does not replay an award', async t => {
+  const nodes = mount(t);
+  const { DrawCardView } = await import('../public/js/games/teambingo/views/draw-card-view.js');
+  const view = new DrawCardView({ animate: false });
+  const s = { playerId: 'member', room: { code: 'TEAM', phase: 'playing', called: [1], activeCard: { id: 'question' }, lastDraw: { id: 'award', name: '加時' } } };
+  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, false);
+  s.room.activeCard = null; view.render(s);
+  assert.equal(nodes['next-drawnCardDialog'].open, true);
+  view.close();
+  nodes['next-gameResultsDialog'].showModal();
+  s.room.lastDraw = { id: 'final-award', name: '加時' }; s.room.phase = 'finished';
+  view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, false);
+  nodes['next-gameResultsDialog'].close();
+  assert.equal(nodes['next-drawnCardDialog'].open, true);
+  view.close(); s.room.called = []; view.render(s);
+  assert.equal(nodes['next-drawnCardDialog'].open, false);
+  view.hide();
+});
+
+test('Team Bingo renders the same simple black pocket watch in hands, award notices and questions', async t => {
+  const nodes = mount(t);
+  const { HandView } = await import('../public/js/games/teambingo/views/hand-view.js');
+  const { DrawCardView } = await import('../public/js/games/teambingo/views/draw-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/teambingo/views/shared-card-view.js');
+  const card = { id: 'held', definitionId: 'team-time-plus-2m', name: '加時', symbol: 'pocket-watch', effect: '隊伍行動時間增加 2 分鐘' };
+  new HandView({ useCard() {} }).render({ hand: [card], playerId: 'owner', connected: true, room: { phase: 'playing', turn: 'owner' } });
+  const handArt = nodes['next-handList'].children[0].children[0].children.find(child => child.className.includes('game-card-art'));
+  const drawn = new DrawCardView({ animate: false });
+  drawn.render({ playerId: 'owner', room: { code: 'TEAM', phase: 'playing', called: [1], lastDraw: card } });
+  const drawArt = nodes['next-drawnCardContent'].children[0].children.find(child => child.className.includes('game-card-art'));
+  const shared = new SharedCardView({});
+  const s = sharedState(); s.room.activeCard.card.symbol = 'pocket-watch'; shared.render(s);
+  for (const art of [handArt, drawArt, nodes['next-sharedCardSymbol']]) {
+    assert.equal(art.textContent, '');
+    const svg = art.children[0];
+    assert.equal(svg.tagName, 'svg'); assert.equal(svg.attributes.class, 'card-pocket-watch');
+    assert.equal(svg.attributes.stroke, '#111'); assert.equal(svg.attributes.fill, 'none');
+    assert.equal(svg.attributes['aria-hidden'], 'true');
+    assert.equal(svg.children.length, 1); assert.ok(svg.children[0].attributes.d);
+  }
+  shared.close(); drawn.hide();
+});
+
 test('Team Bingo shuffle persists the board and requests special-cell reroll immediately', async t => {
   mount(t);
-  const { BingoNextController } = await import('../public/js/games/bingonext/controller.js');
+  const { TeamBingoController } = await import('../public/js/games/teambingo/controller.js');
   const calls = [], state = { room: { size: 3, boardVersion: 7 }, draftDirty: true };
   const saved = { code: 'SAVED' };
   const app = { state, perform: operation => operation(), api: { send: async (...args) => { calls.push(args); return { room: saved }; } },
     update: room => { assert.equal(room, saved); } };
-  await new BingoNextController(app).actions().shuffle();
+  await new TeamBingoController(app).actions().shuffle();
   assert.equal(calls[0][0], 'board');
   assert.equal(calls[0][1].rerollSpecial, true); assert.equal(calls[0][1].boardVersion, 7);
   assert.equal(calls[0][1].ready, undefined);
@@ -131,8 +212,8 @@ test('Team Bingo shuffle persists the board and requests special-cell reroll imm
 
 test('Team Bingo shared hand renders usable cards only during the member turn and clears demo cards', async t => {
   const nodes = mount(t);
-  const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
-  const calls = [], hand = [{ id: 'team-card', definitionId: 'star', name: '星光指引', type: '祝福', theme: 'gold', symbol: '✧', description: '卡牌效果' }];
+  const { HandView } = await import('../public/js/games/teambingo/views/hand-view.js');
+  const calls = [], hand = [{ id: 'team-card', definitionId: 'star', name: '星光指引', type: '祝福', theme: 'gold', symbol: '✧', description: '不應顯示的卡牌說明', effect: '隊伍行動時間增加2分鐘' }];
   const view = new HandView({ useCard: id => calls.push(id) });
   const s = { hand, playerId: 'member', connected: true, busy: false, room: { phase: 'playing', turn: 'member' } };
   view.render(s);
@@ -140,6 +221,8 @@ test('Team Bingo shared hand renders usable cards only during the member turn an
   assert.equal(nodes['next-previewCardList'].children.length, 0);
   const card = nodes['next-handList'].children[0].children[0];
   assert.equal(card.disabled, false); assert.match(card.textContent, /星光指引/);
+  assert.match(card.textContent, /隊伍行動時間增加2分鐘/);
+  assert.doesNotMatch(card.textContent, /不應顯示的卡牌說明/);
   card.click(); assert.deepEqual(calls, ['team-card']);
   view.render({ ...s, room: { ...s.room, turn: 'other' } });
   assert.equal(nodes['next-handList'].children[0].children[0].disabled, true);
@@ -149,7 +232,7 @@ test('Team Bingo shared hand renders usable cards only during the member turn an
 
 test('team hand updates counts and removes stale cards when cards are acquired and consumed', async t => {
   const nodes = mount(t);
-  const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
+  const { HandView } = await import('../public/js/games/teambingo/views/hand-view.js');
   const calls = [], view = new HandView({ useCard: id => calls.push(id) });
   const s = { hand: [], playerId: 'member', connected: true, busy: false, room: { phase: 'playing', turn: 'member' } };
   view.render(s);
@@ -175,7 +258,7 @@ test('team hand updates counts and removes stale cards when cards are acquired a
 
 test('team hand blocks card clicks for every unavailable state and enables them again when eligible', async t => {
   const nodes = mount(t);
-  const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
+  const { HandView } = await import('../public/js/games/teambingo/views/hand-view.js');
   const calls = [], view = new HandView({ useCard: id => calls.push(id) });
   const s = { hand: [{ id: 'card', definitionId: 'star', name: '星光指引' }], playerId: 'member', connected: true, busy: false,
     room: { phase: 'playing', turn: 'member' } };
@@ -194,7 +277,7 @@ test('team hand blocks card clicks for every unavailable state and enables them 
 
 test('team hand view touches only Team Bingo DOM and never modifies another game hand', async t => {
   const nodes = mount(t);
-  const { HandView } = await import('../public/js/games/bingonext/views/hand-view.js');
+  const { HandView } = await import('../public/js/games/teambingo/views/hand-view.js');
   nodes.handCount.textContent = '保留原遊戲手牌'; nodes.handEmpty.hidden = false;
   const find = document.getElementById;
   document.getElementById = id => { assert.ok(id.startsWith('next-')); return find(id); };
@@ -209,7 +292,7 @@ test('team hand view touches only Team Bingo DOM and never modifies another game
 
 test('team hand drawer closes for card use, room switches and game completion without opening other games', async t => {
   const nodes = mount(t);
-  const { HandDrawerView } = await import('../public/js/games/bingonext/views/hand-drawer-view.js');
+  const { HandDrawerView } = await import('../public/js/games/teambingo/views/hand-drawer-view.js');
   const view = new HandDrawerView();
   const s = { playerId: 'member', me: { id: 'member' }, room: { code: 'ROOM', phase: 'playing', host: 'host' } };
   view.render(s); nodes['next-openHand'].click();
@@ -233,20 +316,20 @@ test('entry exposes the common team duration only when creating Team Bingo rooms
   globalThis.location = { pathname: '/', search: '' };
   t.after(() => { if (originalLocation === undefined) delete globalThis.location; else globalThis.location = originalLocation; });
   const { EntryView } = await import('../public/js/views/entry-view.js');
-  nodes.gameType.value = 'bingo-next'; nodes.entryTeamMinutes.value = '8';
+  nodes.gameType.value = 'teambingo'; nodes.entryTeamMinutes.value = '8';
   const view = new EntryView({ name: 'Host', roomCode: '' }, () => {});
   assert.equal(nodes.teamTimeSettings.hidden, false); assert.equal(view.identity.teamTimeMinutes, 8);
   nodes.entryTeamMinutes.value = '12'; assert.equal(view.identity.teamTimeMinutes, 12);
   nodes.gameType.value = 'bridge-bingo'; nodes.gameType.onchange();
   assert.equal(nodes.teamTimeSettings.hidden, true); assert.equal(view.identity.teamTimeMinutes, undefined);
-  globalThis.location = { pathname: '/join', search: '' }; nodes.gameType.value = 'bingo-next';
+  globalThis.location = { pathname: '/join', search: '' }; nodes.gameType.value = 'teambingo';
   const join = new EntryView({ name: 'Guest', roomCode: 'ABC123' }, () => {});
   assert.equal(nodes.teamTimeSettings.hidden, true); assert.equal(join.identity.teamTimeMinutes, undefined);
 });
 
-test('BingoNext uses the Bridge-style own-team selector and limits member assignment controls to the host', async t => {
+test('TeamBingo uses the Bridge-style own-team selector and limits member assignment controls to the host', async t => {
   const nodes = mount(t), sent = [];
-  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const { PlayersView } = await import('../public/js/games/teambingo/views/players-view.js');
   const view = new PlayersView({ team: (...args) => sent.push(args) });
   const host = { id: 'host', name: 'Host', teamId: 'team-1', ready: true, handCount: 0 },
     guest = { id: 'guest', name: 'Guest', teamId: 'team-2', ready: false, handCount: 0 };
@@ -270,10 +353,10 @@ test('BingoNext uses the Bridge-style own-team selector and limits member assign
   assert.equal(nodes['next-joinControls'].hidden, true);
 });
 
-test('Bridge Bingo and BingoNext instantiate the same roster component and share readiness, assignment and inspection behavior', async t => {
+test('Bridge Bingo and TeamBingo instantiate the same roster component and share readiness, assignment and inspection behavior', async t => {
   const nodes = mount(t), sent = [];
   const { BridgeRoomView } = await import('../public/js/games/bridge/game-view.js');
-  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const { PlayersView } = await import('../public/js/games/teambingo/views/players-view.js');
   const { TeamRosterView } = await import('../public/js/views/team-roster-view.js');
   const bridge = new BridgeRoomView({ bridge: (...args) => sent.push(args) });
   const next = new PlayersView({ team: (...args) => sent.push(args), ready: () => sent.push(['ready']), captain: (...args) => sent.push(['captain', ...args]) });
@@ -313,7 +396,7 @@ test('Bridge Bingo and BingoNext instantiate the same roster component and share
 
 test('Team Bingo board displays the active team countdown and freezes it while questions pause play', async t => {
   const nodes = mount(t);
-  const { BoardView } = await import('../public/js/games/bingonext/views/board-view.js');
+  const { BoardView } = await import('../public/js/games/teambingo/views/board-view.js');
   const s = bridgeState('playing');
   s.room.board = s.room.bridge.teams[0].cells.map(cell => cell.number);
   s.room.cells = s.room.board.map(number => ({ number, isCovered: false }));
@@ -346,7 +429,7 @@ test('board countdown switches teams with one timer and releases it when the gam
   const nodes = mount(t), timers = new Set();
   t.mock.method(globalThis, 'setInterval', () => { const timer = { unref() {} }; timers.add(timer); return timer; });
   t.mock.method(globalThis, 'clearInterval', timer => timers.delete(timer));
-  const { BoardView } = await import('../public/js/games/bingonext/views/board-view.js');
+  const { BoardView } = await import('../public/js/games/teambingo/views/board-view.js');
   const view = new BoardView({ shuffle() {}, call() {} }), s = boardClockState();
   view.render(s); assert.equal(timers.size, 1);
   assert.match(nodes['next-phaseText'].textContent, /隊伍 1 剩餘 10:00/);
@@ -364,7 +447,7 @@ test('board countdown switches teams with one timer and releases it when the gam
 
 test('board countdown rounds remaining partial seconds upward and never displays negative time', async t => {
   const nodes = mount(t);
-  const { BoardView } = await import('../public/js/games/bingonext/views/board-view.js');
+  const { BoardView } = await import('../public/js/games/teambingo/views/board-view.js');
   const view = new BoardView({ shuffle() {}, call() {} }), s = boardClockState();
   t.after(() => view.hide());
   s.room.teams[0].timeRemainingMs = 1; view.render(s);
@@ -377,7 +460,7 @@ test('board countdown rounds remaining partial seconds upward and never displays
 
 test('team clocks count down locally while paused teams stay unchanged and expired teams are marked', async t => {
   const nodes = mount(t);
-  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const { PlayersView } = await import('../public/js/games/teambingo/views/players-view.js');
   const s = bridgeState('playing');
   s.room.teams = s.room.bridge.teams.map((team, index) => ({ ...team, rewards: [], timeRemainingMs: index ? 300000 : 600000, clockRunning: index === 0 }));
   s.room.playersPerTeam = 1; s.room.turn = 'host';
@@ -404,7 +487,7 @@ test('team clocks count down locally while paused teams stay unchanged and expir
 
 test('each team keeps exactly one countdown inside its own heading after roster updates', async t => {
   const nodes = mount(t);
-  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const { PlayersView } = await import('../public/js/games/teambingo/views/players-view.js');
   const view = new PlayersView({ team() {}, ready() {}, captain() {} }), s = boardClockState();
   t.after(() => view.hide());
   s.room.goal = 1; s.room.playersPerTeam = 1;
@@ -430,7 +513,7 @@ test('each team keeps exactly one countdown inside its own heading after roster 
 test('heading countdown rounds upward, pauses, expires without negative values and resumes on server update', async t => {
   mount(t);
   t.mock.method(Date, 'now', () => 1000);
-  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const { PlayersView } = await import('../public/js/games/teambingo/views/players-view.js');
   const view = new PlayersView({ team() {}, ready() {}, captain() {} }), s = boardClockState();
   t.after(() => view.hide());
   s.room.teams[0].timeRemainingMs = 1001;
@@ -457,7 +540,7 @@ test('heading countdown rounds upward, pauses, expires without negative values a
 
 test('shared team headings omit clocks when no budget exists and retain team inspection actions', async t => {
   const nodes = mount(t);
-  const { PlayersView } = await import('../public/js/games/bingonext/views/players-view.js');
+  const { PlayersView } = await import('../public/js/games/teambingo/views/players-view.js');
   const view = new PlayersView({ team() {}, ready() {}, captain() {} }), s = boardClockState();
   t.after(() => view.hide());
   view.render(s);
@@ -478,14 +561,14 @@ test('shared team headings omit clocks when no budget exists and retain team ins
 
 test('exhausted team clocks show a game result without falsely declaring a winner', async t => {
   const nodes = mount(t);
-  const { RewardsView } = await import('../public/js/games/bingonext/views/rewards-view.js');
+  const { RewardsView } = await import('../public/js/games/teambingo/views/rewards-view.js');
   new RewardsView().render({ room: { code: 'TIMEOUT', phase: 'finished', endReason: 'time-exhausted', winners: [], teams: [] } });
   assert.equal(nodes['next-gameResultsTitle'].textContent, '遊戲結束・無勝者');
 });
 
-test('BingoNext start controls require occupied teams and readiness rather than full capacity', async t => {
+test('TeamBingo start controls require occupied teams and readiness rather than full capacity', async t => {
   const nodes = mount(t);
-  const { HostControlsView } = await import('../public/js/games/bingonext/views/host-controls-view.js');
+  const { HostControlsView } = await import('../public/js/games/teambingo/views/host-controls-view.js');
   const view = new HostControlsView({ command() {} });
   const players = [{ id: 'host', teamId: 'team-1', ready: true }, { id: 'guest', teamId: 'team-2', ready: true }];
   const room = { host: 'host', phase: 'lobby', size: 5, goal: 3, teamCount: 2, playersPerTeam: 4, players,
@@ -506,7 +589,7 @@ test('entry views restore Alberta titles and accept login only after text compos
   t.after(() => { if (originalLocation === undefined) delete globalThis.location; else globalThis.location = originalLocation; });
   const { EntryView } = await import('../public/js/views/entry-view.js');
   document.querySelectorAll = selector => { assert.equal(selector, '.entry button'); return [nodes.create, nodes.join]; };
-  for (const pathname of ['/', '/join', '/bridge-bingo', '/bingo-next']) {
+  for (const pathname of ['/', '/join', '/bridge-bingo', '/teambingo']) {
     globalThis.location = { pathname, search: '?room=ABC123' };
     const view = new EntryView({ name: 'Alice', roomCode: 'ABC123' }, kind => sent.push(kind));
     document.title = 'Previous game title'; view.show();
@@ -557,7 +640,7 @@ test('both games use shared card faces and concealed backs without changing card
   const { HandView } = await import('../public/js/games/bingo/views/hand-view.js');
   const { BridgeBoardView } = await import('../public/js/games/bridge/board-view.js');
   const { DrawCardView } = await import('../public/js/games/bingo/views/draw-card-view.js');
-  const { DrawCardView: NextDrawCardView } = await import('../public/js/games/bingonext/views/draw-card-view.js');
+  const { DrawCardView: NextDrawCardView } = await import('../public/js/games/teambingo/views/draw-card-view.js');
   new DrawCardView().reset();
   new NextDrawCardView().reset();
   const bridge = new BridgeBoardView({ bridge() {} }), s = bridgeState();
@@ -573,7 +656,7 @@ test('both games use shared card faces and concealed backs without changing card
     assert.equal(back.children[0].attributes.class, 'card-back-anchor');
     assert.equal(back.children[0].attributes['aria-hidden'], 'true');
   }
-  const card = { id: 'spell', definitionId: 'star', theme: 'green', type: '能力', symbol: '✦', name: '星光', description: '卡牌效果' };
+  const card = { id: 'spell', definitionId: 'star', theme: 'green', type: '能力', symbol: '✦', name: '星光', description: '卡牌說明', effect: '卡牌效果' };
   new HandView({ useCard() {} }).render(state({ hand: [card], connected: true }));
   assert.match(nodes.handList.children[0].children[0].className, /game-card-front/);
   assert.match(nodes.handList.children[0].textContent, /星光卡牌效果/);
@@ -867,7 +950,7 @@ test('game picker is available for hosts and hidden on join and Bridge pages', a
   const { EntryView } = await import('../public/js/views/entry-view.js');
   const original = globalThis.location;
   t.after(() => { if (original === undefined) delete globalThis.location; else globalThis.location = original; });
-  for (const pathname of ['/', '/join', '/bridge-bingo', '/bingo-next']) {
+  for (const pathname of ['/', '/join', '/bridge-bingo', '/teambingo']) {
     globalThis.location = { pathname, search: '' };
     const view = new EntryView({ name: '', roomCode: 'OLD01' }, () => {});
     assert.equal(nodes.gameChoice.hidden, pathname !== '/');
@@ -1230,7 +1313,8 @@ test('shared question is visible to spectators but only its owner can submit', a
   view.render(sharedState('spectator'));
   assert.equal(nodes.sharedCardDialog.open, true);
   assert.equal(nodes.sharedCardQuestion.textContent, '問題');
-  assert.equal(nodes.sharedCardDescription.textContent, '卡牌說明');
+  assert.equal(nodes.sharedCardDescription.textContent, '');
+  assert.equal(nodes.sharedCardDescription.hidden, true);
   assert.equal(nodes.sharedCardEffect.textContent, '卡牌效果：測試效果');
   assert.equal(nodes.sharedCardSymbol.textContent, '✧');
   assert.ok(nodes.sharedCardOptions.children.every(button => button.disabled));
@@ -1342,7 +1426,7 @@ test('in-game card results make it clear that continuing ends the current turn',
 
 test('question countdown does not restart on selection and timeout locks answers while retaining host review', async t => {
   const nodes = mount(t); let now = 1000; t.mock.method(Date, 'now', () => now);
-  const { SharedCardView } = await import('../public/js/games/bingonext/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/teambingo/views/shared-card-view.js');
   const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} }); t.after(() => view.close());
   const s = sharedState('owner'); s.room.activeCard.answerRemainingMs = 60000;
   view.render(s); assert.match(nodes['next-sharedCardStatus'].textContent, /01:00/);
@@ -1361,7 +1445,7 @@ test('question countdown does not restart on selection and timeout locks answers
 
 test('question clock accepts shorter server updates but cannot be extended until a new question starts', async t => {
   const nodes = mount(t); let now = 1000; t.mock.method(Date, 'now', () => now);
-  const { SharedCardView } = await import('../public/js/games/bingonext/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/teambingo/views/shared-card-view.js');
   const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} }); t.after(() => view.close());
   const s = sharedState('owner'); s.room.activeCard.answerRemainingMs = 60000;
   view.render(s);
@@ -1380,7 +1464,7 @@ test('question clock accepts shorter server updates but cannot be extended until
 
 test('Team Bingo reference answers are visible only to the judging host and blank answers stay blank', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/games/bingonext/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/teambingo/views/shared-card-view.js');
   const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} });
   const host = sharedState('host', 'review'); host.room.activeCard.referenceAnswer = 'B：15';
   view.render(host);
@@ -1397,7 +1481,7 @@ test('Team Bingo reference answers are visible only to the judging host and blan
 
 test('Team Bingo does not display question difficulty to any viewer throughout the answer workflow', async t => {
   const nodes = mount(t);
-  const { SharedCardView } = await import('../public/js/games/bingonext/views/shared-card-view.js');
+  const { SharedCardView } = await import('../public/js/games/teambingo/views/shared-card-view.js');
   const view = new SharedCardView({ answerCard() {}, judgeCard() {}, finishCard() {} });
   for (const player of ['owner', 'host', 'spectator']) {
     for (const difficulty of ['簡單', '普通', '困難']) {
@@ -1420,12 +1504,37 @@ test('all players see the card effect and question through answering, host revie
       view.render(sharedState(player, stage));
       assert.equal(nodes.sharedCardQuestion.textContent, '問題');
       assert.equal(nodes.sharedCardEffect.textContent, '卡牌效果：測試效果');
-      assert.equal(nodes.sharedCardDescription.textContent, '卡牌說明');
+      assert.equal(nodes.sharedCardDescription.textContent, '');
+      assert.equal(nodes.sharedCardDescription.hidden, true);
     }
   }
   const pending = sharedState('spectator'); delete pending.room.activeCard.card.effect;
   view.render(pending);
   assert.equal(nodes.sharedCardEffect.textContent, '卡牌效果：能力待定');
+});
+
+test('effect card dialogs hide descriptions and show no effect for wrong verdicts in both games', async t => {
+  const nodes = mount(t);
+  for (const game of ['bingo', 'teambingo']) {
+    const prefix = game === 'bingo' ? '' : 'next-';
+    const { SharedCardView } = await import(`../public/js/games/${game}/views/shared-card-view.js`);
+    const view = new SharedCardView({});
+    for (const player of ['owner', 'host', 'spectator']) {
+      for (const correct of [false, true, false]) {
+        const s = sharedState(player, 'result'); s.room.activeCard.correct = correct;
+        view.render(s);
+        assert.equal(nodes[`${prefix}sharedCardDescription`].hidden, true);
+        assert.equal(nodes[`${prefix}sharedCardDescription`].textContent, '');
+        assert.equal(nodes[`${prefix}sharedCardEffect`].textContent, correct ? '卡牌效果：測試效果' : '');
+        assert.equal(nodes[`${prefix}sharedCardEffect`].hidden, !correct);
+        assert.equal(nodes[`${prefix}sharedCardResult`].textContent, correct ? '回答正確！' : '回答錯誤');
+      }
+    }
+    view.render(sharedState('owner', 'question'));
+    assert.equal(nodes[`${prefix}sharedCardEffect`].textContent, '卡牌效果：測試效果');
+    assert.equal(nodes[`${prefix}sharedCardEffect`].hidden, false);
+    view.close();
+  }
 });
 
 test('verdict rerenders and transitions show only the current outcome without stale result text', async t => {

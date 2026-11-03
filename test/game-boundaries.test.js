@@ -8,6 +8,33 @@ const { createRoom, joinRoom } = require('../src/domain/room');
 const { getGame } = require('../src/games');
 const { migrateRoom } = require('../src/domain/room-migration');
 
+test('Team Bingo uses teambingo identifiers while legacy rooms and links remain compatible', async () => {
+  const canonical = getGame('teambingo');
+  assert.equal(canonical.id, 'teambingo');
+  assert.equal(getGame('bingo-next'), canonical);
+  const room = createRoom('TEAM', 'create', 'teambingo');
+  joinRoom(room, 'Host', randomUUID());
+  room.players[0].ready = true;
+  const expected = structuredClone(room);
+  room.gameType = 'bingo-next';
+  migrateRoom(room);
+  assert.deepEqual(room, expected);
+  assert.equal(createRoom('LEGACY', 'create', 'bingo-next').gameType, 'teambingo');
+  const { getClientGame } = await import('../public/js/games/index.js');
+  const client = getClientGame('teambingo');
+  assert.equal(getClientGame('bingo-next'), client);
+  assert.equal(client.id, 'teambingo');
+  assert.equal(client.roomPath(), '/teambingo');
+  const { serveStatic } = require('../src/http/static-assets');
+  for (const url of ['/teambingo', '/teambingo/', '/bingo-next', '/bingo-next/']) {
+    let status, body;
+    serveStatic({ method: 'GET' }, { writeHead(code) { status = code; }, end(content) { body = content.toString(); } }, url, path.resolve(__dirname, '../public'));
+    assert.equal(status, 200);
+    assert.match(body, /value="teambingo"/);
+    assert.match(body, /\/games\/teambingo\/game\.css/);
+  }
+});
+
 test('game modules create only their own room and member state', () => {
   const bingo = createRoom('BINGO', 'create', 'bingo');
   const bridge = createRoom('BRIDGE', 'create', 'bridge-bingo');
@@ -141,7 +168,7 @@ function javascriptFiles(directory) {
 
 test('server and client game modules cannot import another game implementation', () => {
   const root = path.resolve(__dirname, '..');
-  const gameNames = ['bingo', 'bridge', 'bingonext'];
+  const gameNames = ['bingo', 'bridge', 'teambingo'];
   for (const location of ['src/games', 'public/js/games']) for (const game of gameNames) {
     const directory = path.join(root, location, game);
     const siblings = gameNames.filter(name => name !== game).map(name => path.join(root, location, name));

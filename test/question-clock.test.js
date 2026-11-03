@@ -1,11 +1,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
-const { ANSWER_TIME_MS, ensureQuestionDeadline, expireQuestion } = require('../src/games/bingonext/question-clock');
+const { ANSWER_TIME_MS, ensureQuestionDeadline, expireQuestion } = require('../src/games/teambingo/question-clock');
 const { createApplication } = require('../src/app');
-const { drawForNumber } = require('../src/games/bingonext/card-actions');
-const { remainingTime } = require('../src/games/bingonext/team-clock');
-const game = require('../src/games/bingonext');
+const { drawForNumber } = require('../src/games/teambingo/card-actions');
+const { remainingTime } = require('../src/games/teambingo/team-clock');
+const game = require('../src/games/teambingo');
 
 test('question deadlines grant sixty seconds once and never refresh an existing deadline', () => {
   const room = { activeCard: { stage: 'question' } };
@@ -35,13 +35,13 @@ function fixture(t) {
   let now = 0; t.mock.method(Date, 'now', () => now);
   const rooms = new Map(), repository = { all: () => [...rooms.values()], get: code => rooms.get(code), add: room => rooms.set(room.code, room), save() {} };
   const app = createApplication({ repository }), token = randomUUID();
-  const created = app.service.execute({ kind: 'create', name: 'Host', gameType: 'bingo-next', teamTimeMinutes: 10, token, requestId: randomUUID() });
+  const created = app.service.execute({ kind: 'create', name: 'Host', gameType: 'teambingo', teamTimeMinutes: 10, token, requestId: randomUUID() });
   const room = rooms.get(created.room.code);
   const send = (kind, data = {}, who = token) => app.service.execute({ kind, code: room.code, token: who, requestId: randomUUID(), ...data });
   send('settings', { size: 3, teamCount: 2, playersPerTeam: 1 }); send('join', { name: 'Guest' }, randomUUID());
   room.players.forEach(player => send('ready', { ready: true }, player.token)); send('start');
   now = 1000; send('call', { number: 1 });
-  const owner = room.players[1], card = drawForNumber({ hand: room.teamHands['team-2'] ||= [] }, require('../src/games/bingonext/card-catalog').cards.find(card => card.id === 'star'));
+  const owner = room.players[1], card = drawForNumber({ hand: room.teamHands['team-2'] ||= [] });
   now = 2000; send('cardUse', { cardId: card.id }, owner.token);
   return { ...app, room, owner, card, send, setTime: value => { now = value; }, sessionId: room.activeCard.id };
 }

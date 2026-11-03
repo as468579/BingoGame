@@ -1,0 +1,14 @@
+[
+  {
+    "id": "team-time-plus-2m",
+    "name": "加時",
+    "symbol": "pocket-watch",
+    "theme": "gold",
+    "type": "時間",
+    "questionDifficulty": "簡單",
+    "description": "答對問題，為自己的隊伍增加 2 分鐘行動時間。",
+    "effect": "隊伍行動時間增加 2 分鐘",
+    "effectId": "team-time-plus-2m",
+    "enabled": true
+  }
+]

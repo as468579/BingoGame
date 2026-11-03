@@ -252,9 +252,9 @@ test('a replaced or closed event stream cannot update the new room', async () =>
 });
 
 test('team reward notifications announce each new prize once per team and ignore stale or unrelated snapshots', async () => {
-  const { rewardGains } = await import('../public/js/games/bingonext/state/reward-progress.js');
+  const { rewardGains } = await import('../public/js/games/teambingo/state/reward-progress.js');
   const teams = [{ id: 'team-1', name: '隊伍 1', playerIds: ['a', 'b'], rewards: [] }, { id: 'team-2', name: '隊伍 2', playerIds: ['c'], rewards: [] }];
-  const before = snapshot({ gameType: 'bingo-next', phase: 'playing', teams, linePrizes: [
+  const before = snapshot({ gameType: 'teambingo', phase: 'playing', teams, linePrizes: [
     { id: 'row-0', item: '傳送石', claimedBy: null }, { id: 'column-0', item: '紅色藥水', claimedBy: null },
     { id: 'row-1', item: '護身符', claimedBy: 'team-2' }
   ] });
@@ -275,9 +275,9 @@ test('team reward notifications announce each new prize once per team and ignore
 });
 
 test('team board drafts survive teammate updates but reset on layout changes, room switches and leaving', async () => {
-  const { BingoNextState } = await import('../public/js/games/bingonext/state.js');
-  const state = new BingoNextState(); state.playerId = 'me';
-  const initial = snapshot({ gameType: 'bingo-next' });
+  const { TeamBingoState } = await import('../public/js/games/teambingo/state.js');
+  const state = new TeamBingoState(); state.playerId = 'me';
+  const initial = snapshot({ gameType: 'teambingo' });
   state.accept(initial); state.editCell(0, 9);
   const draft = [...state.draft];
   state.accept({ ...initial, revision: 2, players: [...initial.players, { id: 'guest', ready: true }] });

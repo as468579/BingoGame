@@ -3,7 +3,7 @@ import { rewardGains } from './state/reward-progress.js';
 import { shuffledBoard } from '../../utils.js';
 import { $ } from './dom.js';
 
-export class BingoNextController {
+export class TeamBingoController {
   constructor(app) { this.app = app; this.lineNotice = new LineNoticeView(); }
   get state() { return this.app.state; }
   onSnapshot(previous, snapshot) {

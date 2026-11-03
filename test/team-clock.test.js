@@ -1,14 +1,14 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
-const game = require('../src/games/bingonext');
-const { createBoard, createCells } = require('../src/games/bingonext/board');
-const { createLinePrizes } = require('../src/games/bingonext/prizes');
-const { advanceTurn } = require('../src/games/bingonext/turns');
-const { applyGameAction } = require('../src/games/bingonext/actions');
-const { TEAM_TIME_MS, initializeTeamClock, remainingTime, syncTeamClock, expireTeamClock } = require('../src/games/bingonext/team-clock');
+const game = require('../src/games/teambingo');
+const { createBoard, createCells } = require('../src/games/teambingo/board');
+const { createLinePrizes } = require('../src/games/teambingo/prizes');
+const { advanceTurn } = require('../src/games/teambingo/turns');
+const { applyGameAction } = require('../src/games/teambingo/actions');
+const { TEAM_TIME_MS, initializeTeamClock, remainingTime, syncTeamClock, expireTeamClock } = require('../src/games/teambingo/team-clock');
 const { createApplication } = require('../src/app');
-const { drawForNumber } = require('../src/games/bingonext/card-actions');
+const { drawForNumber } = require('../src/games/teambingo/card-actions');
 
 function roomAt(now = 0) {
   const room = { ...game.initializeRoom({ teamTimeMinutes: 10 }), size: 3, phase: 'playing', revision: 0, host: 'a', turn: 'a', board: createBoard(3),
@@ -110,7 +110,7 @@ function serviceFixture(t, teamTimeMinutes = 10) {
   const repository = { all: () => [...rooms.values()], get: code => rooms.get(code), add: room => rooms.set(room.code, room), save: () => { saves++; } };
   const app = createApplication({ repository });
   const token = randomUUID();
-  const created = app.service.execute({ kind: 'create', gameType: 'bingo-next', teamTimeMinutes, name: 'Host', token, requestId: randomUUID() });
+  const created = app.service.execute({ kind: 'create', gameType: 'teambingo', teamTimeMinutes, name: 'Host', token, requestId: randomUUID() });
   const code = created.room.code, room = rooms.get(code);
   const send = (kind, data = {}, who = token) => app.service.execute({ kind, code, token: who, requestId: randomUUID(), ...data });
   send('settings', { size: 3, teamCount: 2, playersPerTeam: 1 });
@@ -142,7 +142,7 @@ test('creation configures one shared allowance, joins cannot change it and reset
 test('invalid creation allowances are rejected before adding a room', t => {
   const f = serviceFixture(t), count = f.repository.all().length;
   for (const minutes of [0, -1, 121, 1.5, '8', null]) {
-    assert.throws(() => f.send('create', { name: 'Host', gameType: 'bingo-next', teamTimeMinutes: minutes }), /1～120/);
+    assert.throws(() => f.send('create', { name: 'Host', gameType: 'teambingo', teamTimeMinutes: minutes }), /1～120/);
   }
   assert.equal(f.repository.all().length, count);
 });
@@ -195,15 +195,15 @@ test('failed actions do not restart the active team clock or extend its deadline
 
 test('real card use pauses clocks through submission and host judgment and restarts after finishing', t => {
   const f = serviceFixture(t);
-  const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] }, require('../src/games/bingonext/card-catalog').cards.find(card => card.id === 'star'));
+  const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
   f.setTime(100000); f.send('cardUse', { cardId: held.id });
   const cardSessionId = f.room.activeCard.id;
   f.setTime(150000); f.service.tick();
   assert.equal(remainingTime(f.room, 'team-1'), 500000);
   f.send('cardAnswer', { cardSessionId, choice: 0 });
   f.setTime(2000000); f.send('cardJudge', { cardSessionId, correct: true });
-  assert.equal(remainingTime(f.room, 'team-1'), 500000);
+  assert.equal(remainingTime(f.room, 'team-1'), 620000);
   f.send('cardFinish', { cardSessionId });
   assert.equal(f.room.teamClock.activeTeamId, 'team-2');
-  assert.equal(f.service.snapshot(f.room, f.room.host).teams[0].timeRemainingMs, 500000);
+  assert.equal(f.service.snapshot(f.room, f.room.host).teams[0].timeRemainingMs, 620000);
 });

@@ -1,37 +1,15 @@
 [
   {
-    "id": "star",
-    "difficulty": "簡單",
-    "category": "賓果基礎",
-    "question": "5 × 5 的盤面，一共有幾個格子？",
-    "options": ["20 個", "25 個", "30 個", "35 個"],
-    "correctAnswer": "B",
-    "enabled": true
-  },
-  {
-    "id": "shield",
-    "difficulty": "普通",
-    "category": "賓果基礎",
-    "question": "下列哪一種連線方向可以在賓果中計分？",
-    "options": ["只有橫向", "只有直向", "橫向、直向與斜向", "任意相鄰格子"],
-    "correctAnswer": "C",
-    "enabled": true
-  },
-  {
-    "id": "moon",
-    "difficulty": "簡單",
-    "category": "數字推理",
-    "question": "數列 2、4、6、8 的下一個數字是？",
-    "options": ["9", "10", "11", "12"],
-    "correctAnswer": "B",
-    "enabled": true
-  },
-  {
     "id": "party-quest-001",
     "difficulty": "簡單",
     "category": "組對任務",
     "question": "等級 1 升到 2 所需經驗值？",
-    "options": ["10", "15", "20", "25"],
+    "options": [
+      "10",
+      "15",
+      "20",
+      "25"
+    ],
     "correctAnswer": "B",
     "enabled": true
   },
@@ -40,7 +18,12 @@
     "difficulty": "簡單",
     "category": "組對任務",
     "question": "請問下列哪一隻怪物不會出現在超級綠水靈組隊任務中？",
-    "options": ["超級綠水靈", "刺菇菇", "天使猴", "青蛇"],
+    "options": [
+      "超級綠水靈",
+      "刺菇菇",
+      "天使猴",
+      "青蛇"
+    ],
     "correctAnswer": "C",
     "enabled": true
   },
@@ -49,7 +32,12 @@
     "difficulty": "普通",
     "category": "組對任務",
     "question": "請問在組隊任務時空的裂縫中一共會拿到幾張通行證？",
-    "options": ["60", "75", "90", "105"],
+    "options": [
+      "60",
+      "75",
+      "90",
+      "105"
+    ],
     "correctAnswer": "C",
     "enabled": true
   },
@@ -58,7 +46,12 @@
     "difficulty": "簡單",
     "category": "組對任務",
     "question": "請問在女神之塔組隊任務中，唱片與星期的對應哪一個是正確的？",
-    "options": ["星期一/藍色", "星期二/黃色", "星期三/綠色", "星期四/紅色"],
+    "options": [
+      "星期一/藍色",
+      "星期二/黃色",
+      "星期三/綠色",
+      "星期四/紅色"
+    ],
     "correctAnswer": "B",
     "enabled": true
   },
@@ -67,7 +60,12 @@
     "difficulty": "簡單",
     "category": "組對任務",
     "question": "請問製作一頂 90 等金勾海賊帽，最少需要幾個金勾海賊王的帽子碎片？",
-    "options": ["1100", "1300", "1500", "1700"],
+    "options": [
+      "1100",
+      "1300",
+      "1500",
+      "1700"
+    ],
     "correctAnswer": "A",
     "enabled": true
   },
@@ -76,7 +74,12 @@
     "difficulty": "普通",
     "category": "組對任務",
     "question": "請問在金勾海賊王組隊任務，如果想要召喚出憤怒的海賊王，需要開啟幾個隱藏寶箱？",
-    "options": ["2", "3", "4", "不用開寶箱"],
+    "options": [
+      "2",
+      "3",
+      "4",
+      "不用開寶箱"
+    ],
     "correctAnswer": "A",
     "enabled": true
   }
