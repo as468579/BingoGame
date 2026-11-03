@@ -198,7 +198,7 @@ test('real card use pauses clocks through submission and host judgment and resta
   const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
   f.setTime(100000); f.send('cardUse', { cardId: held.id });
   const cardSessionId = f.room.activeCard.id;
-  f.setTime(150000); f.service.tick();
+  f.setTime(120000); f.service.tick();
   assert.equal(remainingTime(f.room, 'team-1'), 500000);
   f.send('cardAnswer', { cardSessionId, choice: 0 });
   f.setTime(2000000); f.send('cardJudge', { cardSessionId, correct: true });

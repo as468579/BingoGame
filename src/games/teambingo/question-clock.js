@@ -1,5 +1,5 @@
 'use strict';
-const ANSWER_TIME_MS = 60000;
+const ANSWER_TIME_MS = 30000;
 
 function ensureQuestionDeadline(room, now = Date.now()) {
   if (room.activeCard?.stage === 'question' && !Number.isFinite(room.activeCard.answerDeadlineAt)) {

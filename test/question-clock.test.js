@@ -7,17 +7,17 @@ const { drawForNumber } = require('../src/games/teambingo/card-actions');
 const { remainingTime } = require('../src/games/teambingo/team-clock');
 const game = require('../src/games/teambingo');
 
-test('question deadlines grant sixty seconds once and never refresh an existing deadline', () => {
+test('question deadlines grant thirty seconds once and never refresh an existing deadline', () => {
   const room = { activeCard: { stage: 'question' } };
-  assert.equal(ANSWER_TIME_MS, 60000);
-  ensureQuestionDeadline(room, 1000); assert.equal(room.activeCard.answerDeadlineAt, 61000);
-  ensureQuestionDeadline(room, 50000); assert.equal(room.activeCard.answerDeadlineAt, 61000);
+  assert.equal(ANSWER_TIME_MS, 30000);
+  ensureQuestionDeadline(room, 1000); assert.equal(room.activeCard.answerDeadlineAt, 31000);
+  ensureQuestionDeadline(room, 50000); assert.equal(room.activeCard.answerDeadlineAt, 31000);
 });
 
 test('timeout at the exact deadline locks the question for host review without deciding correctness', () => {
-  const room = { activeCard: { id: 'session', stage: 'question', answerDeadlineAt: 60000 } };
-  assert.equal(expireQuestion(room, 59999), false);
-  assert.equal(expireQuestion(room, 60000), true);
+  const room = { activeCard: { id: 'session', stage: 'question', answerDeadlineAt: 30000 } };
+  assert.equal(expireQuestion(room, 29999), false);
+  assert.equal(expireQuestion(room, 30000), true);
   assert.equal(room.activeCard.stage, 'review'); assert.equal(room.activeCard.timedOut, true);
   assert.equal(room.activeCard.correct, undefined); assert.equal(room.activeCard.choice, undefined);
   assert.equal(room.activeCard.id, 'session'); assert.equal(expireQuestion(room, 90000), false);
@@ -25,7 +25,7 @@ test('timeout at the exact deadline locks the question for host review without d
 
 test('submitted answers, results and closed questions never time out retroactively', () => {
   for (const stage of ['review', 'result']) {
-    const room = { activeCard: { stage, choice: 0, answerDeadlineAt: 60000 } }, before = structuredClone(room);
+    const room = { activeCard: { stage, choice: 0, answerDeadlineAt: 30000 } }, before = structuredClone(room);
     assert.equal(expireQuestion(room, 90000), false); assert.deepEqual(room, before);
   }
   assert.equal(expireQuestion({ activeCard: null }, 90000), false);
@@ -47,7 +47,7 @@ function fixture(t) {
 }
 
 test('late API submissions expire before validation even without a prior scheduler tick', t => {
-  const f = fixture(t); f.setTime(62000);
+  const f = fixture(t); f.setTime(32000);
   assert.throws(() => f.send('cardAnswer', { cardSessionId: f.sessionId, choice: 0 }, f.owner.token), /作答時間已結束/);
   assert.equal(f.room.activeCard.stage, 'review'); assert.equal(f.room.activeCard.timedOut, true);
   assert.equal(f.room.turn, f.owner.id); assert.equal(f.room.activeCard.correct, undefined);
@@ -57,7 +57,7 @@ test('late API submissions expire before validation even without a prior schedul
 });
 
 test('answers submitted just before the deadline remain valid through a long host decision', t => {
-  const f = fixture(t); f.setTime(61999);
+  const f = fixture(t); f.setTime(31999);
   f.send('cardAnswer', { cardSessionId: f.sessionId, choice: 0 }, f.owner.token);
   f.setTime(900000); f.service.tick();
   assert.equal(f.room.activeCard.stage, 'review'); assert.equal(f.room.activeCard.choice, 0);
@@ -67,7 +67,7 @@ test('answers submitted just before the deadline remain valid through a long hos
 
 test('the host can judge a timed-out question either way and completion consumes the card and turn', t => {
   for (const correct of [true, false]) {
-    const f = fixture(t); f.setTime(62000); f.service.tick();
+    const f = fixture(t); f.setTime(32000); f.service.tick();
     assert.throws(() => f.send('cardJudge', { cardSessionId: f.sessionId, correct }, f.owner.token), /只有房主/);
     f.send('cardJudge', { cardSessionId: f.sessionId, correct });
     assert.equal(f.room.activeCard.correct, correct);
@@ -78,7 +78,7 @@ test('the host can judge a timed-out question either way and completion consumes
 });
 
 test('cancellation is allowed before the deadline but timeout cannot be used to refund a card', t => {
-  const f = fixture(t); f.setTime(61999);
+  const f = fixture(t); f.setTime(31999);
   f.send('cardCancel', { cardSessionId: f.sessionId }, f.owner.token);
   assert.equal(f.room.teamHands['team-2'][0].id, f.card.id); assert.equal(f.room.turn, f.owner.id);
   f.send('cardUse', { cardId: f.card.id }, f.owner.token);
@@ -89,16 +89,16 @@ test('cancellation is allowed before the deadline but timeout cannot be used to 
 });
 
 test('reconnect and serialized migration preserve the original remaining answer time', t => {
-  const f = fixture(t); f.setTime(32000);
+  const f = fixture(t); f.setTime(17000);
   f.send('join', { name: f.owner.name }, randomUUID());
-  assert.equal(f.room.activeCard.answerDeadlineAt, 62000);
-  assert.equal(f.service.snapshot(f.room, f.owner.id).activeCard.answerRemainingMs, 30000);
+  assert.equal(f.room.activeCard.answerDeadlineAt, 32000);
+  assert.equal(f.service.snapshot(f.room, f.owner.id).activeCard.answerRemainingMs, 15000);
   const restored = JSON.parse(JSON.stringify(f.room)); game.migrate(restored);
-  assert.equal(restored.activeCard.answerDeadlineAt, 62000);
-  game.tick(restored, 62000); assert.equal(restored.activeCard.timedOut, true);
+  assert.equal(restored.activeCard.answerDeadlineAt, 32000);
+  game.tick(restored, 32000); assert.equal(restored.activeCard.timedOut, true);
 });
 
-test('invalid answer submissions cannot renew the one-minute deadline', t => {
+test('invalid answer submissions cannot renew the thirty-second deadline', t => {
   const f = fixture(t), deadline = f.room.activeCard.answerDeadlineAt;
   f.setTime(20000);
   assert.throws(() => f.send('cardAnswer', { cardSessionId: f.sessionId, choice: 99 }, f.owner.token), /有效的答案/);
