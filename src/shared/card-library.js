@@ -15,7 +15,11 @@ function parseCards(entries) {
       if (entry[field] !== undefined && typeof entry[field] !== 'string') invalid(`${field} 必須是文字。`);
     }
     if (entry.enabled !== undefined && typeof entry.enabled !== 'boolean') invalid('enabled 必須是 true 或 false。');
-    if (entry.questionDifficulty != null && !['簡單', '普通', '困難'].includes(entry.questionDifficulty)) invalid('questionDifficulty 必須是簡單、普通、困難或 null。');
+    if (entry.copiesPerGame !== undefined && (!Number.isInteger(entry.copiesPerGame) || entry.copiesPerGame < 0)) invalid('copiesPerGame 必須是非負整數。');
+    if (entry.questionDifficulty != null) {
+      const difficulties = Array.isArray(entry.questionDifficulty) ? entry.questionDifficulty : [entry.questionDifficulty];
+      if (!difficulties.length || difficulties.some(value => !['簡單', '普通', '困難'].includes(value)) || new Set(difficulties).size !== difficulties.length) invalid('questionDifficulty 必須是簡單、普通、困難、不重複的難度陣列或 null。');
+    }
     const id = entry.id.trim(); ids.add(id);
     return { symbol: '✦', theme: 'gold', type: '能力', description: '', effect: '能力待定', enabled: true, questionDifficulty: null,
       ...structuredClone(entry), id, name: entry.name.trim() };
@@ -29,7 +33,7 @@ function chooseCard(cards, pick = randomInt) {
 }
 
 function publicCard(card) {
-  const { answer, correctAnswer, questionDifficulty, difficulty, enabled, effectId, ...visible } = card;
+  const { answer, correctAnswer, questionDifficulty, difficulty, enabled, effectId, copiesPerGame, ...visible } = card;
   return visible;
 }
 

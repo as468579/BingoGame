@@ -14,7 +14,7 @@ function joinRoom(room, name, token) {
   if (player) { game.restorePlayer(room, player); return player; }
   if (room.phase !== 'lobby') fail('遊戲已開始，暫時無法加入新玩家。');
   const capacity = game.capacity(room);
-  if (room.players.length >= capacity) fail('房間最多可容納 ' + capacity + ' 位玩家。');
+  if ((game.memberCount?.(room) ?? room.players.length) >= capacity) fail('房間最多可容納 ' + capacity + ' 位玩家。');
   const playerToken = [...room.players, ...(room.archivedPlayers || [])].some(candidate => candidate.token === token) ? randomUUID() : token;
   player = game.createPlayer(room, name, playerToken);
   room.players.push(player);

@@ -4,19 +4,27 @@ const { randomUUID } = require('node:crypto');
 const { createApplication } = require('../src/app');
 const game = require('../src/games/teambingo');
 const { cards } = require('../src/games/teambingo/card-catalog');
+const fixtureQuestions = require('../src/games/teambingo/question-bank').questions;
+const configuredFixtureQuestions = fixtureQuestions.slice();
 const { drawForNumber } = require('../src/games/teambingo/card-actions');
 const { applyGameAction } = require('../src/games/teambingo/actions');
 const { remainingTime } = require('../src/games/teambingo/team-clock');
+const { prepareCaptains, completeGoalSelection, separateHost, hostAction, HOST_ACTIONS } = require('../scripts/test-support/team-goal-setup.cjs');
 
 function fixture(t) {
+  t.after(() => { fixtureQuestions.splice(0, fixtureQuestions.length, ...configuredFixtureQuestions); });
+  fixtureQuestions.splice(0, fixtureQuestions.length, ...configuredFixtureQuestions.filter(question => question.difficulty === '簡單' && question.type === 'multiple-choice'));
   let now = 0; t.mock.method(Date, 'now', () => now);
   const rooms = new Map(), app = createApplication({ repository: { all: () => [...rooms.values()], get: code => rooms.get(code), add: room => rooms.set(room.code, room), save() {} } });
   const token = randomUUID(), created = app.service.execute({ kind: 'create', gameType: 'teambingo', teamTimeMinutes: 10, name: 'Host', token, requestId: randomUUID() });
   const room = rooms.get(created.room.code);
-  const send = (kind, data = {}) => app.service.execute({ kind, code: room.code, token, requestId: randomUUID(), ...data });
+  const manager = separateHost(room);
+  const send = (kind, data = {}, who = token) => app.service.execute({ kind, code: room.code, token: who === token && (HOST_ACTIONS.has(kind) || kind === 'cardFinish') ? manager.token : who, requestId: randomUUID(), ...data });
   send('settings', { size: 3, teamCount: 2, playersPerTeam: 1 });
   app.service.execute({ kind: 'join', code: room.code, name: 'Guest', token: randomUUID(), requestId: randomUUID() });
-  room.players.forEach(player => { player.ready = true; }); send('start');
+  room.players.push(...room.players.splice(room.players.indexOf(manager), 1));
+  room.players.forEach(player => { player.ready = true; }); prepareCaptains(room); send('start');
+  completeGoalSelection(room, (captain, goalId) => send('hiddenGoal', { goalId }, captain.token));
   const held = drawForNumber({ hand: room.teamHands['team-1'] ||= [] }, cards.find(card => card.id === 'team-time-plus-2m'));
   now = 10000; send('cardUse', { cardId: held.id });
   const cardSessionId = room.activeCard.id;
@@ -24,10 +32,10 @@ function fixture(t) {
   return { ...app, room, held, send, answer, cardSessionId, setTime: value => { now = value; } };
 }
 
-test('alarm card belongs only to Team Bingo and requires an easy question', () => {
+test('time card belongs only to Team Bingo and temporarily allows every question difficulty', () => {
   const alarm = cards.find(card => card.id === 'team-time-plus-2m');
   assert.equal(alarm.name, '加時');
-  assert.equal(alarm.symbol, 'pocket-watch'); assert.equal(alarm.questionDifficulty, '簡單'); assert.equal(alarm.enabled, true);
+  assert.equal(alarm.symbol, 'pocket-watch'); assert.equal(alarm.questionDifficulty, null); assert.equal(alarm.enabled, true);
   assert.equal(require('../src/games/bingo/card-catalog').cards.some(card => card.id === alarm.id), false);
   assert.equal(require('../src/games/bridge/card-catalog').cards.some(card => card.id === alarm.id), false);
 });
@@ -43,11 +51,11 @@ test('retired pending cards are removed from saved hands and undo history while 
   assert.deepEqual(f.room.teamHands['team-1'], [timeCard]);
   assert.deepEqual(f.room.history[0].teamHands['team-1'], [timeCard]);
   assert.equal(f.room.activeCard, null);
-  assert.equal(f.room.turn, f.room.host);
+  assert.equal(f.room.turn, f.room.players[0].id);
   assert.equal(f.room.teamClock.activeTeamId, 'team-1');
-  const visible = f.service.snapshot(f.room, f.room.host).players[0].hand[0];
+  const visible = f.service.snapshot(f.room, f.room.players[0].id).players[0].hand[0];
   assert.equal(visible.name, '加時'); assert.equal(visible.symbol, 'pocket-watch');
-  assert.deepEqual(cards.map(card => card.id), ['team-time-plus-2m']);
+  assert.deepEqual(cards.map(card => card.id), ['team-time-plus-2m', 'team-hints-plus-2', 'team-snow-crystals-20', 'team-teleport-stones-4', 'team-raid-tickets-2']);
 });
 
 test('legacy personal hands migrate once, remove retired cards and preserve a valid paused question', t => {
@@ -55,7 +63,7 @@ test('legacy personal hands migrate once, remove retired cards and preserve a va
   const old = { id: 'retired', definitionId: 'moon' };
   delete f.room.teamHands;
   f.room.players[0].hand = [old, f.held];
-  f.room.history = [{ playerStates: [{ id: f.room.host, hand: [old, f.held] }], activeCard: { cardId: 'shield' } }];
+  f.room.history = [{ playerStates: [{ id: f.room.players[0].id, hand: [old, f.held] }], activeCard: { cardId: 'shield' } }];
   game.migrate(f.room);
   assert.deepEqual(f.room.teamHands['team-1'], [f.held]);
   assert.deepEqual(f.room.players[0].hand, []);
@@ -87,14 +95,17 @@ test('correct host verdict grants exactly two minutes once, even across finish r
 test('wrong answers, cancellations and host-aborted questions never grant bonus time', t => {
   for (const outcome of ['wrong', 'cancel', 'abort']) {
     const f = fixture(t);
-    if (outcome === 'cancel') f.send('cardCancel', { cardSessionId: f.cardSessionId });
+    if (outcome === 'cancel') {
+      assert.throws(() => f.send('cardCancel', { cardSessionId: f.cardSessionId }), /無法取消/);
+      f.send('cardFinish', { cardSessionId: f.cardSessionId });
+    }
     else {
       if (outcome === 'wrong') { f.answer(); f.send('cardJudge', { cardSessionId: f.cardSessionId, correct: false }); }
       f.send('cardFinish', { cardSessionId: f.cardSessionId });
     }
     assert.equal(remainingTime(f.room, 'team-1'), 590000);
     assert.equal(f.room.teamClock.bonuses['team-1'], undefined);
-    assert.equal(f.room.teamHands['team-1'].length, outcome === 'cancel' ? 1 : 0);
+    assert.equal(f.room.teamHands['team-1'].length, 0);
   }
 });
 
@@ -119,7 +130,7 @@ test('undo refunds the shared card and removes earned bonus without refunding el
   assert.equal(remainingTime(f.room, 'team-1'), 590000);
   assert.equal(remainingTime(f.room, 'team-2'), 590000);
   assert.equal(f.room.teamClock.bonuses['team-1'], undefined);
-  assert.equal(f.room.turn, f.room.host);
+  assert.equal(f.room.turn, f.room.players[0].id);
 });
 
 test('saved result sessions retain applied bonus and cannot apply it again after migration', t => {

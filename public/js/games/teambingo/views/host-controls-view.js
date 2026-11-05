@@ -14,7 +14,7 @@ export class HostControlsView {
   }
 
   render({ room, me, busy, connected, settingsDirty }) {
-    busy ||= Boolean(room.activeCard);
+    busy ||= Boolean(room.activeCard || room.hint);
     const size = room.size || 5;
     $('settingsPanel').hidden = me.id !== room.host || room.phase !== 'lobby';
     if (!settingsDirty) $('boardSize').value = size;
@@ -26,14 +26,16 @@ export class HostControlsView {
     $('hostTools').hidden = me.id !== room.host;
     $('rerollPrizes').hidden = me.id !== room.host || room.phase !== 'lobby';
     $('rerollPrizes').disabled = busy || !connected;
-    const roster = room.players.filter(player => player.participating !== false);
+    const roster = room.players.filter(player => player.id !== room.host);
     const readyCount = roster.filter(player => player.ready).length;
     $('start').hidden = room.phase !== 'lobby';
-    const unassigned = room.players.some(player => !player.teamId);
+    const unassigned = room.players.some(player => player.id !== room.host && !player.teamId);
     const emptyTeam = room.teams.some(team => team.playerIds.length === 0);
-    $('start').disabled = busy || !connected || readyCount !== roster.length || unassigned || emptyTeam;
+    const missingCaptain = room.teams.some(team => !team.captainId);
+    const noMembers = room.teams.some(team => team.captainId && !team.playerIds.some(id => id !== team.captainId));
+    $('start').disabled = busy || !connected || readyCount !== roster.length || unassigned || emptyTeam || missingCaptain || noMembers;
     $('start').textContent = unassigned ? '請先完成所有玩家的分隊' : emptyTeam ? '每隊至少需要 1 位玩家'
-      : readyCount < roster.length ? `等待 ${roster.length - readyCount} 位玩家準備` : '全員已準備，開始遊戲 →';
+      : missingCaptain ? '請先為每隊指定隊長' : noMembers ? '每隊除了隊長，至少需要 1 位隊員' : readyCount < roster.length ? `等待 ${roster.length - readyCount} 位玩家準備` : '全員已準備，開始遊戲 →';
     $('scan').hidden = room.phase !== 'lobby';
     $('scan').disabled = busy || !connected;
     $('scanHint').hidden = room.phase !== 'lobby';

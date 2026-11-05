@@ -1,7 +1,7 @@
 import { $, element } from '../dom.js';
 import { boardLineDefinitions } from '../../../views/board-lines.js';
 
-export const linePrizeItems = ['突襲券', '傳送石', '飄雪結晶', '護身符', '紅色藥水', '活力藥水'];
+export const linePrizeItems = ['突襲券', '傳送石', '飄雪結晶', '護身符', '龍王項鍊', '楓葉祝福20'];
 
 // Rewards are a projection of the viewed board, so undo and switching players cannot leave stale badges.
 export function linePrizes(cells, size, prizes = [], playerId = null) {

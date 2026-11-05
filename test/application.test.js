@@ -84,7 +84,7 @@ test('module assets are served and private files and invalid actions remain inac
       assert.ok(body.length);
       if (file.endsWith('.js')) assert.match(response.headers.get('content-type'), /javascript/);
     }
-    for (const item of ['突襲券', '紅色藥水', '活力藥水']) {
+    for (const item of ['突襲券', '龍王項鍊', '楓葉祝福20', '紅色藥水', '活力藥水']) {
       const prize = await fetch(base + `/assets/items/${item}.png`);
       assert.equal(prize.status, 200);
       assert.equal(prize.headers.get('content-type'), 'image/png');

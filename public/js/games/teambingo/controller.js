@@ -15,10 +15,12 @@ export class TeamBingoController {
     return {
       team: (playerId, teamId) => this.app.command('team', { playerId, teamId }),
       captain: (teamId, playerId) => this.app.command('captain', { teamId, playerId }),
+      chooseHiddenGoal: goalId => this.app.command('hiddenGoal', { goalId }),
+      hint: () => this.app.command('captainHint'),
       useCard: cardId => this.app.command('cardUse', { cardId }),
-      cancelCard: cardSessionId => this.app.command('cardCancel', { cardSessionId }),
-      answerCard: (cardSessionId, choice) => this.app.command('cardAnswer', { cardSessionId, choice }),
+      answerCard: (cardSessionId, choice, answered = false) => this.app.command('cardAnswer', answered ? { cardSessionId, answered: true } : { cardSessionId, choice }),
       judgeCard: (cardSessionId, correct) => this.app.command('cardJudge', { cardSessionId, correct }),
+      nextQuestion: cardSessionId => this.app.command('cardNextQuestion', { cardSessionId }),
       finishCard: cardSessionId => this.app.command('cardFinish', { cardSessionId }),
       selectPlayer: id => { this.state.selected = id; this.app.render(); },
       editCell: (index, number) => { this.state.editCell(index, number); this.app.view.gameView.board.validate(this.state); },
@@ -31,7 +33,7 @@ export class TeamBingoController {
       ready: () => this.app.perform(async () => {
         const { me, room, draft } = this.state;
         const result = await this.app.api.send(me.id === room.host ? 'board' : 'ready',
-          me.id === room.host ? { board: me.ready ? room.board : draft, ready: !me.ready, boardVersion: room.boardVersion } : { ready: !me.ready });
+          me.id === room.host ? { board: draft, boardVersion: room.boardVersion } : { ready: !me.ready });
         this.state.draftDirty = false;
         this.app.update(result.room);
       }),
@@ -52,7 +54,7 @@ export class TeamBingoController {
         this.app.update(result.room);
         if (kind === 'rerollPrizes') this.app.notify('獎品已重新隨機，所有玩家同步更新。');
         if (kind === 'scan') {
-          this.app.notify(`掃描完成：已刪除 ${result.room.lastScanRemovedCount} 位離線玩家，目前 ${result.room.players.length} 人。`);
+          this.app.notify(`掃描完成：已刪除 ${result.room.lastScanRemovedCount} 位離線玩家，目前 ${result.room.participantCount} 人。`);
         }
       }),
     };

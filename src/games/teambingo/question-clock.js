@@ -1,9 +1,14 @@
 'use strict';
-const ANSWER_TIME_MS = 30000;
+const { findQuestion } = require('./question-bank');
+const ANSWER_TIMES_MS = Object.freeze({ '簡單': 10000, '普通': 20000, '困難': 30000 });
+
+function answerTimeMs(question) {
+  return ANSWER_TIMES_MS[question?.difficulty] ?? ANSWER_TIMES_MS['普通'];
+}
 
 function ensureQuestionDeadline(room, now = Date.now()) {
   if (room.activeCard?.stage === 'question' && !Number.isFinite(room.activeCard.answerDeadlineAt)) {
-    room.activeCard.answerDeadlineAt = now + ANSWER_TIME_MS;
+    room.activeCard.answerDeadlineAt = now + answerTimeMs(room.activeCard.question || findQuestion(room.activeCard.questionId || room.activeCard.cardId));
   }
 }
 
@@ -15,4 +20,4 @@ function expireQuestion(room, now = Date.now()) {
   return true;
 }
 
-module.exports = { ANSWER_TIME_MS, ensureQuestionDeadline, expireQuestion };
+module.exports = { answerTimeMs, ensureQuestionDeadline, expireQuestion };

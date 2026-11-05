@@ -5,16 +5,18 @@ export class BoardView {
   constructor(actions) {
     this.actions = actions; this.prizes = new LinePrizesView();
     $('shuffle').onclick = actions.shuffle;
+    $('saveBoard').onclick = actions.ready;
   }
   render(state) {
     const { room, me, busy, connected, draft } = state, host = room.host === me.id;
-    const editing = host && room.phase === 'lobby' && !me.ready;
+    const editing = host && room.phase === 'lobby';
     const team = room.teams.find(t => t.id === me.teamId);
     $('boardTitle').textContent = '全場共用盤面';
-    $('lineCount').textContent = `${team?.name || '未分隊'}：${team?.lines || 0} / ${room.goal} 條線`;
+    $('lineCount').textContent = host ? '房主觀戰' : `${team?.name || '未分隊'}：${team?.lines || 0} / ${room.goal} 條線`;
     const turn = room.players.find(p => p.id === room.turn);
     $('phaseText').hidden = room.phase === 'finished';
-    $('phaseText').textContent = room.activeCard ? '卡牌作答中，遊戲暫停。'
+    $('phaseText').textContent = room.hint ? '隊長提示中，遊戲時間暫停。' : room.activeCard ? '卡牌作答中，遊戲暫停。'
+      : room.phase === 'choosing-goal' ? `等待 ${room.goalsRemaining ?? room.teams.length} 位隊長選擇隱藏勝利條件，行動與計時暫停。`
       : room.phase === 'lobby' ? host ? '房主可排列共用盤面；每隊至少 1 人且全員準備後即可開始，不需滿員。' : '房主設定共用盤面，選擇隊伍後請準備。'
         : room.turn === me.id ? '輪到你：圈選一個數字，或使用一張隊伍卡牌，本回合只能擇一。' : `等待 ${turn?.name || '玩家'} 行動${turn && !turn.online ? '（離線，等待重連）' : '…'}`;
     this.stopClock();
@@ -51,7 +53,7 @@ export class BoardView {
         }
         node.dataset.covered = String(cell.isCovered); node.setAttribute('aria-pressed', String(cell.isCovered));
         if (owner) { node.dataset.team = room.teams.findIndex(t => t.id === owner.id) % 6; node.append(element('span', 'next-cell-team', owner.name)); }
-        node.disabled = busy || !connected || Boolean(room.activeCard) || room.phase !== 'playing' || room.turn !== me.id || cell.isCovered;
+        node.disabled = busy || !connected || Boolean(room.activeCard) || Boolean(room.hint) || Boolean(me.spectating) || room.phase !== 'playing' || room.turn !== me.id || cell.isCovered;
         node.onclick = () => this.actions.call(cell.number);
       }
       return node;
@@ -64,6 +66,7 @@ export class BoardView {
     this.prizes.render(room.cells, room.size, room.phase, room.linePrizes, me.teamId, room.teams);
     $('editTools').hidden = !host || room.phase !== 'lobby';
     $('shuffle').hidden = !host || room.phase !== 'lobby'; $('shuffle').disabled = busy || !connected;
+    $('saveBoard').hidden = !editing; $('saveBoard').disabled = busy || !connected;
     $('boardHint').textContent = '特殊格：首次佔領時，隊伍可獲得一張效果卡。';
     if (editing) { this.validate(state); if (focused !== undefined) $('board').querySelector(`[data-cell="${focused}"]`)?.focus(); }
   }

@@ -5,7 +5,7 @@ export class SharedCardView {
   constructor(actions) {
     this.actions = actions;
     this.dialog = $('sharedCardDialog');
-    bindDialogDismiss({ dialog: this.dialog, closeButton: $('cancelSharedCard'), onDismiss: () => this.cancel() });
+    bindDialogDismiss({ dialog: this.dialog, closeButton: $('cancelSharedCard'), dismissOnBackdrop: false, onDismiss: () => this.cancel() });
   }
 
   render(state) {

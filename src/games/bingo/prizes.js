@@ -4,7 +4,7 @@ const { participants } = require('./participants');
 const { createCells } = require('./board');
 const { randomInt } = require('node:crypto');
 
-const ITEMS = Object.freeze(['突襲券', '傳送石', '飄雪結晶', '護身符', '紅色藥水', '活力藥水']);
+const { ITEMS, migrateRetiredPrizes } = require('../../shared/prize-items');
 
 function prizeLines(size) {
   const positions = Array.from({ length: size }, (_, index) => index);
@@ -56,6 +56,7 @@ function migrateLinePrizes(room, replay = false) {
     }
   }
   const created = ensureLinePrizes(room);
+  migrateRetiredPrizes(room);
   if ((!created && !replay) || !['playing', 'finished'].includes(room.phase)) return;
   // Replay available pre-action snapshots before the current state, preserving first-completion order.
   for (const state of [...(room.roundStart ? [{ playerStates: room.roundStart, called: [] }] : []), ...(room.history || [])]) {

@@ -3,7 +3,7 @@
 const { randomInt } = require('node:crypto');
 const { teams } = require('./teams');
 
-const ITEMS = Object.freeze(['突襲券', '傳送石', '飄雪結晶', '護身符', '紅色藥水', '活力藥水']);
+const { ITEMS } = require('../../shared/prize-items');
 
 function prizeLines(size) {
   const positions = Array.from({ length: size }, (_, index) => index);

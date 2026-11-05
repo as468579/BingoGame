@@ -2,7 +2,7 @@ import { $, element } from '../dom.js';
 
 export function rewardTotals(rewards = []) {
   const totals = new Map();
-  for (const reward of rewards) totals.set(reward.item, (totals.get(reward.item) || 0) + 1);
+  for (const reward of rewards) totals.set(reward.item, (totals.get(reward.item) || 0) + (reward.quantity ?? 1));
   return [...totals].map(([item, count]) => ({ item, count }));
 }
 
@@ -37,9 +37,9 @@ export class RewardsView {
     return players.map(player => {
       const row = element('li', 'reward-player');
       const heading = element('div', 'reward-player-heading');
-      heading.append(element('strong', '', player.name), element('span', '', `${player.rewards?.length || 0} 份`));
+      const totals = rewardTotals([...(player.rewards || []), ...(player.bonusRewards || [])]);
+      heading.append(element('strong', '', player.name), element('span', '', `${totals.reduce((sum, reward) => sum + reward.count, 0)} 份`));
       row.append(heading);
-      const totals = rewardTotals(player.rewards);
       if (!totals.length) row.append(element('p', 'reward-none', '尚未獲得獎品'));
       for (const { item, count } of totals) {
         const entry = element('div', 'reward-item');

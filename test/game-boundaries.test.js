@@ -14,7 +14,7 @@ test('Team Bingo uses teambingo identifiers while legacy rooms and links remain 
   assert.equal(getGame('bingo-next'), canonical);
   const room = createRoom('TEAM', 'create', 'teambingo');
   joinRoom(room, 'Host', randomUUID());
-  room.players[0].ready = true;
+  room.players[0].ready = false;
   const expected = structuredClone(room);
   room.gameType = 'bingo-next';
   migrateRoom(room);

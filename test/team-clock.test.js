@@ -1,4 +1,9 @@
 const { test } = require('node:test');
+// Keep rule fixtures deterministic by limiting their bank; production cards allow all difficulties.
+const fixtureQuestions = require('../src/games/teambingo/question-bank').questions;
+const configuredFixtureQuestions = fixtureQuestions.slice();
+test.beforeEach(() => { fixtureQuestions.splice(0, fixtureQuestions.length, ...configuredFixtureQuestions.filter(question => question.difficulty === '簡單' && question.type === 'multiple-choice' && Number.isInteger(question.answer))); });
+test.afterEach(() => { fixtureQuestions.splice(0, fixtureQuestions.length, ...configuredFixtureQuestions); });
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const game = require('../src/games/teambingo');
@@ -9,15 +14,21 @@ const { applyGameAction } = require('../src/games/teambingo/actions');
 const { TEAM_TIME_MS, initializeTeamClock, remainingTime, syncTeamClock, expireTeamClock } = require('../src/games/teambingo/team-clock');
 const { createApplication } = require('../src/app');
 const { drawForNumber } = require('../src/games/teambingo/card-actions');
+const { prepareCaptains, completeGoalSelection, separateHost, hostAction, HOST_ACTIONS } = require('../scripts/test-support/team-goal-setup.cjs');
 
 function roomAt(now = 0) {
   const room = { ...game.initializeRoom({ teamTimeMinutes: 10 }), size: 3, phase: 'playing', revision: 0, host: 'a', turn: 'a', board: createBoard(3),
     cells: createCells(createBoard(3)), linePrizes: createLinePrizes(3), players: ['a', 'b', 'c', 'd'].map((id, index) =>
       ({ id, teamId: index < 2 ? 'team-1' : 'team-2', ready: true, hand: [], usedDemoCards: [] })) };
+  separateHost(room);
   initializeTeamClock(room, now);
   return room;
 }
-const act = (room, data, now, player = room.players[0]) => applyGameAction(room, player, data, { isOnline: () => false }, now);
+const act = (room, data, now, player = room.players[0]) => {
+  if (data.kind === 'start') prepareCaptains(room);
+  applyGameAction(room, hostAction(room, player, data.kind), data, { isOnline: () => false }, now);
+  if (data.kind === 'start') completeGoalSelection(room, (captain, goalId) => act(room, { kind: 'hiddenGoal', goalId }, now, captain));
+};
 
 test('configured ten-minute teams spend only the active team budget', () => {
   const room = roomAt();
@@ -27,13 +38,13 @@ test('configured ten-minute teams spend only the active team budget', () => {
   assert.equal(remainingTime(room, 'team-1', -1000), 600000);
 });
 
-test('consecutive teammates share one budget rather than receiving separate ten-minute clocks', () => {
+test('interleaved teammates share their team budget across intervening opponent turns', () => {
   const room = roomAt();
   advanceTurn(room); syncTeamClock(room, 100000);
-  assert.equal(room.turn, 'b'); assert.equal(remainingTime(room, 'team-1', 150000), 450000);
+  assert.equal(room.turn, 'c'); assert.equal(remainingTime(room, 'team-1', 150000), 500000);
   advanceTurn(room); syncTeamClock(room, 150000);
-  assert.equal(room.turn, 'c'); assert.equal(remainingTime(room, 'team-1', 250000), 450000);
-  assert.equal(remainingTime(room, 'team-2', 250000), 500000);
+  assert.equal(room.turn, 'b'); assert.equal(remainingTime(room, 'team-1', 250000), 400000);
+  assert.equal(remainingTime(room, 'team-2', 250000), 550000);
 });
 
 test('a visible card question pauses all clock spending and resuming does not charge the paused interval', () => {
@@ -80,10 +91,11 @@ test('an already achieved victory takes precedence over timeout exclusion', () =
 
 test('undo restores the action but does not refund either teammate clock spending', () => {
   const room = roomAt(); act(room, { kind: 'call', number: 1 }, 100000);
-  assert.equal(room.turn, 'b');
+  assert.equal(room.turn, 'c');
   act(room, { kind: 'undo', revision: 0 }, 150000);
   assert.equal(room.turn, 'a'); assert.equal(room.cells[0].isCovered, false);
-  assert.equal(remainingTime(room, 'team-1', 150000), 450000);
+  assert.equal(remainingTime(room, 'team-1', 150000), 500000);
+  assert.equal(remainingTime(room, 'team-2', 150000), 550000);
 });
 
 test('reset clears clocks and a new start grants fresh budgets', () => {
@@ -112,10 +124,20 @@ function serviceFixture(t, teamTimeMinutes = 10) {
   const token = randomUUID();
   const created = app.service.execute({ kind: 'create', gameType: 'teambingo', teamTimeMinutes, name: 'Host', token, requestId: randomUUID() });
   const code = created.room.code, room = rooms.get(code);
-  const send = (kind, data = {}, who = token) => app.service.execute({ kind, code, token: who, requestId: randomUUID(), ...data });
+  const manager = separateHost(room);
+  const send = (kind, data = {}, who = token) => {
+    if (kind === 'start') prepareCaptains(room);
+    const result = app.service.execute({ kind, code, token: who === token && (HOST_ACTIONS.has(kind) || kind === 'cardFinish') ? manager.token : who, requestId: randomUUID(), ...data });
+    if (kind === 'start') {
+      completeGoalSelection(room, (captain, goalId) => send('hiddenGoal', { goalId }, captain.token));
+      result.room = app.service.snapshot(room, result.playerId);
+    }
+    return result;
+  };
   send('settings', { size: 3, teamCount: 2, playersPerTeam: 1 });
   send('join', { name: 'Guest' }, randomUUID());
-  room.players.forEach(player => send('ready', { ready: true }, player.token)); send('start');
+  room.players.push(...room.players.splice(room.players.indexOf(manager), 1));
+  room.players.filter(player => player.id !== room.host).forEach(player => send('ready', { ready: true }, player.token)); send('start');
   return { ...app, room, send, setTime: value => { now = value; }, saves: () => saves };
 }
 
@@ -135,7 +157,7 @@ test('creation configures one shared allowance, joins cannot change it and reset
   const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
   assert.equal(saved.teamTimeMinutes, 12);
   f.send('reset');
-  f.room.players.forEach(player => f.send('ready', { ready: true }, player.token)); f.send('start');
+  f.room.players.filter(player => player.id !== f.room.host).forEach(player => f.send('ready', { ready: true }, player.token)); f.send('start');
   assert.deepEqual(Object.values(f.room.teamClock.remaining), [720000, 720000]);
 });
 
@@ -195,10 +217,10 @@ test('failed actions do not restart the active team clock or extend its deadline
 
 test('real card use pauses clocks through submission and host judgment and restarts after finishing', t => {
   const f = serviceFixture(t);
-  const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
+  const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] }, require('../src/games/teambingo/card-catalog').cards.find(card => card.id === 'team-time-plus-2m'));
   f.setTime(100000); f.send('cardUse', { cardId: held.id });
   const cardSessionId = f.room.activeCard.id;
-  f.setTime(120000); f.service.tick();
+  f.setTime(105000); f.service.tick();
   assert.equal(remainingTime(f.room, 'team-1'), 500000);
   f.send('cardAnswer', { cardSessionId, choice: 0 });
   f.setTime(2000000); f.send('cardJudge', { cardSessionId, correct: true });

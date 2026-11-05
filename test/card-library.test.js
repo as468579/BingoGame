@@ -9,7 +9,7 @@ test('each game owns independent card definitions even when it reuses an ID', ()
   const bridge = require('../src/games/bridge/card-catalog');
   assert.notEqual(bingo.cards, next.cards); assert.notEqual(bingo.cards[0], next.cards[0]);
   assert.ok(bingo.cards[0].question); assert.equal(next.cards[0].question, undefined);
-  assert.deepEqual(next.cards.map(card => card.id), ['team-time-plus-2m']); assert.deepEqual(bridge.cards, []);
+  assert.deepEqual(next.cards.map(card => card.id), ['team-time-plus-2m', 'team-hints-plus-2', 'team-snow-crystals-20', 'team-teleport-stones-4', 'team-raid-tickets-2']); assert.deepEqual(bridge.cards, []);
   const { getGame } = require('../src/games');
   assert.equal(getGame('bingo').cardLibrary, bingo.cards);
   assert.equal(getGame('teambingo').cardLibrary, next.cards);
@@ -19,16 +19,17 @@ test('each game owns independent card definitions even when it reuses an ID', ()
   first[0].options[0] = '修改'; assert.equal(second[0].options[0], '甲'); assert.equal(source[0].options[0], '甲');
 });
 
-test('Team Bingo draws only time cards while keeping Bingo sample cards in their own library', () => {
+test('Team Bingo draws its enabled effect cards while keeping Bingo sample cards in their own library', () => {
   const { cards } = require('../src/games/teambingo/card-catalog');
   const { drawForNumber } = require('../src/games/teambingo/card-actions');
-  assert.deepEqual(cards.filter(card => card.enabled).map(card => card.id), ['team-time-plus-2m']);
-  assert.equal(chooseCard(cards, bound => { assert.equal(bound, 1); return 0; }).name, '加時');
+  assert.deepEqual(cards.filter(card => card.enabled).map(card => card.id), ['team-time-plus-2m', 'team-hints-plus-2', 'team-snow-crystals-20', 'team-teleport-stones-4', 'team-raid-tickets-2']);
+  assert.equal(chooseCard(cards, bound => { assert.equal(bound, 5); return 0; }).name, '加時');
+  assert.equal(chooseCard(cards, () => 1).name, '提示');
   const player = { hand: [] };
   for (let index = 0; index < 10; index++) {
     const held = drawForNumber(player);
-    assert.equal(held.definitionId, 'team-time-plus-2m');
-    assert.equal(held.name, '加時'); assert.equal(held.symbol, 'pocket-watch');
+    const definition = cards.find(card => card.id === held.definitionId); assert.ok(definition);
+    assert.equal(held.name, definition.name); assert.equal(held.symbol, definition.symbol);
     assert.equal(held.questionDifficulty, undefined); assert.equal(held.effectId, undefined);
   }
   assert.equal(player.hand.length, 10);
@@ -42,6 +43,17 @@ test('card file validation rejects malformed IDs, names, metadata and difficulty
   }
   assert.throws(() => parseCards([{ id: 'a', name: '甲' }, { id: ' a ', name: '乙' }]), /第 2 張.*重複/);
   assert.deepEqual(parseCards([]), []);
+});
+
+test('card difficulty metadata accepts independent allowed-level arrays and rejects malformed lists', () => {
+  const source = { id: 'levels', name: '難度', questionDifficulty: ['簡單', '普通'] };
+  const [parsed] = parseCards([source]);
+  assert.deepEqual(parsed.questionDifficulty, ['簡單', '普通']);
+  parsed.questionDifficulty.push('困難'); assert.deepEqual(source.questionDifficulty, ['簡單', '普通']);
+  assert.equal(publicCard(parsed).questionDifficulty, undefined);
+  for (const questionDifficulty of [[], ['未知'], ['簡單', null], ['普通', '普通'], {}]) {
+    assert.throws(() => parseCards([{ ...source, questionDifficulty }]), /questionDifficulty/);
+  }
 });
 
 test('card selection includes enabled definitions only and allows an empty reserved library', () => {
@@ -66,7 +78,8 @@ for (const gameType of ['bingo', 'teambingo']) {
     const rooms = new Map();
     const app = createApplication({ repository: { all: () => [...rooms.values()], get: id => rooms.get(id), add: room => rooms.set(room.code, room), save() {} } });
     const token = randomUUID(), created = app.service.execute({ kind: 'create', name: 'Host', gameType, token, requestId: randomUUID() });
-    const room = rooms.get(created.room.code); room.phase = 'playing'; room.turn = room.host;
+    const room = rooms.get(created.room.code); if (gameType === 'teambingo') require('../scripts/test-support/team-goal-setup.cjs').separateHost(room);
+    room.phase = 'playing'; room.turn = room.players[0].id;
     const send = data => app.service.execute({ code: room.code, token, requestId: randomUUID(), ...data });
     let data;
     if (gameType === 'bingo') { send({ kind: 'call', number: 1 }); data = { kind: 'approve', pendingId: room.pending.id }; }

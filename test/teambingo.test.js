@@ -1,4 +1,9 @@
 const { test } = require('node:test');
+// Keep rule fixtures deterministic by limiting their bank; production cards allow all difficulties.
+const fixtureQuestions = require('../src/games/teambingo/question-bank').questions;
+const configuredFixtureQuestions = fixtureQuestions.slice();
+test.beforeEach(() => { fixtureQuestions.splice(0, fixtureQuestions.length, ...configuredFixtureQuestions.filter(question => question.difficulty === '簡單' && question.type === 'multiple-choice' && Number.isInteger(question.answer))); });
+test.afterEach(() => { fixtureQuestions.splice(0, fixtureQuestions.length, ...configuredFixtureQuestions); });
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const fs = require('node:fs');
@@ -6,25 +11,37 @@ const os = require('node:os');
 const path = require('node:path');
 const { createApplication } = require('../src/app');
 const { prizeLines, teamLines, awardLinePrizes, createLinePrizes } = require('../src/games/teambingo/prizes');
+const { prepareCaptains, completeGoalSelection, separateHost, HOST_ACTIONS } = require('../scripts/test-support/team-goal-setup.cjs');
 function fixture(options = {}) {
   const rooms = new Map(), repository = { get: c => rooms.get(c), all: () => [...rooms.values()], add: r => rooms.set(r.code, r), save() {} };
   const app = createApplication(options.directory ? { dataDirectory: options.directory } : { repository });
   const token = randomUUID(), result = app.service.execute({ kind: 'create', gameType: 'teambingo', name: 'Host', token, requestId: randomUUID() });
   const code = result.room.code;
-  const send = (kind, data = {}, who = token) => app.service.execute({ kind, code, token: who, requestId: randomUUID(), ...data });
+  const manager = separateHost(app.repository.get(code));
+  const send = (kind, data = {}, who = token) => {
+    if (kind === 'start') prepareCaptains(app.repository.get(code));
+    const result = app.service.execute({ kind, code, token: who === token && (HOST_ACTIONS.has(kind) || kind === 'cardFinish' || (kind === 'team' && data.playerId)) ? manager.token : who, requestId: randomUUID(), ...data });
+    if (kind === 'start') {
+      completeGoalSelection(room, (captain, goalId) => send('hiddenGoal', { goalId }, captain.token));
+      result.room = app.service.snapshot(room, result.playerId);
+    }
+    return result;
+  };
   send('settings', { size: options.size || 3, teamCount: options.t || 2, playersPerTeam: options.p || 1 });
   const room = app.repository.get(code);
   for (let i = 1; i < (options.members ?? room.teamCount * room.playersPerTeam); i++) send('join', { name: `P${i}` }, randomUUID());
-  const start = () => { room.players.forEach(p => send('ready', { ready: true }, p.token)); return send('start'); };
+  room.players.push(...room.players.splice(room.players.indexOf(manager), 1));
+  const start = () => { room.players.filter(p => p.id !== room.host).forEach(p => send('ready', { ready: true }, p.token)); return send('start'); };
   const play = number => send('call', { number }, room.players.find(p => p.id === room.turn).token);
   return { ...app, token, send, play, room, code, start };
 }
-test('new team Bingo rooms default to 8 by 8 without changing other games or saved sizes', () => {
+test('new Team Bingo rooms default to two teams and 6 by 6 without changing other games or saved sizes', () => {
   const { getGame } = require('../src/games');
   const initial = getGame('teambingo').initializeRoom();
-  assert.equal(initial.size, 8); assert.equal(initial.board.length, 64); assert.equal(initial.cells.length, 64);
-  assert.deepEqual(initial.board, Array.from({ length: 64 }, (_, i) => i + 1));
-  assert.equal(initial.linePrizes.length, 18);
+  assert.equal(initial.teamCount, 2);
+  assert.equal(initial.size, 6); assert.equal(initial.board.length, 36); assert.equal(initial.cells.length, 36);
+  assert.deepEqual(initial.board, Array.from({ length: 36 }, (_, i) => i + 1));
+  assert.equal(initial.linePrizes.length, 14);
   assert.equal(getGame('bingo').initializeRoom().size, 5);
   assert.equal(getGame('bridge-bingo').initializeRoom().size, 6);
   const f = fixture({ size: 5 }); getGame('teambingo').migrate(f.room);
@@ -49,7 +66,7 @@ test('only the host edits the shared board and a changed layout cancels readines
   assert.throws(() => f.send('settings', { teamCount: 1 }), /至少 2 隊/);
   const board = [...f.room.board].reverse(), version = f.room.boardVersion;
   f.send('board', { board, boardVersion: version, ready: true });
-  assert.deepEqual(f.room.board, board); assert.equal(other.ready, false); assert.equal(f.room.players[0].ready, true);
+  assert.deepEqual(f.room.board, board); assert.equal(other.ready, false); assert.equal(f.room.players[0].ready, false);
   assert.throws(() => f.send('board', { board, boardVersion: version }), /已更新/);
   assert.throws(() => f.send('board', { board: Array(9).fill(1), boardVersion: f.room.boardVersion }), /每個數字/);
 });
@@ -57,7 +74,7 @@ test('team configuration, assignments and full-team readiness are validated', ()
   const f = fixture({ p: 2 }), guest = f.room.players[1];
   assert.throws(() => f.send('start'), /準備/);
   assert.throws(() => f.send('team', { teamId: 'team-2' }), /已滿/);
-  assert.throws(() => f.send('team', { playerId: f.room.host, teamId: null }, guest.token), /分配/);
+  assert.throws(() => f.send('team', { playerId: f.room.host, teamId: null }, guest.token), /觀戰|分配/);
   f.send('team', { teamId: null });
   assert.throws(() => f.send('ready', { ready: true }), /加入隊伍/);
   f.send('team', { teamId: 'team-1' }); f.start();
@@ -65,7 +82,7 @@ test('team configuration, assignments and full-team readiness are validated', ()
 });
 test('partially filled and unequal teams can start when every team is represented and all members are ready', () => {
   const f = fixture({ t: 3, p: 3, members: 4 });
-  f.room.players.forEach(player => f.send('ready', { ready: true }, player.token));
+  f.room.players.filter(player => player.id !== f.room.host).forEach(player => f.send('ready', { ready: true }, player.token));
   const before = structuredClone(f.room);
   assert.throws(() => f.send('start'), /每隊至少需要 1 位/);
   assert.deepEqual(f.room, before);
@@ -74,10 +91,12 @@ test('partially filled and unequal teams can start when every team is represente
   f.send('ready', { ready: true }, f.room.players[2].token);
   assert.throws(() => f.send('start', {}, f.room.players[1].token), /只有房主/);
   const snapshot = f.send('start').room;
-  assert.equal(snapshot.phase, 'playing'); assert.deepEqual(snapshot.teams.map(team => team.playerIds.length), [2, 1, 1]);
-  assert.equal(f.room.players.length, 4); assert.equal(f.room.playersPerTeam, 3);
+  assert.equal(snapshot.phase, 'playing'); assert.deepEqual(snapshot.teams.map(team => team.playerIds.filter(id => id !== team.captainId).length), [2, 1, 1]);
+  assert.equal(f.room.players.filter(player => player.id !== f.room.host && !Object.values(f.room.captains).includes(player.id)).length, 4); assert.equal(f.room.playersPerTeam, 3);
   f.play(1); assert.equal(f.room.cells[0].teamId, 'team-1');
-  assert.equal(f.room.turn, f.room.players[1].id);
+  assert.equal(f.room.turn, f.room.players[3].id);
+  f.play(2); assert.equal(f.room.turn, f.room.players[2].id);
+  f.play(3); assert.equal(f.room.turn, f.room.players[1].id);
 });
 
 test('normal cells do not draw cards and special flags are stable throughout play and undo', () => {
@@ -125,7 +144,7 @@ test('selecting a special number grants one team card, broadcasts its award and 
   f.room.cells[0].isSpecial = true;
   const first = f.send('call', { number: 1, requestId: id }), again = f.send('call', { number: 1, requestId: id });
   assert.deepEqual(f.room.called, [1]); assert.equal(f.room.pending, null);
-  assert.equal(f.room.cells[0].teamId, 'team-1'); assert.equal(f.room.cells[0].playerId, f.room.host);
+  assert.equal(f.room.cells[0].teamId, 'team-1'); assert.equal(f.room.cells[0].playerId, f.room.players[0].id);
   assert.equal(f.room.turn, f.room.players[1].id); assert.equal(f.room.teamHands['team-1'].length, 1);
   assert.equal(first.room.lastDraw.id, again.room.lastDraw.id);
   const guest = f.service.snapshot(f.room, f.room.players[1].id);
@@ -196,7 +215,7 @@ test('undo restores team ownership, prize ownership, hands and turn all the way 
   assert.equal(f.room.linePrizes.find(p => p.id === 'row-0').claimedBy, null);
   assert.equal(f.room.teamHands['team-1'].length, 2);
   while (f.room.history.length) f.send('undo', { revision: f.room.revision });
-  assert.deepEqual(f.room.called, []); assert.equal(f.room.turn, f.room.host);
+  assert.deepEqual(f.room.called, []); assert.equal(f.room.turn, f.room.players[0].id);
   assert.ok(f.room.cells.every(c => !c.isCovered && !c.teamId)); assert.ok(f.room.players.every(p => !p.hand.length));
   assert.ok(Object.values(f.room.teamHands).every(hand => !hand.length));
   assert.ok(f.room.cells.every(c => c.isSpecial));
@@ -239,15 +258,17 @@ for (const correct of [true, false]) {
   });
 }
 
-test('card cancellation refunds without ending the turn; host judgment ends the turn without changing ownership', () => {
+test('card cancellation is rejected and host judgment ends the turn without changing ownership', () => {
   const f = fixture(); f.start();
   const { drawForNumber } = require('../src/games/teambingo/card-actions');
   const card = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] });
   f.send('cardUse', { cardId: card.id });
   const turn = f.room.turn, session = f.room.activeCard.id;
   assert.throws(() => f.play(1), /暫停/);
-  f.send('cardCancel', { cardSessionId: session }); assert.equal(f.room.turn, turn); assert.equal(f.room.teamHands['team-1'][0].id, card.id);
-  f.send('cardUse', { cardId: card.id }); const id = f.room.activeCard.id;
+  const before = structuredClone(f.room);
+  assert.throws(() => f.send('cardCancel', { cardSessionId: session }), /無法取消/);
+  assert.equal(f.room.turn, turn); assert.deepEqual(f.room, before);
+  const id = f.room.activeCard.id;
   f.send('cardAnswer', { cardSessionId: id, choice: 0 });
   f.send('cardJudge', { cardSessionId: id, correct: false }); f.send('cardFinish', { cardSessionId: id });
   assert.equal(f.room.turn, f.room.players[1].id); assert.ok(f.room.cells.every(c => !c.isCovered));
@@ -285,11 +306,11 @@ test('teammates share acquired cards, use them on their own turn and publish onl
   assert.equal(f.service.snapshot(f.room, opponent.id).activeCard.card.question, '已抽出的題目仍可繼續作答');
   assert.throws(() => f.send('cardAnswer', { cardSessionId: active.id, choice: 0 }, host.token), /只有使用/);
   f.send('cardAnswer', { cardSessionId: active.id, choice: 0 }, teammate.token);
-  assert.ok(f.service.snapshot(f.room, host.id).activeCard.referenceAnswer);
+  assert.ok(f.service.snapshot(f.room, f.room.host).activeCard.referenceAnswer);
   assert.equal(f.service.snapshot(f.room, teammate.id).activeCard.referenceAnswer, undefined);
   assert.equal(f.service.snapshot(f.room, opponent.id).activeCard.referenceAnswer, undefined);
   active.question.answer = null;
-  assert.equal(f.service.snapshot(f.room, host.id).activeCard.referenceAnswer, '');
+  assert.equal(f.service.snapshot(f.room, f.room.host).activeCard.referenceAnswer, '');
   assert.throws(() => f.send('cardJudge', { cardSessionId: active.id, correct: true }, teammate.token), /只有房主/);
   f.send('cardJudge', { cardSessionId: active.id, correct: true });
   f.send('cardFinish', { cardSessionId: active.id }, teammate.token);
@@ -309,7 +330,7 @@ test('legacy personal cards and undo snapshots migrate into team hands exactly o
   assert.equal(room.history[0].activeCard.teamId, 'team-1');
 });
 
-test('server card configuration enforces hard questions and a missing match never consumes the shared card', t => {
+test('an exhausted bank preserves the card and new questions are available regardless of card difficulty metadata', t => {
   const f = fixture(); f.start();
   const { drawForNumber } = require('../src/games/teambingo/card-actions');
   const { demoCards } = require('../src/games/teambingo/card-catalog');
@@ -319,8 +340,9 @@ test('server card configuration enforces hard questions and a missing match neve
   const original = definition.questionDifficulty, bankLength = questions.length;
   t.after(() => { definition.questionDifficulty = original; questions.splice(bankLength); });
   definition.questionDifficulty = '困難';
+  f.room.usedQuestionIds = questions.map(question => question.id);
   held.questionDifficulty = '簡單';
-  assert.equal(f.service.snapshot(f.room, f.room.host).players[0].hand[0].questionDifficulty, undefined);
+  assert.equal(f.service.snapshot(f.room, f.room.players[0].id).players[0].hand[0].questionDifficulty, undefined);
   const before = structuredClone(f.room);
   assert.throws(() => f.send('cardUse', { cardId: held.id, questionDifficulty: '簡單' }), /沒有啟用/);
   assert.deepEqual(f.room, before);
@@ -354,8 +376,10 @@ test('Team Bingo captain assignment is host-only and follows membership, reset a
   f.send('team', { playerId: teammate.id, teamId: null });
   assert.equal(f.service.snapshot(f.room, host.id).teams[0].captainId, null);
   f.send('team', { playerId: teammate.id, teamId: 'team-1' });
-  assign(teammate.id); f.send('scan');
+  const close = f.connections.subscribe(host.id, { write() {} });
+  assign(teammate.id); f.send('scan'); close();
   assert.equal(f.room.captains['team-1'], undefined);
+  f.send('join', { name: 'Host' });
   assign(host.id);
   f.send('settings', { size: 4, teamCount: 2, playersPerTeam: 2 });
   assert.deepEqual(f.room.captains, {});
@@ -365,22 +389,22 @@ test('host scan removes offline members only on request and reset preserves team
   const f = fixture({ p: 2 }), kept = f.room.players[1];
   const close = f.connections.subscribe(kept.id, { write() {} }); t.after(close);
   kept.ready = true; f.send('scan'); assert.equal(f.room.players.length, 2); assert.equal(kept.ready, true);
-  assert.equal(f.room.lastScanRemovedCount, 2);
+  assert.equal(f.room.lastScanRemovedCount, 3);
   const before = f.room.linePrizes.map(p => p.id); f.send('rerollPrizes'); assert.deepEqual(f.room.linePrizes.map(p => p.id), before);
   f.send('reset'); assert.equal(f.room.teamCount, 2); assert.equal(f.room.playersPerTeam, 2); assert.equal(kept.teamId, 'team-1');
   assert.ok(f.room.players.every(p => !p.ready));
 });
 test('shared ownership, private hands and undo survive a repository restart and same-ID rejoin', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'teambingo-')); t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  const f = fixture({ directory });
-  f.send('captain', { teamId: 'team-1', playerId: f.room.host });
+  const f = fixture({ directory, p: 2 });
+  f.send('captain', { teamId: 'team-1', playerId: f.room.players[0].id });
   f.start(); f.room.cells[0].isSpecial = true; f.play(1);
   const restarted = createApplication({ dataDirectory: directory }), restored = restarted.repository.get(f.code);
   assert.deepEqual(restored, f.room);
   const joined = restarted.service.execute({ kind: 'join', code: f.code, name: 'Host', token: randomUUID(), requestId: randomUUID() });
-  assert.equal(joined.playerId, f.room.host); assert.equal(joined.room.cells[0].teamId, 'team-1');
-  assert.equal(joined.room.teams[0].captainId, f.room.host);
-  restarted.service.execute({ kind: 'undo', code: f.code, token: f.token, revision: restored.revision, requestId: randomUUID() });
+  assert.equal(joined.playerId, f.room.players[0].id); assert.equal(joined.room.cells[0].teamId, 'team-1');
+  assert.equal(joined.room.teams[0].captainId, f.room.players[0].id);
+  restarted.service.execute({ kind: 'undo', code: f.code, token: restored.players.find(player => player.id === restored.host).token, revision: restored.revision, requestId: randomUUID() });
   assert.equal(restored.cells[0].isCovered, false);
   assert.equal(restored.cells[0].isSpecial, true);
   assert.equal(restored.players[0].hand.length, 0);

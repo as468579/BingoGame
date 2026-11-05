@@ -73,7 +73,7 @@ test('Chinese game selection and Team Bingo board title retain stable game and r
   assert.equal(titleMarkup, 'Team Bingo');
   const settings = byId('next-boardSize');
   const selected = tags.find(tag => tag.name === 'option' && tag.start > settings.start && tag.start < html.indexOf('</select>', settings.end) && /\bselected\b/.test(html.slice(tag.start, tag.end)));
-  assert.equal(selected.attrs.value, '8');
+  assert.equal(selected.attrs.value, '6');
 });
 
 test('draw panels stay disabled while Team Bingo exposes a card award notification dialog', () => {
@@ -83,6 +83,14 @@ test('draw panels stay disabled while Team Bingo exposes a card award notificati
   }
   assert.equal(tags.some(tag => tag.attrs.id === 'drawnCardDialog'), false);
   assert.equal(byId('next-drawnCardDialog').name, 'dialog');
+  assert.equal(byId('next-hiddenGoalDialog').name, 'dialog');
+  assert.equal(tags.some(tag => tag.attrs.id === 'next-cancelSharedCard'), false);
+  for (const id of ['sharedCardDialog', 'next-sharedCardDialog', 'next-hiddenGoalDialog']) assert.ok(hasClass(byId(id), 'game-dialog'));
+  assert.ok(tags.some(tag => tag.name === 'link' && tag.attrs.href === '/styles/game-dialog.css'));
+  assert.equal(byId('next-viewHiddenGoal').name, 'button');
+  assert.equal(byId('next-hintDialog').name, 'dialog');
+  assert.equal(byId('next-captainHint').name, 'button');
+  assert.equal(byId('next-hintProgress').name, 'circle');
   assert.doesNotMatch(content(byId('next-drawnCardDialog')), /drawn-card-caption|獲得一張效果卡/);
   assert.doesNotMatch(content(byId('next-openHand')), /inventory-slots|✧|❈|☽/);
   assert.match(content(byId('next-openHand')), /隊伍手牌/);

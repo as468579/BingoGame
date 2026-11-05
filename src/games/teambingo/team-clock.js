@@ -3,6 +3,7 @@ const { teams } = require('./teams');
 const { advanceTurn } = require('./turns');
 const { settleVictory } = require('./victory');
 const { fail } = require('../../domain/errors');
+const { participants, isCaptain } = require('./participants');
 const DEFAULT_TEAM_MINUTES = 8;
 const TEAM_TIME_MS = DEFAULT_TEAM_MINUTES * 60 * 1000;
 
@@ -42,8 +43,14 @@ function syncTeamClock(room, now = Date.now()) {
   if (!clock) return;
   if (clock.activeTeamId) clock.remaining[clock.activeTeamId] = remainingTime(room, clock.activeTeamId, now);
   clock.activeTeamId = null; clock.startedAt = null;
-  if (room.phase !== 'playing' || room.activeCard) return;
+  if (room.phase !== 'playing' || room.activeCard || room.hint) return;
   let member = room.players.find(player => player.id === room.turn);
+  if (member && (isCaptain(room, member.id) || member.id === room.host)) {
+    const teammates = participants(room).filter(player => player.teamId === member.teamId);
+    if (teammates.length) room.turn = teammates[(room.turnCursors?.[member.teamId] || 0) % teammates.length].id;
+    else advanceTurn(room);
+    member = room.players.find(player => player.id === room.turn);
+  }
   if (member && (clock.remaining[member.teamId] ?? teamBudgetMs(room)) <= 0) {
     advanceTurn(room);
     member = room.players.find(player => player.id === room.turn);
@@ -54,7 +61,7 @@ function syncTeamClock(room, now = Date.now()) {
 // A delayed timer may cross multiple deadlines. Charge each team only for its actual interval.
 function expireTeamClock(room, now = Date.now()) {
   let changed = false;
-  while (room.phase === 'playing' && room.teamClock?.activeTeamId && !room.activeCard) {
+  while (room.phase === 'playing' && room.teamClock?.activeTeamId && !room.activeCard && !room.hint) {
     const clock = room.teamClock, teamId = clock.activeTeamId;
     const deadline = clock.startedAt + clock.remaining[teamId];
     if (now < deadline) break;

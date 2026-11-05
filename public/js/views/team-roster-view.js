@@ -29,12 +29,13 @@ export class TeamRosterView {
     const lobby = phase === 'lobby', disabled = busy || !connected || !lobby || paused;
     this.count.textContent = `${members.length} / ${teams.length * playersPerTeam} 人`;
     if (this.summary) this.summary.textContent = `在線 ${members.filter(member => member.online).length} 人 ／共 ${members.length} 人${lobby ? ` · ${members.filter(member => member.ready).length} 人已準備` : ''}`;
-    this.controls.hidden = !lobby;
+    this.controls.hidden = !lobby || !this.viewer;
     this.ownTeam.replaceChildren(...this.options(teams));
     this.ownTeam.value = this.viewer?.teamId || '';
     this.ownTeam.disabled = Boolean(disabled);
     this.ready.textContent = this.viewer?.ready ? '取消準備' : '準備好了 ✓';
     this.ready.disabled = Boolean(disabled || !this.viewer?.teamId);
+    this.ready.hidden = !this.viewer;
     const scroll = this.list.scrollTop;
     this.clockLabels = [];
     const groups = teams.map(team => {
@@ -96,7 +97,7 @@ export class TeamRosterView {
     const row = element('div', `team-roster-member${phase === 'playing' && turn === member.id ? ' is-turn' : ''}`);
     row.append(element('strong', '', `${phase === 'playing' && turn === member.id ? '▶ ' : ''}${member.name}${member.id === viewerId ? '（你）' : ''}`));
     if (teams.some(team => team.id === member.teamId && team.captainId === member.id)) row.children[0].append(element('span', 'team-roster-captain-badge', '隊長'));
-    row.children[0].append(element('span', 'team-roster-status', `${member.online ? '●：目前在線' : '○：離線'}${phase === 'lobby' ? ` · ${member.ready ? '已準備' : '未準備'}` : this.model.sharedHands ? '' : ` · 手牌 ${member.handCount} 張`}`));
+    row.children[0].append(element('span', 'team-roster-status', `${member.online ? '●：目前在線' : '○：離線'}${phase === 'lobby' ? ` · ${member.ready ? '已準備' : '未準備'}` : ''}${member.spectating ? ' · 觀戰' : phase === 'lobby' || this.model.sharedHands ? '' : ` · 手牌 ${member.handCount} 張`}`));
     if (phase === 'lobby' && hostId === viewerId) {
       const select = element('select', 'team-roster-select');
       select.setAttribute('aria-label', `分配 ${member.name} 的隊伍`);

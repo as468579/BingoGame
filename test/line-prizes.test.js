@@ -54,23 +54,67 @@ for (const [oldName, newName] of [['mp_potion', '活力藥水'], ['hp_potion', '
   migrateRoom(f.room);
   assert.deepEqual(f.room.linePrizes[0], { ...previous, item: newName });
   f.send('undo', f.hostToken, { revision: f.room.revision });
-  assert.equal(f.room.linePrizes[0].item, newName);
+  assert.ok(ITEMS.includes(f.room.linePrizes[0].item));
 });
 
-test('random prize selection includes both potions and uses a fresh draw for each slot', async () => {
+test('random prize selection excludes both potions and uses a fresh draw for each slot', async () => {
   const { linePrizeItems } = await import('../public/js/games/bingo/views/line-prizes-view.js');
   assert.deepEqual(linePrizeItems, ITEMS);
-  assert.ok(ITEMS.includes('紅色藥水') && ITEMS.includes('活力藥水'));
+  assert.deepEqual(ITEMS, ['突襲券', '傳送石', '飄雪結晶', '護身符', '龍王項鍊', '楓葉祝福20']);
   let draws = 0;
   const first = createLinePrizes(3, max => { assert.equal(max, 6); return draws++ % max; });
   assert.equal(draws, 8);
   assert.deepEqual(first.slice(0, 6).map(p => p.item), ITEMS);
-  const second = createLinePrizes(3, () => 5);
-  assert.ok(second.every(p => p.item === '活力藥水' && p.claimedBy === null));
+  const second = createLinePrizes(3, () => 3);
+  assert.ok(second.every(p => p.item === '護身符' && p.claimedBy === null));
   assert.notDeepEqual(second.map(p => p.item), first.map(p => p.item));
   const room = { size: 3, linePrizes: first };
   assert.equal(ensureLinePrizes(room), false);
   assert.equal(room.linePrizes, first);
+});
+
+test('retired unclaimed potions are replaced consistently without changing awarded items', () => {
+  const { migrateRetiredPrizes } = require('../src/shared/prize-items');
+  const prizes = [
+    { id: 'row-0', item: '紅色藥水', claimedBy: null },
+    { id: 'row-1', item: '活力藥水', claimedBy: null },
+    { id: 'column-0', item: '紅色藥水', claimedBy: 'winner' },
+    { id: 'column-1', item: '傳送石', claimedBy: null }
+  ];
+  const room = { linePrizes: structuredClone(prizes), history: [{ linePrizes: structuredClone(prizes) }] };
+  let draws = 0;
+  migrateRetiredPrizes(room, bound => { assert.equal(bound, 6); return draws++ % bound; });
+  assert.equal(draws, 2);
+  assert.deepEqual(room.linePrizes.map(prize => prize.item), ['突襲券', '傳送石', '紅色藥水', '傳送石']);
+  assert.deepEqual(room.history[0].linePrizes, room.linePrizes);
+  assert.equal(room.linePrizes[2].claimedBy, 'winner');
+  const saved = structuredClone(room); migrateRetiredPrizes(room, () => { throw Error('must not reroll'); });
+  assert.deepEqual(room, saved);
+});
+
+test('both Bingo games migrate unclaimed potions and share the six-item server and client pools', async () => {
+  const { getGame } = require('../src/games');
+  for (const gameType of ['bingo', 'teambingo']) {
+    const prizes = require(`../src/games/${gameType}/prizes`);
+    const client = await import(`../public/js/games/${gameType}/views/line-prizes-view.js`);
+    assert.deepEqual(prizes.ITEMS, ITEMS); assert.deepEqual(client.linePrizeItems, ITEMS);
+    const game = getGame(gameType), room = { ...game.initializeRoom(), players: [], phase: 'lobby', history: [] };
+    room.linePrizes[0].item = '紅色藥水'; room.linePrizes[1].item = '活力藥水';
+    room.history.push({ linePrizes: structuredClone(room.linePrizes) });
+    game.migrate(room);
+    assert.ok(room.linePrizes.every(prize => ITEMS.includes(prize.item)));
+    assert.deepEqual(room.history[0].linePrizes, room.linePrizes);
+  }
+});
+
+for (const expected of ['龍王項鍊', '楓葉祝福20']) test(`${expected} can be randomly assigned to every board prize slot in both Bingo games`, () => {
+  assert.ok(fs.existsSync(path.join(__dirname, '../public/assets/items', `${expected}.png`)));
+  for (const gameType of ['bingo', 'teambingo']) {
+    const { ITEMS: items, createLinePrizes: create } = require(`../src/games/${gameType}/prizes`);
+    const prizes = create(6, bound => { assert.equal(bound, 6); return items.indexOf(expected); });
+    assert.equal(prizes.length, 14);
+    assert.ok(prizes.every(prize => prize.item === expected && prize.claimedBy === null));
+  }
 });
 
 test('random configuration stays identical through snapshots, all undo steps and legacy opening restore', () => {

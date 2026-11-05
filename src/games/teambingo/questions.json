@@ -82,5 +82,216 @@
     ],
     "correctAnswer": "A",
     "enabled": true
+  },
+  {
+    "id": "anecdote-001",
+    "type": "oral",
+    "difficulty": "普通",
+    "category": "軼聞趣事",
+    "question": "在 Artale 世界中，菇菇家族共有幾種怪物（不包含 BOSS）？",
+    "correctAnswer": "菇菇仔, 菇菇寶貝, 綠菇菇, 藍菇菇, 刺菇菇, 殭屍菇菇",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-002",
+    "type": "oral",
+    "difficulty": "普通",
+    "category": "軼聞趣事",
+    "question": "在 Artale 世界中，「獨眼獸家族」共有幾種怪物？",
+    "correctAnswer": "火獨眼獸, 風獨眼獸, 冰獨眼獸",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-003",
+    "difficulty": "簡單",
+    "category": "軼聞趣事",
+    "question": "在 Artale 世界中，「闇黑龍王」的型態是甚麼？",
+    "options": [
+      "龍族",
+      "不死系",
+      "爬蟲類",
+      "無機生物"
+    ],
+    "correctAnswer": "C",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-004",
+    "difficulty": "簡單",
+    "category": "軼聞趣事",
+    "question": "在 Artale 世界中，「艾畢奈亞」的型態是甚麼？",
+    "options": [
+      "惡魔",
+      "蝴蝶",
+      "不死系",
+      "精靈"
+    ],
+    "correctAnswer": "A",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-005",
+    "difficulty": "簡單",
+    "category": "軼聞趣事",
+    "question": "在 Artale 最近的更新中，新開放倉庫能放幾個普通道具（不含特殊）？",
+    "options": [
+      "6個",
+      "7個",
+      "8個",
+      "9個"
+    ],
+    "correctAnswer": "C",
+    "enabled": true
+  },
+  {
+    "id": "trivia-001",
+    "difficulty": "普通",
+    "category": "無用知識",
+    "question": "請問 tt60309 有幾隻魚？",
+    "options": [
+      "1隻",
+      "2隻",
+      "3隻",
+      "以上皆非"
+    ],
+    "correctAnswer": "",
+    "enabled": true
+  },
+  {
+    "id": "trivia-002",
+    "difficulty": "簡單",
+    "category": "無用知識",
+    "question": "請問虎尾大刀是誰？",
+    "options": [
+      "ChillingOGS",
+      "tt60309",
+      "10YA",
+      "alb"
+    ],
+    "correctAnswer": "",
+    "enabled": true
+  },
+  {
+    "id": "trivia-003",
+    "difficulty": "簡單",
+    "category": "無用知識",
+    "question": "(烏魯莊園I是走投無路的人在打的)，請問括號問句包含括號有幾個字元？",
+    "options": [
+      "15",
+      "16",
+      "17",
+      "18"
+    ],
+    "correctAnswer": "C",
+    "enabled": true
+  },
+  {
+    "id": "raid-boss-001",
+    "difficulty": "困難",
+    "category": "突襲週王",
+    "question": "請問在困難拉圖斯控時的時候，目前場上電子錶時間04:00，平台上還有50min, 30min, 10min, X2，請問在不考慮時間倒數的情況下，可以達到的最優時間是多少？",
+    "options": [
+      "04:50",
+      "08:50",
+      "11:00",
+      "直接復活術"
+    ],
+    "correctAnswer": "C",
+    "enabled": true
+  },
+  {
+    "id": "raid-boss-002",
+    "difficulty": "困難",
+    "category": "突襲週王",
+    "question": "請問在困難拉圖斯控時的時候，目前突襲剩餘時為15:26。\n\n已知電子碼表時間為01:00並且18秒後會歸零(全圖殺)，同隊的火毒已經躺在地板上，並且拉圖斯在同秒釋放反盾。\n\n請問身為主教的你該在什麼時候按下復活術？",
+    "options": [
+      "15:09",
+      "15:14",
+      "15:20",
+      "直接按"
+    ],
+    "correctAnswer": "B",
+    "enabled": true
+  },
+  {
+    "id": "raid-boss-003",
+    "difficulty": "簡單",
+    "category": "突襲週王",
+    "question": "請問炎魔的2號手臂不會施放下列哪一個技能？",
+    "options": ["亡靈/活屍", "藥水封鎖", "血魔歸一", "虛弱"],
+    "correctAnswer": "C",
+    "enabled": true
+  },
+  {
+    "id": "raid-boss-004",
+    "difficulty": "簡單",
+    "category": "突襲週王",
+    "question": "請問炎魔在第3階段的黑水與魔方中間間隔幾次攻擊？",
+    "options": ["3", "4", "5", "6"],
+    "correctAnswer": "D",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-006",
+    "difficulty": "簡單",
+    "category": "軼聞趣事",
+    "question": "下列哪一位是可在墮落城市見到的離家少年阿勒斯的父親？",
+    "options": ["長老斯坦", "比休斯", "約翰", "路卡斯"],
+    "correctAnswer": "A",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-007",
+    "difficulty": "普通",
+    "category": "軼聞趣事",
+    "question": "勇士之村的武術教練戴著的帽子上有幾根羽毛？",
+    "options": ["13", "14", "17", "20"],
+    "correctAnswer": "A",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-008",
+    "difficulty": "普通",
+    "category": "軼聞趣事",
+    "question": "下列哪一位是無法在維多利亞島的墮落城市見到的NPC？",
+    "options": ["後街吉姆", "麥吉", "達克魯", "休咪"],
+    "correctAnswer": "B",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-009",
+    "difficulty": "簡單",
+    "category": "軼聞趣事",
+    "question": "下列哪一項藥水在地球防衛總部的售價是錯誤的？",
+    "options": ["橘色藥水 - 152", "白色藥水 - 300", "烤鰻魚 - 1045", "馴鹿奶 - 5600"],
+    "correctAnswer": "B",
+    "enabled": true
+  },
+  {
+    "id": "anecdote-010",
+    "difficulty": "簡單",
+    "category": "軼聞趣事",
+    "question": "下列哪一項藥水在地球防衛總部的售價是錯誤的？",
+    "options": ["柳橙 - 100", "藍色藥水 - 190", "活力藥水 - 589", "礦泉水 - 1567"],
+    "correctAnswer": "A",
+    "enabled": true
+  },
+  {
+    "id": "trivia-004",
+    "difficulty": "困難",
+    "category": "無用知識",
+    "question": "請問下列哪一個不是Artale World在11/3(二)更新公告中的內容？",
+    "options": ["兌換券系統上線", "新增倉庫系統提示資訊", "第二波《萬聖節搗蛋大作戰》活動開跑！", "挑戰成為最強百鍊名匠！萬聖節強化競賽"],
+    "correctAnswer": "D",
+    "enabled": true
+  },
+  {
+    "id": "trivia-005",
+    "difficulty": "困難",
+    "category": "無用知識",
+    "question": "請問下列哪一個不是Artale World在11/3(二)更新公告中的內容優化？",
+    "options": ["修正｢會心之眼｣技能最高等級顯示錯誤的問題", "統一部分萬聖節變身祕藥道具名稱", "修正帳號內僅有一個角色時無法刪除角色的問題", "改善部分地圖的怪物生成位置"],
+    "correctAnswer": "D",
+    "enabled": true
   }
 ]

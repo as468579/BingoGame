@@ -47,7 +47,7 @@ export class DrawCardView {
   reveal(drawn, announce = true) {
     this.drawing = false;
     this.card = drawn;
-    $('drawnCardTitle').textContent = drawn.teamName ? `${drawn.teamName} 獲得「${drawn.name}」` : drawn.name;
+    $('drawnCardTitle').textContent = drawn.teamName ? `${drawn.teamName} 獲得卡片「${drawn.name}」` : drawn.name;
     const card = cardFace({ className: 'spell-card draw-card-face ' + drawn.theme, type: drawn.type, art: drawn.symbol });
     const effect = element('p', 'drawn-card-effect', `卡牌效果：${drawn.effect || '卡牌能力待定'}`);
     $('drawnCardContent').replaceChildren(card, effect);
