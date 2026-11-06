@@ -14,7 +14,7 @@ export class HostControlsView {
   }
 
   render({ room, me, busy, connected, settingsDirty }) {
-    busy ||= Boolean(room.activeCard || room.hint);
+    busy ||= Boolean(room.activeCard || room.hint || room.hiddenGoalGuess);
     const size = room.size || 5;
     $('settingsPanel').hidden = me.id !== room.host || room.phase !== 'lobby';
     if (!settingsDirty) $('boardSize').value = size;

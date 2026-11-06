@@ -43,8 +43,11 @@ function mount(t) {
     'gameResultsDialog', 'gameResultsList', 'closeGameResults', 'viewGameResults', 'drawCardDisplay',
     'drawnCardDialog', 'drawnCardTitle', 'drawnCardContent', 'closeDrawnCard',
     'hiddenGoalDialog', 'hiddenGoalTitle', 'hiddenGoalHint', 'hiddenGoalCards', 'viewHiddenGoal', 'closeHiddenGoal',
+    'guessDialog', 'guessTitle', 'guessMessage', 'guessReference', 'guessCorrect', 'guessWrong',
     'captainHint', 'hintDialog', 'hintTitle', 'hintDescription', 'hintProgress', 'hintCount',
     'bridgeGame', 'bridgeRoomCode', 'bridgeCopyCode', 'welcome', 'game', 'leave', 'switchPlayer',
+    'bridgeIntroduction', 'bridgeIntroductionDialog', 'bridgeIntroductionContent', 'bridgeCloseIntroduction',
+    'bridgeIntroductionPrevious', 'bridgeIntroductionNext', 'bridgeIntroductionPage',
     'gameChoice', 'gameType', 'teamTimeSettings', 'entryTeamMinutes', 'code', 'name', 'create', 'join',
     'joinDivider', 'hostEntry', 'connection',
     'bridgeTeamCount', 'bridgePlayersPerTeam', 'bridgeSize', 'bridgeApplySettings', 'bridgeOwnTeam',
@@ -239,6 +242,30 @@ for (const symbol of ['pocket-watch', 'light-bulb', 'gift']) test(`Team Bingo re
   shared.close(); drawn.hide();
 });
 
+for (const symbol of ['thinking', 'abacus', 'near-line', 'flag', 'question-mark', 'double-six', 'double-seven', 'double-eight', 'running', 'book', 'book-cross', 'ordered-numbers']) test(`hidden goal ${symbol} uses the same black line SVG for captain and host cards`, async t => {
+  const nodes = mount(t);
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const catalog = require('../src/games/teambingo/hidden-goal-catalog');
+  const selected = catalog.find(card => card.symbol === symbol);
+  assert.ok(selected);
+  const view = new HiddenGoalView({});
+  const room = { code: 'ICONS', host: 'host', phase: 'playing' };
+  const assertArtwork = () => {
+    const card = nodes['next-hiddenGoalCards'].children[0];
+    const art = card.children.find(node => node.className.includes('game-card-art'));
+    assert.equal(art.textContent, '');
+    const svg = art.children[0];
+    assert.equal(svg.tagName, 'svg'); assert.equal(svg.attributes.class, `card-${symbol}`);
+    assert.equal(svg.attributes.stroke, '#111'); assert.equal(svg.attributes.fill, 'none');
+    assert.equal(svg.attributes['stroke-width'], '3'); assert.equal(svg.attributes['aria-hidden'], 'true');
+    assert.ok(svg.children[0].attributes.d);
+  };
+  view.render({ playerId: 'captain', room: { ...room, hiddenGoal: { selected, options: [], round: 1, canGuess: false } } });
+  assertArtwork();
+  view.render({ playerId: 'host', room: { ...room, hostHiddenGoals: [{ teamId: 'team-1', teamName: '隊伍 1', selected }] } });
+  assertArtwork(); view.hide();
+});
+
 test('Team Bingo shuffle persists the board and requests special-cell reroll immediately', async t => {
   mount(t);
   const { TeamBingoController } = await import('../public/js/games/teambingo/controller.js');
@@ -267,13 +294,37 @@ test('captains see three pending goal cards and cannot dismiss or select while d
   nodes['next-hiddenGoalDialog'].emit('cancel', { preventDefault() {} });
   nodes['next-hiddenGoalDialog'].emit('click', { clientX: 0, clientY: 0 });
   assert.equal(nodes['next-hiddenGoalDialog'].open, true);
-  nodes['next-hiddenGoalCards'].children[1].click(); assert.deepEqual(calls, ['pending-2']);
+  nodes['next-hiddenGoalCards'].children[1].click(); assert.deepEqual(calls, []);
+  assert.equal(nodes['next-hiddenGoalTitle'].textContent, '確認隱藏勝利條件');
+  const controls = nodes['next-hiddenGoalCards'].children.at(-1);
+  controls.children[1].click(); controls.children[1].click(); assert.deepEqual(calls, ['pending-2']);
+  controls.children[0].click();
   view.render({ ...s, busy: true });
   assert.ok(nodes['next-hiddenGoalCards'].children.every(card => card.disabled));
   view.render({ ...s, connected: false });
   assert.ok(nodes['next-hiddenGoalCards'].children.every(card => card.disabled));
   assert.equal(nodes['next-closeHiddenGoal'].hidden, true);
   view.hide();
+});
+
+test('hidden goal confirmation can be cancelled and only submits the subsequently confirmed card', async t => {
+  const nodes = mount(t), calls = [];
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const view = new HiddenGoalView({ chooseHiddenGoal: id => calls.push(id) });
+  const s = { playerId: 'captain', connected: true, room: { code: 'CONFIRM', phase: 'choosing-goal', hiddenGoal: {
+    selected: null, options: [{ id: 'first', name: '第一個', effect: '第一個說明' }, { id: 'second', name: '第二個', effect: '第二個說明' }] } } };
+  view.render(s); nodes['next-hiddenGoalCards'].children[0].click();
+  assert.match(nodes['next-hiddenGoalCards'].textContent, /第一個說明/);
+  assert.deepEqual(calls, []);
+  nodes['next-hiddenGoalCards'].children.at(-1).children[0].click();
+  assert.equal(nodes['next-hiddenGoalCards'].children.length, 2);
+  nodes['next-hiddenGoalCards'].children[1].click();
+  view.render({ ...s, connected: false });
+  nodes['next-hiddenGoalCards'].children.at(-1).children[1].click(); assert.deepEqual(calls, []);
+  view.render(s);
+  nodes['next-hiddenGoalCards'].children.at(-1).children[1].click(); assert.deepEqual(calls, ['second']);
+  view.hide(); view.render(s);
+  assert.equal(nodes['next-hiddenGoalTitle'].textContent, '隱藏勝利條件');
 });
 
 test('team members see a nondismissable waiting dialog during hidden-goal selection and it closes when play starts', async t => {
@@ -373,6 +424,104 @@ test('host can review team-labelled goal cards and pending teams without choosin
   assert.equal(nodes['next-hiddenGoalCards'].children.length, 0);
   assert.equal(nodes['next-viewHiddenGoal'].hidden, true);
   view.hide();
+});
+
+test('料敵機先 captains can guess once per round from their private card and pending review closes it', async t => {
+  const nodes = mount(t), calls = [];
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const view = new HiddenGoalView({ guessHiddenGoal: () => calls.push('guess') });
+  const s = { playerId: 'captain', busy: false, connected: true, room: { code: 'GUESS', host: 'host', phase: 'playing', hiddenGoal: {
+    options: [], selected: { id: 'anticipate-opponent', name: '料敵機先', symbol: 'thinking', effect: '說出對方的其中一個隱藏條件。' }, canGuess: true, guessUsed: false, round: 1
+  } } };
+  view.render(s); nodes['next-viewHiddenGoal'].click();
+  let button = nodes['next-hiddenGoalCards'].children.at(-1);
+  assert.equal(button.tagName, 'button'); assert.equal(button.disabled, false);
+  assert.match(button.textContent, /第 1 回合/); button.click(); assert.deepEqual(calls, ['guess']);
+  s.room.hiddenGoal.guessUsed = true; s.room.hiddenGoal.canGuess = false; view.render(s);
+  button = nodes['next-hiddenGoalCards'].children.at(-1); assert.equal(button.disabled, true);
+  assert.match(button.textContent, /已猜測/); button.click(); assert.deepEqual(calls, ['guess']);
+  s.room.hiddenGoal = { ...s.room.hiddenGoal, guessUsed: false, canGuess: true, round: 2 };
+  view.render({ ...s, connected: false }); assert.equal(nodes['next-hiddenGoalCards'].children.at(-1).disabled, true);
+  view.render(s); assert.equal(nodes['next-hiddenGoalCards'].children.at(-1).disabled, false);
+  s.room.hiddenGoalGuess = { id: 'session' }; view.render(s);
+  assert.equal(nodes['next-hiddenGoalDialog'].open, false); view.hide();
+});
+
+test('mathematician cards show private prime progress to the captain and host without a guessing button', async t => {
+  const nodes = mount(t);
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const view = new HiddenGoalView({ guessHiddenGoal() { throw Error('mathematician must not guess'); } });
+  const selected = { id: 'mathematician', name: '數學家', symbol: 'abacus', effect: '同隊合計佔領至少5個質數格即獲勝。1 不算質數。' };
+  view.render({ playerId: 'captain', room: { code: 'MATH', host: 'host', phase: 'playing', hiddenGoal: { options: [], selected, progress: { current: 4, target: 5 } } } });
+  assert.equal(nodes['next-hiddenGoalCards'].children.length, 1);
+  assert.match(nodes['next-hiddenGoalCards'].textContent, /數學家.*進度：4 \/ 5/);
+  view.render({ playerId: 'host', room: { code: 'MATH', host: 'host', phase: 'playing', hostHiddenGoals: [
+    { teamId: 'team-1', teamName: '隊伍 1', selected, progress: { current: 5, target: 5 } }
+  ] } });
+  assert.match(nodes['next-hiddenGoalCards'].textContent, /隊伍 1.*數學家.*進度：5 \/ 5/);
+  view.hide();
+});
+
+test('near-line condition views display the resolved target and current progress for captains and hosts', async t => {
+  const nodes = mount(t);
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const view = new HiddenGoalView({});
+  const selected = { id: 'almost-bingo', name: '就差一點點', symbol: 'near-line', effect: '同隊在任一橫線、直線或主要對角線中，佔領至少5個數字格即獲勝。' };
+  view.render({ playerId: 'captain', room: { code: 'ALMOST', host: 'host', phase: 'playing', hiddenGoal: { selected, options: [], progress: { current: 4, target: 5 } } } });
+  assert.match(nodes['next-hiddenGoalCards'].textContent, /至少5個數字格.*進度：4 \/ 5/);
+  assert.ok(!nodes['next-hiddenGoalCards'].textContent.includes('(n-1)'));
+  view.render({ playerId: 'host', room: { code: 'ALMOST', host: 'host', phase: 'playing', hostHiddenGoals: [{ teamId: 'team-1', teamName: '隊伍 1', selected, progress: { current: 4, target: 5 } }] } });
+  assert.match(nodes['next-hiddenGoalCards'].textContent, /隊伍 1.*至少5個數字格.*進度：4 \/ 5/);
+  view.hide();
+});
+
+test('four corners displays the flag and private progress to the captain and host', async t => {
+  const nodes = mount(t);
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const view = new HiddenGoalView({});
+  const selected = { id: 'four-corners', name: '四角佔領', symbol: 'flag', effect: '同隊佔領盤面四個角落。' };
+  view.render({ playerId: 'captain', room: { code: 'CORNERS', host: 'host', phase: 'playing', hiddenGoal: { selected, options: [], progress: { current: 3, target: 4 } } } });
+  assert.match(nodes['next-hiddenGoalCards'].textContent, /四角佔領.*進度：3 \/ 4/);
+  view.render({ playerId: 'host', room: { code: 'CORNERS', host: 'host', phase: 'playing', hostHiddenGoals: [{ teamId: 'team-1', teamName: '隊伍 1', selected, progress: { current: 4, target: 4 } }] } });
+  assert.match(nodes['next-hiddenGoalCards'].textContent, /隊伍 1.*四角佔領.*進度：4 \/ 4/);
+  view.hide();
+});
+
+test('guess review shows reference goals only to the host, locks dismissal and dispatches verdicts', async t => {
+  const nodes = mount(t), calls = [];
+  const { HiddenGuessView } = await import('../public/js/games/teambingo/views/hidden-guess-view.js');
+  const view = new HiddenGuessView({ judgeHiddenGoalGuess: (...args) => calls.push(args) });
+  const room = { host: 'host', hiddenGoalGuess: { id: 'session', teamId: 'team-1', teamName: '隊伍 1', captainName: '隊長甲' },
+    hostHiddenGoals: [{ teamId: 'team-1', teamName: '隊伍 1', selected: { name: '料敵機先' } }, { teamId: 'team-2', teamName: '隊伍 2', selected: { name: '對方條件' } }] };
+  view.render({ room, playerId: 'host', busy: false, connected: true });
+  assert.equal(nodes['next-guessDialog'].open, true);
+  assert.equal(nodes['next-guessReference'].textContent, '隊伍 2：對方條件');
+  nodes['next-guessDialog'].emit('cancel', { preventDefault() {} });
+  nodes['next-guessDialog'].emit('click', { clientX: 0, clientY: 0 });
+  assert.equal(nodes['next-guessDialog'].open, true);
+  nodes['next-guessWrong'].click(); assert.deepEqual(calls, [['session', false]]);
+  view.render({ room, playerId: 'host', connected: false }); assert.equal(nodes['next-guessCorrect'].disabled, true);
+  view.render({ room, playerId: 'member', connected: true });
+  assert.equal(nodes['next-guessReference'].textContent, ''); assert.equal(nodes['next-guessReference'].hidden, true);
+  assert.equal(nodes['next-guessCorrect'].hidden, true); assert.equal(nodes['next-guessWrong'].hidden, true);
+  view.render({ room: { ...room, hiddenGoalGuess: null }, playerId: 'member' });
+  assert.equal(nodes['next-guessDialog'].open, false); assert.equal(view.guessId, null);
+  view.hide();
+});
+
+test('pending hidden-goal guesses disable number claims and team cards and display the paused reason', async t => {
+  const nodes = mount(t);
+  const { BoardView } = await import('../public/js/games/teambingo/views/board-view.js');
+  const { HandView } = await import('../public/js/games/teambingo/views/hand-view.js');
+  const s = boardClockState(); s.room.hiddenGoalGuess = { id: 'session' };
+  s.room.teams.forEach(team => { team.clockRunning = false; });
+  s.hand = [{ id: 'held', definitionId: 'team-hints-plus-2', name: '提示' }];
+  const board = new BoardView({}); board.render(s);
+  new HandView({ useCard() {} }).render(s);
+  assert.ok(nodes['next-board'].children.every(cell => cell.disabled));
+  assert.equal(nodes['next-handList'].children[0].children[0].disabled, true);
+  assert.match(nodes['next-phaseText'].textContent, /判定隊長猜測.*暫停/);
+  board.hide();
 });
 
 test('goal selection disables the board and shows waiting status without starting an action clock', async t => {
@@ -1954,4 +2103,257 @@ test('verdict rerenders and transitions show only the current outcome without st
   view.render(sharedState('spectator', 'question'));
   assert.equal(nodes.sharedCardResult.textContent, '等待 Owner 回答…');
   assert.equal(nodes.sharedCardResult.children.length, 0);
+});
+
+
+for (const goalCount of [2, 3]) test(`${goalCount}-goal selection confirms each choice and keeps partial choices open`, async t => {
+  const nodes = mount(t), calls = [];
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const view = new HiddenGoalView({ chooseHiddenGoal: id => calls.push(id) });
+  const cards = ['first', 'second', 'third'].slice(0, goalCount).map(id => ({ id, name: id, effect: `${id} effect`, symbol: 'running' }));
+  const goal = { selected: null, selections: [], options: cards, requiredCount: goalCount, selectionComplete: false };
+  const state = { playerId: 'captain', connected: true, room: { code: 'THREE', host: 'host', phase: 'choosing-goal', hiddenGoal: goal } };
+  view.render(state);
+  assert.match(nodes['next-hiddenGoalHint'].textContent, new RegExp(`選擇 ${goalCount} 個不同隱藏勝利條件`));
+  for (const card of cards) {
+    nodes['next-hiddenGoalCards'].children[0].click();
+    assert.equal(nodes['next-hiddenGoalTitle'].textContent, '確認隱藏勝利條件');
+    nodes['next-hiddenGoalCards'].children.at(-1).children[1].click();
+    goal.selections.push(card); goal.options = cards.filter(c => !goal.selections.includes(c));
+    goal.selectionComplete = goal.selections.length === goalCount;
+    goal.selected = goal.selectionComplete ? goal.selections[0] : null;
+    view.render(state);
+    assert.equal(nodes['next-hiddenGoalDialog'].open, !goal.selectionComplete);
+  }
+  assert.deepEqual(calls, cards.map(card => card.id));
+  state.room.phase = 'playing'; view.render(state); nodes['next-viewHiddenGoal'].click();
+  assert.equal(nodes['next-hiddenGoalCards'].children.length, goalCount);
+  assert.match(nodes['next-hiddenGoalCards'].textContent, new RegExp(cards.map(card => card.name).join('.*')));
+});
+
+test('host reviews every selected condition and its completed status for each team', async t => {
+  const nodes = mount(t);
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const view = new HiddenGoalView({});
+  const selections = ['A', 'B', 'C'].map((name, i) => ({ id: name, name, effect: name, completed: i === 0, symbol: 'running' }));
+  view.render({ playerId: 'host', room: { code: 'HOST', host: 'host', phase: 'playing', hostHiddenGoals: [
+    { teamId: 'team-1', teamName: '隊伍 1', selections }, { teamId: 'team-2', teamName: '隊伍 2', selections }
+  ] } });
+  assert.equal(nodes['next-hiddenGoalCards'].children.length, 6);
+  assert.match(nodes['next-hiddenGoalCards'].children[0].textContent, /隊伍 1.*A.*已達成/);
+  assert.match(nodes['next-hiddenGoalCards'].children[3].textContent, /隊伍 2.*A.*已達成/);
+});
+
+test('bridge host can open the player introduction during preparation with the current victory target', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView();
+  const state = { playerId: 'host', room: { code: 'INTRO', host: 'host', phase: 'lobby', size: 6, goal: 4 } };
+  const before = structuredClone(state); view.render(state);
+  assert.equal(nodes.bridgeIntroduction.hidden, false); nodes.bridgeIntroduction.click();
+  assert.equal(nodes.bridgeIntroductionDialog.open, true);
+  assert.match(nodes.bridgeIntroductionContent.textContent, /本局完成 4 條連線/);
+  assert.match(nodes.bridgeIntroductionContent.textContent, /同輪達標的隊伍並列獲勝/);
+  assert.match(nodes.bridgeIntroductionContent.textContent, /只能丟棄/);
+  assert.doesNotMatch(nodes.bridgeIntroductionContent.textContent, /預設|最多 16/);
+  assert.deepEqual(state, before);
+});
+
+test('bridge introduction stays readable while playing or disconnected without rebuilding during updates', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView();
+  const state = { playerId: 'host', busy: true, connected: false, room: { code: 'INTRO', host: 'host', phase: 'playing', size: 6, goal: 4 } };
+  view.render(state); nodes.bridgeIntroduction.click();
+  const content = nodes.bridgeIntroductionContent.children[0]; nodes.bridgeIntroductionDialog.scrollTop = 100;
+  view.render(state);
+  assert.equal(nodes.bridgeIntroductionDialog.open, true); assert.equal(nodes.bridgeIntroductionDialog.scrollTop, 100);
+  assert.equal(nodes.bridgeIntroductionContent.children[0], content);
+});
+
+test('other bridge players cannot open the host introduction and changing role closes an open dialog', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView(), room = { code: 'INTRO', host: 'host', phase: 'playing', size: 6, goal: 4 };
+  view.render({ room, playerId: 'host' }); nodes.bridgeIntroduction.click();
+  view.render({ room, playerId: 'guest' });
+  assert.equal(nodes.bridgeIntroduction.hidden, true); assert.equal(nodes.bridgeIntroductionDialog.open, false);
+  nodes.bridgeIntroduction.click(); assert.equal(nodes.bridgeIntroductionDialog.open, false);
+});
+
+test('bridge introduction can close by button, Escape or outside click and reopen', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView();
+  view.render({ playerId: 'host', room: { code: 'INTRO', host: 'host', phase: 'playing', size: 6, goal: 4 } });
+  nodes.bridgeIntroduction.click(); nodes.bridgeCloseIntroduction.click(); assert.equal(nodes.bridgeIntroductionDialog.open, false);
+  nodes.bridgeIntroduction.click(); nodes.bridgeIntroductionDialog.emit('cancel', { preventDefault() {} }); assert.equal(nodes.bridgeIntroductionDialog.open, false);
+  nodes.bridgeIntroduction.click(); nodes.bridgeIntroductionDialog.emit('click', { clientX: 50, clientY: 150 }); assert.equal(nodes.bridgeIntroductionDialog.open, true);
+  nodes.bridgeIntroductionDialog.emit('click', { clientX: 0, clientY: 0 }); assert.equal(nodes.bridgeIntroductionDialog.open, false);
+});
+
+test('bridge introduction refreshes the target after setting changes and closes when switching rooms or leaving', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView(), state = { playerId: 'host', room: { code: 'INTRO', host: 'host', phase: 'lobby', size: 6, goal: 4 } };
+  view.render(state); nodes.bridgeIntroduction.click();
+  view.render({ ...state, room: { ...state.room, size: 5, goal: 3 } });
+  assert.equal(nodes.bridgeIntroductionDialog.open, true); assert.match(nodes.bridgeIntroductionContent.textContent, /本局完成 3 條連線/);
+  view.render({ ...state, room: { ...state.room, code: 'OTHER' } }); assert.equal(nodes.bridgeIntroductionDialog.open, false);
+  nodes.bridgeIntroduction.click(); view.hide();
+  assert.equal(nodes.bridgeIntroductionDialog.open, false); assert.equal(nodes.bridgeIntroduction.hidden, true);
+  assert.equal(nodes.bridgeIntroductionContent.children.length, 0);
+});
+
+test('bridge introduction closes at game end and does not cover the results', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView(), state = { playerId: 'host', room: { code: 'INTRO', host: 'host', phase: 'playing', size: 6, goal: 4 } };
+  view.render(state); nodes.bridgeIntroduction.click();
+  view.render({ ...state, room: { ...state.room, phase: 'finished' } });
+  assert.equal(nodes.bridgeIntroduction.hidden, true); assert.equal(nodes.bridgeIntroductionDialog.open, false);
+});
+
+function guideNodes(root, tag) {
+  return [...(root.tagName === tag ? [root] : []), ...root.children.flatMap(child => guideNodes(child, tag))];
+}
+
+test('bridge player introduction contains five illustrated groups with accessible vector images', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView();
+  view.render({ playerId: 'host', room: { code: 'PICTURES', host: 'host', phase: 'lobby', size: 6, goal: 4 } });
+  assert.equal(guideNodes(nodes.bridgeIntroductionContent, 'figure').length, 5);
+  const images = guideNodes(nodes.bridgeIntroductionContent, 'svg');
+  assert.equal(images.length, 7);
+  for (const image of images) {
+    assert.equal(image.attributes.role, 'img'); assert.ok(image.attributes['aria-label']);
+    assert.ok(image.attributes.viewBox); assert.equal(image.attributes.focusable, 'false');
+    assert.ok(image.children.length > 0);
+  }
+});
+
+test('bridge introduction illustrates separate team boards shared by members of their own team', async t => {
+  mount(t);
+  const { bridgeIntroductionIllustration } = await import('../public/js/games/bridge/introduction-illustrations.js');
+  const images = guideNodes(bridgeIntroductionIllustration(1), 'svg');
+  assert.equal(images.length, 2);
+  const boards = images[0];
+  assert.match(boards.attributes['aria-label'], /隊伍A的成員共用A盤面.*隊伍B的成員共用B盤面.*互不影響/);
+  assert.match(boards.textContent, /隊伍A的盤面.*A1.*A2.*隊伍B的盤面.*B1.*B2.*各隊獨立/);
+  const grids = guideNodes(boards, 'rect').filter(node => node.attributes.fill === '#29493d');
+  assert.equal(grids.length, 2);
+});
+
+test('bridge placement pictures separately demonstrate following suit and missing-suit placement', async t => {
+  mount(t);
+  const { bridgeIntroductionIllustration } = await import('../public/js/games/bridge/introduction-illustrations.js');
+  const [follow, missing] = guideNodes(bridgeIntroductionIllustration(2), 'svg');
+  assert.match(follow.attributes['aria-label'], /黃7.*7號格/);
+  assert.match(missing.attributes['aria-label'], /沒有指定的黃色.*藍8.*任意空格.*2號格/);
+  assert.match(follow.textContent, /放在對應數字7/); assert.match(missing.textContent, /可放在任意空格/);
+});
+
+test('bridge discard picture preserves the original cell number and shows the occupying card separately', async t => {
+  mount(t);
+  const { bridgeIntroductionIllustration } = await import('../public/js/games/bridge/introduction-illustrations.js');
+  const image = guideNodes(bridgeIntroductionIllustration(3), 'svg')[0];
+  const labels = guideNodes(image, 'text').map(node => node.textContent);
+  assert.ok(labels.includes('7')); assert.ok(labels.includes('紅4')); assert.ok(labels.includes('只能丟棄'));
+  assert.match(image.attributes['aria-label'], /必須跟黃色.*只能丟棄.*不能改放其他格/);
+});
+
+test('bridge line and settlement illustrations explain the scoring directions and simultaneous winners', async t => {
+  mount(t);
+  const { bridgeIntroductionIllustration } = await import('../public/js/games/bridge/introduction-illustrations.js');
+  const lines = guideNodes(bridgeIntroductionIllustration(0), 'svg')[0];
+  assert.match(lines.textContent, /橫線.*直線.*主要對角線/);
+  const round = guideNodes(bridgeIntroductionIllustration(5), 'svg')[0];
+  assert.match(round.attributes['aria-label'], /A隊全員出完.*B隊全員出牌.*同輪達標者並列獲勝/);
+  assert.match(round.textContent, /同輪達標 → 並列獲勝/);
+});
+
+test('bridge introduction explicitly limits the blocked-number missing-suit tip to followers', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  new BridgeIntroductionView().render({ playerId: 'host', room: { code: 'EXCEPTION', host: 'host', phase: 'lobby', size: 6, goal: 4 } });
+  const rules = nodes.bridgeIntroductionContent.textContent;
+  assert.match(rules, /首位玩家尚無指定顏色/);
+  assert.match(rules, /遊戲訣竅：利用缺色可以救回對應格已被佔領的手牌。/);
+});
+
+test('bridge discard illustration shows both mandatory discard and the missing-suit placement tip', async t => {
+  mount(t);
+  const { bridgeIntroductionIllustration } = await import('../public/js/games/bridge/introduction-illustrations.js');
+  const image = guideNodes(bridgeIntroductionIllustration(3), 'svg')[0];
+  assert.match(image.textContent, /只能丟棄.*遊戲訣竅：利用缺色救回被擋住的手牌.*可改放任意空格/);
+  assert.match(image.attributes['aria-label'], /後續玩家若缺少黃色.*首位玩家尚無指定顏色/);
+});
+
+test('bridge introduction shows exactly one topic per page and disables navigation at the ends', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  new BridgeIntroductionView().render({ playerId: 'host', room: { code: 'PAGES', host: 'host', phase: 'lobby', size: 6, goal: 4 } });
+  nodes.bridgeIntroduction.click();
+  const pages = nodes.bridgeIntroductionContent.children;
+  assert.equal(pages.length, 5); assert.equal(nodes.bridgeIntroductionPage.textContent, '1 / 5');
+  assert.match(pages[1].textContent, /盤面與手牌.*出牌順序.*每人每輪出一張牌.*每輪首位玩家向後輪替一人/);
+  assert.equal(pages.filter(page => page.children[0].textContent === '出牌順序').length, 0);
+  assert.match(pages[2].textContent, /跟色與放置/);
+  assert.equal(nodes.bridgeIntroductionPrevious.disabled, true);
+  for (let i = 0; i < 5; i++) {
+    assert.equal(pages.filter(page => !page.hidden).length, 1); assert.equal(pages[i].hidden, false);
+    assert.equal(nodes.bridgeIntroductionPage.textContent, `${i + 1} / 5`);
+    if (i < 4) nodes.bridgeIntroductionNext.click();
+  }
+  assert.equal(nodes.bridgeIntroductionNext.disabled, true); nodes.bridgeIntroductionNext.click();
+  assert.equal(nodes.bridgeIntroductionPage.textContent, '5 / 5');
+  assert.match(pages[4].textContent, /操作方式.*勝負結算.*同輪達標的隊伍並列獲勝/);
+  assert.equal(pages.filter(page => page.children[0].textContent === '勝負結算').length, 0);
+  assert.equal(guideNodes(pages[4], 'svg').length, 1);
+});
+
+test('bridge introduction supports previous pages and arrow keys without changing game state', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const state = { playerId: 'host', room: { code: 'PAGES', host: 'host', phase: 'playing', size: 6, goal: 4 } }, before = structuredClone(state);
+  new BridgeIntroductionView().render(state); nodes.bridgeIntroduction.click();
+  nodes.bridgeIntroductionDialog.emit('keydown', { key: 'ArrowRight', preventDefault() {} });
+  assert.equal(nodes.bridgeIntroductionPage.textContent, '2 / 5');
+  nodes.bridgeIntroductionPrevious.click(); assert.equal(nodes.bridgeIntroductionPage.textContent, '1 / 5');
+  nodes.bridgeIntroductionDialog.emit('keydown', { key: 'ArrowLeft', preventDefault() {} });
+  assert.equal(nodes.bridgeIntroductionPage.textContent, '1 / 5'); assert.deepEqual(state, before);
+});
+
+test('live bridge updates preserve the selected topic and reading position while switching pages resets scroll', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView(), state = { playerId: 'host', room: { code: 'PAGES', host: 'host', phase: 'playing', size: 6, goal: 4 } };
+  view.render(state); nodes.bridgeIntroduction.click(); nodes.bridgeIntroductionNext.click();
+  nodes.bridgeIntroductionContent.scrollTop = 80; view.render(state);
+  assert.equal(nodes.bridgeIntroductionPage.textContent, '2 / 5'); assert.equal(nodes.bridgeIntroductionContent.scrollTop, 80);
+  nodes.bridgeIntroductionNext.click(); assert.equal(nodes.bridgeIntroductionContent.scrollTop, 0);
+  assert.equal(nodes.bridgeIntroductionPage.textContent, '3 / 5');
+});
+
+test('bridge introduction retains its page on reopen and resets when changing rooms or leaving', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView(), state = { playerId: 'host', room: { code: 'PAGES', host: 'host', phase: 'lobby', size: 6, goal: 4 } };
+  view.render(state); nodes.bridgeIntroduction.click(); nodes.bridgeIntroductionNext.click(); nodes.bridgeCloseIntroduction.click();
+  nodes.bridgeIntroduction.click(); assert.equal(nodes.bridgeIntroductionPage.textContent, '2 / 5');
+  view.render({ ...state, room: { ...state.room, code: 'NEW' } });
+  assert.equal(nodes.bridgeIntroductionDialog.open, false); assert.equal(nodes.bridgeIntroductionPage.textContent, '1 / 5');
+  view.hide(); assert.equal(nodes.bridgeIntroductionPage.textContent, ''); assert.equal(nodes.bridgeIntroductionContent.children.length, 0);
+});
+
+test('bridge settings refresh the victory target while keeping the current topic selected', async t => {
+  const nodes = mount(t);
+  const { BridgeIntroductionView } = await import('../public/js/games/bridge/introduction-view.js');
+  const view = new BridgeIntroductionView(), state = { playerId: 'host', room: { code: 'PAGES', host: 'host', phase: 'lobby', size: 6, goal: 4 } };
+  view.render(state); nodes.bridgeIntroduction.click(); nodes.bridgeIntroductionNext.click();
+  view.render({ ...state, room: { ...state.room, size: 5, goal: 3 } });
+  assert.equal(nodes.bridgeIntroductionPage.textContent, '2 / 5');
+  nodes.bridgeIntroductionPrevious.click();
+  assert.match(nodes.bridgeIntroductionContent.children[0].textContent, /本局完成 3 條連線/);
 });

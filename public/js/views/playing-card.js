@@ -1,4 +1,6 @@
 import { element } from './dom.js';
+import { renderCardArt } from './card-art.js';
+export { renderCardArt } from './card-art.js';
 
 // Shared card stock and face/back artwork; games supply their own content and actions.
 export function cardFace({ tag = 'div', className = '', type, art, name, description, footer, watermark = false }) {
@@ -22,30 +24,6 @@ export function cardBack(className = '') {
   card.setAttribute('aria-hidden', 'true');
   card.append(anchorArtwork('card-back-anchor'));
   return card;
-}
-
-export function renderCardArt(container, symbol) {
-  if (symbol === 'gift') {
-    const gift = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    for (const [name, value] of Object.entries({ class: 'card-gift', viewBox: '0 0 64 76', width: '56', height: '64', fill: 'none', stroke: '#111', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) gift.setAttribute(name, value);
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M7 27h50v13H7Z M12 40v29h40V40 M27 27v42 M37 27v42 M32 27C10 27 12 6 23 11c6 3 9 16 9 16Z M32 27C54 27 52 6 41 11c-6 3-9 16-9 16Z');
-    gift.append(path); container.replaceChildren(gift); return;
-  }
-  if (symbol === 'light-bulb') {
-    const bulb = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    for (const [name, value] of Object.entries({ class: 'card-light-bulb', viewBox: '0 0 64 76', width: '56', height: '64', fill: 'none', stroke: '#111', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) bulb.setAttribute(name, value);
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M23 53v-5c0-7-10-10-10-23a19 19 0 0 1 38 0c0 13-10 16-10 23v5Z M23 59h18 M25 65h14 M29 71h6 M32 52V33 M25 28l7 5 7-5 M32 1V4 M5 13l5 3 M54 16l5-3 M2 31h6 M56 31h6');
-    bulb.append(path); container.replaceChildren(bulb); return;
-  }
-  if (symbol !== 'pocket-watch') { container.textContent = symbol; return; }
-  const watch = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  for (const [name, value] of Object.entries({ class: 'card-pocket-watch', viewBox: '0 0 64 76', width: '56', height: '64', fill: 'none', stroke: '#111', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) watch.setAttribute(name, value);
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', 'M26 14V8a6 6 0 0 1 12 0v6 M25 18h14 M32 22a24 24 0 1 0 0 48a24 24 0 1 0 0-48 M32 28v3 M32 61v3 M14 46h3 M47 46h3 M32 34v13l9 5');
-  watch.append(path);
-  container.replaceChildren(watch);
 }
 
 function anchorArtwork(className) {

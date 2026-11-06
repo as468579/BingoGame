@@ -74,6 +74,8 @@ function judgeCard(room, player, data, presence, now = Date.now()) {
   if (typeof data.correct !== 'boolean') fail('請選擇回答正確或回答錯誤。');
   Object.assign(active, { stage: 'result', correct: data.correct });
   applyCardEffect(room, active, demoCards.find(card => card.id === active.cardId), now);
+  const totals = room[data.correct ? 'teamCorrectAnswers' : 'teamWrongAnswers'] ||= {};
+  totals[active.teamId] = (totals[active.teamId] || 0) + 1;
 }
 
 function nextQuestion(room, player, data, presence, now = Date.now()) {
@@ -96,7 +98,7 @@ function finishCard(room, player, data, presence, now = Date.now()) {
   }
   applyCardEffect(room, active, demoCards.find(card => card.id === active.cardId), now);
   room.activeCard = null;
-  if (room.phase === 'playing' && !settleVictory(room)) advanceTurn(room);
+  if (room.phase === 'playing' && !settleVictory(room, undefined, now)) advanceTurn(room);
 }
 
 module.exports = { useCard, cancelCard, answerCard, judgeCard, nextQuestion, finishCard, drawForNumber };

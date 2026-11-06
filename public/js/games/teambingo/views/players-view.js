@@ -14,7 +14,7 @@ export class PlayersView {
     this.roster.render({ teams: room.teams.map(team => ({ ...team, rewardCount: team.rewards.length,
       turn: team.playerIds.includes(room.turn) ? room.turn : null })), members: room.players.filter(player => player.id !== room.host), viewerId: playerId,
       hostId: room.host, phase: room.phase, busy, connected, playersPerTeam: room.playersPerTeam, goal: room.goal,
-      selectedTeamId: me?.teamId || room.players.find(player => player.id === playerId)?.teamId, sharedHands: true, paused: Boolean(room.activeCard || room.hint) });
+      selectedTeamId: me?.teamId || room.players.find(player => player.id === playerId)?.teamId, sharedHands: true, paused: Boolean(room.activeCard || room.hint || room.hiddenGoalGuess) });
     if (!this.clockTimer && room.phase === 'playing') {
       this.clockTimer = setInterval(() => this.roster.updateClocks(), 250);
       this.clockTimer.unref?.();

@@ -2,11 +2,13 @@ import { $, element } from '../../views/dom.js';
 import { BridgeBoardView, colorNames } from './board-view.js';
 import { copyRoomCode } from '../../views/copy-room-code.js';
 import { TeamRosterView } from '../../views/team-roster-view.js';
+import { BridgeIntroductionView } from './introduction-view.js';
 
 export class BridgeRoomView {
   constructor(actions = {}, notify = () => {}) {
     this.actions = actions;
     this.board = new BridgeBoardView(actions);
+    this.introduction = new BridgeIntroductionView();
     this.roster = new TeamRosterView({ list: $('bridgeTeams'), controls: $('bridgeJoinControls'), ownTeam: $('bridgeOwnTeam'),
       ready: $('bridgeReady'), count: $('bridgePlayerCount'), summary: $('bridgePresenceSummary') }, {
       onAssign: (playerId, teamId) => this.actions.bridge('bridgeTeam', { playerId, teamId }),
@@ -32,6 +34,7 @@ export class BridgeRoomView {
     this.state = state;
     const { room, me, playerId, busy, connected } = state;
     const game = room.bridge;
+    this.introduction.render(state);
     const activeTeam = game.teams.find(team => team.id === game.activeTeamId);
     const activePlayer = room.players.find(player => player.id === activeTeam?.turn);
     const key = `${room.code}:${room.boardVersion}:${playerId}`;
@@ -83,5 +86,5 @@ export class BridgeRoomView {
   }
 
   closeResults() { if ($('bridgeResultDialog').open) $('bridgeResultDialog').close(); }
-  hide() { $('bridgeGame').hidden = true; this.closeResults(); this.key = null; this.phase = null; this.board.hide(); }
+  hide() { $('bridgeGame').hidden = true; this.closeResults(); this.key = null; this.phase = null; this.board.hide(); this.introduction.hide(); }
 }

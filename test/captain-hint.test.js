@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const game = require('../src/games/teambingo');
-const { separateHost, hostAction } = require('../scripts/test-support/team-goal-setup.cjs');
+const { separateHost, hostAction, setGoalOffers } = require('../scripts/test-support/team-goal-setup.cjs');
 const { applyGameAction } = require('../src/games/teambingo/actions');
 const { remainingTime, initializeTeamClock } = require('../src/games/teambingo/team-clock');
 const { hintUses, addHintUses } = require('../src/games/teambingo/captain-hint');
@@ -15,8 +15,8 @@ function fixture(t, start = true) {
       [['captain-a', 'team-1', true], ['a', 'team-1', true], ['captain-b', 'team-2', true], ['b', 'team-2', true]]
         .map(([id, teamId, ready]) => ({ id, name: id, teamId, ready, hand: [] })) };
   separateHost(room);
-  const act = (kind, playerId = 'captain-a', data = {}) => applyGameAction(room, hostAction(room, room.players.find(player => player.id === playerId), kind), { kind, ...data }, { isOnline: () => true }, now);
-  const begin = () => { act('start'); act('hiddenGoal', 'captain-a', { goalId: 'pending-1' }); act('hiddenGoal', 'captain-b', { goalId: 'pending-2' }); };
+  const act = (kind, playerId = 'captain-a', data = {}) => { applyGameAction(room, hostAction(room, room.players.find(player => player.id === playerId), kind), { kind, ...data }, { isOnline: () => true }, now); if (kind === 'start') setGoalOffers(room); };
+  const begin = () => { act('start'); act('hiddenGoal', 'captain-a', { goalId: 'anticipate-opponent' }); act('hiddenGoal', 'captain-b', { goalId: 'anticipate-opponent' }); };
   if (start) begin();
   return { room, act, begin, time: value => { now = value; }, snapshot: id => game.snapshot(room, { isOnline: () => true }, id) };
 }

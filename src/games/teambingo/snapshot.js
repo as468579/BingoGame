@@ -10,6 +10,7 @@ const { DEFAULT_TEAM_MINUTES, remainingTime } = require('./team-clock');
 const { privateHiddenGoal, hostHiddenGoals } = require('./hidden-goals');
 const { isCaptain } = require('./participants');
 const { hintUses } = require('./captain-hint');
+const { selectionComplete } = require('./hidden-goal-state');
 function roomSnapshot(room, presence, viewerId) {
   const viewer = room.players.find(p => p.id === viewerId), active = room.activeCard;
   const card = active && demoCards.find(c => c.id === active.cardId);
@@ -30,13 +31,16 @@ function roomSnapshot(room, presence, viewerId) {
     bonusRewards: room.phase === 'finished' ? Object.entries(room.teamBonusRewards?.[t.id] || {}).map(([item, quantity]) => ({ item, quantity })) : [] }));
   return { ...publicRoom(room, presence), size: room.size, boardVersion: room.boardVersion, goal: winningLineGoal(room.size),
     teamCount: room.teamCount, playersPerTeam: room.playersPerTeam, teamTimeMinutes: room.teamTimeMinutes ?? DEFAULT_TEAM_MINUTES, teams: scores, board: room.board, cells: room.cells,
-    turn: room.turn, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
+    turn: room.turn, roundNumber: room.roundNumber || 1, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
+    hiddenGoalGuess: room.hiddenGoalGuess ? { ...room.hiddenGoalGuess,
+      teamName: scores.find(team => team.id === room.hiddenGoalGuess.teamId)?.name || '隊伍',
+      captainName: room.players.find(player => player.id === room.hiddenGoalGuess.captainId)?.name || '隊長' } : null,
     lastDecision: room.lastDecision, canUndo: canUndo(room), participantCount: room.players.filter(p => p.id !== room.host).length,
     ...(hiddenGoal ? { hiddenGoal } : {}),
     ...(reviewedGoals ? { hostHiddenGoals: reviewedGoals } : {}),
     hint: room.hint ? { id: room.hint.id, teamId: room.hint.teamId, captainId: room.hint.captainId, teamName: scores.find(team => team.id === room.hint.teamId)?.name || '隊伍', remainingMs: Math.max(0, room.hint.endsAt - now) } : null,
-    canHint: Boolean(viewer && isCaptain(room, viewer.id) && hintUses(room, viewer.teamId) > 0 && room.phase === 'playing' && !room.activeCard && !room.hint && room.players.find(player => player.id === room.turn)?.teamId === viewer.teamId),
-    ...(room.phase === 'choosing-goal' ? { goalsRemaining: scores.filter(team => !room.hiddenGoals?.choices[team.id]).length } : {}),
+    canHint: Boolean(viewer && isCaptain(room, viewer.id) && hintUses(room, viewer.teamId) > 0 && room.phase === 'playing' && !room.activeCard && !room.hint && !room.hiddenGoalGuess && room.players.find(player => player.id === room.turn)?.teamId === viewer.teamId),
+    ...(room.phase === 'choosing-goal' ? { goalsRemaining: scores.filter(team => !selectionComplete(room, team.id)).length } : {}),
     lastScanAt: room.lastScanAt || null, lastScanRemovedCount: room.lastScanRemovedCount || 0,
     lastDraw: awarded ? { ...publicCard({ ...awarded, name: awardDefinition?.name || awarded.name, symbol: awardDefinition?.symbol || awarded.symbol }),
       teamId: awardTeamId, teamName: scores.find(team => team.id === awardTeamId)?.name || '隊伍' } : null,

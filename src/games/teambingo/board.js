@@ -13,11 +13,11 @@ function createCells(board, called = []) {
   return board.map(number => ({ number, isCovered: covered.has(number) }));
 }
 
-// Sample positions without replacement so every layout has exactly ceil(N * 15 / 100) specials.
+// Sample positions without replacement so every layout has exactly ceil(N * 20 / 100) specials.
 function createSpecialCells(board, pick = randomInt) {
   const cells = createCells(board).map(cell => ({ ...cell, isSpecial: false }));
   const positions = cells.map((_, index) => index);
-  for (let i = 0; i < Math.ceil(cells.length * 15 / 100); i++) {
+  for (let i = 0; i < Math.ceil(cells.length * 20 / 100); i++) {
     const selected = i + pick(cells.length - i);
     [positions[i], positions[selected]] = [positions[selected], positions[i]];
     cells[positions[i]].isSpecial = true;

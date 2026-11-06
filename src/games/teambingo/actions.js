@@ -12,7 +12,7 @@ const { settleVictory } = require('./victory');
 const { DEFAULT_TEAM_MINUTES, validateTeamMinutes, initializeTeamClock, syncTeamClock } = require('./team-clock');
 const { useCard, cancelCard, answerCard, judgeCard, nextQuestion, finishCard, drawForNumber } = require('./card-actions');
 const { drawRoomCard } = require('./card-deck');
-const { beginHiddenGoals, chooseHiddenGoal } = require('./hidden-goals');
+const { beginHiddenGoals, chooseHiddenGoal, guessHiddenGoal, judgeHiddenGoalGuess } = require('./hidden-goals');
 const { participants, isCaptain } = require('./participants');
 const { startHint } = require('./captain-hint');
 function settings(room, player, data) {
@@ -80,9 +80,11 @@ function start(room, player) {
   room.hintBonuses = {};
   room.teamBonusRewards = {};
   room.cardDrawCounts = {};
+  room.teamCorrectAnswers = {};
+  room.teamWrongAnswers = {};
   room.roundStart = captureGameState(room).playerStates;
 }
-function call(room, player, data) {
+function call(room, player, data, presence, now = Date.now()) {
   if (player.id === room.host) fail('房主為觀戰模式，不能圈選數字。', 403);
   if (isCaptain(room, player.id)) fail('隊長為觀戰模式，不能圈選數字。', 403);
   if (room.phase !== 'playing') fail('目前不是選號階段。');
@@ -91,11 +93,11 @@ function call(room, player, data) {
   const cell = room.cells.find(c => c.number === data.number);
   if (cell.isCovered) fail('這個格子已被佔領，不能重複選取。');
   const drawnDefinition = cell.isSpecial ? drawRoomCard(room) : null;
-  Object.assign(cell, { isCovered: true, teamId: player.teamId, playerId: player.id });
+  Object.assign(cell, { isCovered: true, teamId: player.teamId, playerId: player.id, claimedRound: room.roundNumber || 1 });
   room.called.push(data.number);
   room.lastDecision = { id: randomUUID(), playerId: player.id, teamId: player.teamId, number: data.number, approved: true, drawnCardId: drawnDefinition ? drawForNumber({ hand: teamHand(room, player.teamId) }, drawnDefinition).id : null };
   awardLinePrizes(room);
-  if (!settleVictory(room)) advanceTurn(room);
+  if (!settleVictory(room, undefined, now)) advanceTurn(room);
 }
 function scan(room, player, data, presence) {
   requireHost(room, player, '只有房主可以重新掃描玩家。');
@@ -113,7 +115,7 @@ function skip(room, player, data, presence) {
 }
 function resetProgress(room) {
   Object.assign(room, { cells: createSpecialCells(room.board), called: [], turn: null, winners: [], pending: null, lastDecision: null,
-    activeCard: null, hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamBonusRewards: {}, cardDrawCounts: {}, history: [], roundStart: null, turnCursors: {}, hiddenGoals: null, usedQuestionIds: [], teamHands: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(room.size) });
+    activeCard: null, hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, history: [], roundStart: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], usedQuestionIds: [], teamHands: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(room.size) });
   room.players.forEach(p => { p.usedDemoCards = []; });
 }
 function reset(room, player) {
@@ -127,15 +129,17 @@ function rerollPrizes(room, player) {
   if (room.phase !== 'lobby') fail('只能在遊戲開始前重新隨機獎品。');
   room.linePrizes = createLinePrizes(room.size);
 }
-const handlers = { settings, board, team, captain, ready, start, hiddenGoal: chooseHiddenGoal, captainHint: startHint, call, scan, skip, reset, undo, rerollPrizes,
+const handlers = { settings, board, team, captain, ready, start, hiddenGoal: chooseHiddenGoal, hiddenGoalGuess: guessHiddenGoal, hiddenGoalJudge: judgeHiddenGoalGuess, captainHint: startHint, call, scan, skip, reset, undo, rerollPrizes,
   cardUse: useCard, cardCancel: cancelCard, cardAnswer: answerCard, cardJudge: judgeCard, cardNextQuestion: nextQuestion, cardFinish: finishCard };
 function applyGameAction(room, player, data, presence, now = Date.now()) {
   if (!Object.hasOwn(handlers, data.kind)) fail('不支援的團隊賓果操作。');
+  if (room.hiddenGoalGuess && !['hiddenGoalJudge', 'reset'].includes(data.kind)) fail('等待房主判定猜測結果，遊戲暫停。', 409);
   if (room.hint && data.kind !== 'reset') fail('隊長提示中，請等待倒數結束。', 409);
   if (room.phase === 'choosing-goal' && !['hiddenGoal', 'reset'].includes(data.kind)) fail('請等待所有隊長選擇隱藏勝利條件。', 409);
   if (room.activeCard && !['cardCancel', 'cardAnswer', 'cardJudge', 'cardNextQuestion', 'cardFinish'].includes(data.kind)) fail('卡牌作答期間暫停遊戲。', 409);
   const before = REVERSIBLE_ACTIONS.has(data.kind) && room.phase === 'playing' ? captureGameState(room) : null;
   handlers[data.kind](room, player, data, presence, now);
+  if (room.phase === 'playing') settleVictory(room, undefined, now);
   if (data.kind === 'start') initializeTeamClock(room, now);
   else syncTeamClock(room, now);
   if (before) room.history.push(before);

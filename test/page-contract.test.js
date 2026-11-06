@@ -33,6 +33,22 @@ test('page IDs are unique and labels and accessibility relationships resolve acr
   }
 });
 
+test('bridge player introduction has an accessible host entry and uses the shared dialog surface', () => {
+  const button = byId('bridgeIntroduction'), dialog = byId('bridgeIntroductionDialog');
+  assert.equal(text(button), '遊戲介紹'); assert.equal(button.attrs.type, 'button');
+  assert.equal(button.attrs['aria-controls'], 'bridgeIntroductionDialog');
+  assert.match(html.slice(button.start, button.end), /\bhidden\b/);
+  assert.equal(dialog.name, 'dialog'); assert.ok(hasClass(dialog, 'game-dialog'));
+  assert.equal(dialog.attrs['aria-labelledby'], 'bridgeIntroductionTitle');
+  assert.equal(byId('bridgeCloseIntroduction').attrs['aria-label'], '關閉遊戲介紹');
+  assert.equal(byId('bridgeIntroductionContent').name, 'div');
+  for (const [id, label] of [['bridgeIntroductionPrevious', '上一頁'], ['bridgeIntroductionNext', '下一頁']]) {
+    assert.equal(byId(id).attrs['aria-label'], label);
+    assert.equal(byId(id).attrs['aria-controls'], 'bridgeIntroductionContent');
+  }
+  assert.equal(byId('bridgeIntroductionPage').attrs['aria-live'], 'polite');
+});
+
 test('header exposes Alberta once with a leading decorative anchor and a single readable marquee phrase', () => {
   const brand = tags.find(tag => tag.name === 'a' && hasClass(tag, 'brand'));
   assert.ok(brand); assert.equal(brand.attrs.href, '/'); assert.equal(text(brand), 'Alberta');
@@ -89,6 +105,9 @@ test('draw panels stay disabled while Team Bingo exposes a card award notificati
   assert.ok(tags.some(tag => tag.name === 'link' && tag.attrs.href === '/styles/game-dialog.css'));
   assert.equal(byId('next-viewHiddenGoal').name, 'button');
   assert.equal(byId('next-hintDialog').name, 'dialog');
+  assert.equal(byId('next-guessDialog').name, 'dialog');
+  assert.equal(byId('next-guessCorrect').name, 'button');
+  assert.equal(byId('next-guessWrong').name, 'button');
   assert.equal(byId('next-captainHint').name, 'button');
   assert.equal(byId('next-hintProgress').name, 'circle');
   assert.doesNotMatch(content(byId('next-drawnCardDialog')), /drawn-card-caption|獲得一張效果卡/);

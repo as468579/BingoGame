@@ -1,6 +1,7 @@
 'use strict';
 const { participants } = require('./participants');
 const { teams } = require('./teams');
+const { completeTurn } = require('./rounds');
 
 function teamMembers(room) {
   const members = participants(room);
@@ -10,10 +11,12 @@ function teamMembers(room) {
 function startTurn(room) {
   room.turnCursors = {};
   room.turn = null;
+  room.roundNumber = 1; room.roundActedIds = [];
   advanceTurn(room);
 }
 
 function advanceTurn(room) {
+  completeTurn(room);
   const groups = teamMembers(room);
   const currentTeamId = room.players.find(player => player.id === room.turn)?.teamId;
   const index = groups.findIndex(team => team.id === currentTeamId);

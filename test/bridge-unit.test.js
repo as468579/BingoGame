@@ -131,9 +131,11 @@ test('missing the designated suit frees every held color while occupied destinat
   team.cells[0].card = { number: 8, color: 'yellow' };
   for (const card of game.hands.a) assert.deepEqual(legalPlacements(game, team, 'a', card.number), [2, 3, 4, 5, 6, 7, 8, 9]);
   assert.equal(team.cells[2].card, null, 'original empty number does not restrict a missing-suit card');
-  team.cells[2].card = { number: 1, color: 'yellow' };
-  assert.deepEqual(legalPlacements(game, team, 'a', 3), [2, 4, 5, 6, 7, 8, 9]);
-  assert.equal(canDiscard(game, team, 'a', 3), false, 'missing suit must place rather than discard');
+  for (const color of COLORS) {
+    team.cells[2].card = { number: 1, color };
+    assert.deepEqual(legalPlacements(game, team, 'a', 3), [2, 4, 5, 6, 7, 8, 9]);
+    assert.equal(canDiscard(game, team, 'a', 3), false, 'missing suit must place rather than discard regardless of occupant color');
+  }
 });
 
 test('last-slot moves are valid without overwriting cards and legality checks never mutate state', () => {

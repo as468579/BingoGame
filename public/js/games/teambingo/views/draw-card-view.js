@@ -16,7 +16,7 @@ export class DrawCardView {
     this.key = key;
     this.phase = room.phase;
     this.calledCount = room.called.length;
-    this.blocked = Boolean(room.activeCard) || Boolean(room.pending);
+    this.blocked = Boolean(room.activeCard) || Boolean(room.hiddenGoalGuess) || Boolean(room.pending);
     if (room.lastDraw && room.lastDraw.id !== this.lastId) {
       this.reset();
       this.lastId = room.lastDraw.id;

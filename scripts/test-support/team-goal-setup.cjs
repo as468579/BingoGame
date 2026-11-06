@@ -29,9 +29,20 @@ function prepareCaptains(room) {
 }
 function completeGoalSelection(room, choose) {
   if (room.phase !== 'choosing-goal') return;
+  // Unrelated rule tests choose a passive goal; dedicated offer tests cover randomness.
+  setGoalOffers(room);
   for (let index = 1; index <= room.teamCount; index++) {
     const captain = room.players.find(player => player.id === room.captains[`team-${index}`]);
-    choose(captain, 'pending-1');
+    const options = room.hiddenGoals.offers[`team-${index}`];
+    choose(captain, options.find(card => card.id === 'pending-1')?.id || 'anticipate-opponent');
   }
 }
-module.exports = { prepareCaptains, completeGoalSelection, separateHost, hostAction, HOST_ACTIONS };
+function setGoalOffers(room, ids = ['anticipate-opponent', 'mathematician', 'almost-bingo']) {
+  // Existing single-condition rule tests also exercise compatibility with saved games.
+  room.hiddenGoals.requiredCount = 1;
+  const catalog = require('../../src/games/teambingo/hidden-goal-catalog');
+  const available = catalog.filter(card => room.size >= (card.minBoardSize || 3));
+  const ordered = [...ids.map(id => available.find(card => card.id === id)).filter(Boolean), ...available.filter(card => !ids.includes(card.id))].slice(0, 3);
+  for (const teamId of Object.keys(room.hiddenGoals.offers)) room.hiddenGoals.offers[teamId] = structuredClone(ordered);
+}
+module.exports = { prepareCaptains, completeGoalSelection, separateHost, hostAction, HOST_ACTIONS, setGoalOffers };

@@ -50,10 +50,10 @@ test('unassigned unready host does not block starting or enter the team turn cyc
   f.send('captain', { teamId: 'team-1', playerId: members[0].id });
   f.send('captain', { teamId: 'team-2', playerId: members[2].id });
   for (const member of members) f.send('ready', { ready: true }, member.token);
-  f.send('start');
+  f.send('start'); require('../scripts/test-support/team-goal-setup.cjs').setGoalOffers(f.room);
   assert.equal(f.room.phase, 'choosing-goal');
-  f.send('hiddenGoal', { goalId: 'pending-1' }, members[0].token);
-  f.send('hiddenGoal', { goalId: 'pending-2' }, members[2].token);
+  f.send('hiddenGoal', { goalId: 'anticipate-opponent' }, members[0].token);
+  f.send('hiddenGoal', { goalId: 'anticipate-opponent' }, members[2].token);
   assert.deepEqual(participants(f.room).map(player => player.id), [members[1].id, members[3].id]);
   const order = [];
   for (let i = 0; i < 4; i++) { order.push(f.room.turn); advanceTurn(f.room); }

@@ -32,13 +32,13 @@ const act = (room, data, player = room.players[0]) => {
   if (data.kind === 'start') completeGoalSelection(room, (captain, goalId) => act(room, { kind: 'hiddenGoal', goalId }, captain));
 };
 
-test('default rooms have two teams, a valid 6x6 board and six unclaimed special cells', () => {
+test('default rooms have two teams, a valid 6x6 board and eight unclaimed special cells', () => {
   const room = game.initializeRoom();
   assert.equal(room.teamCount, 2);
   assert.equal(room.size, 6);
   assert.deepEqual([...room.board].sort((a, b) => a - b), Array.from({ length: 36 }, (_, i) => i + 1));
   assert.deepEqual(room.cells.map(cell => cell.number), room.board);
-  assert.equal(room.cells.filter(cell => cell.isSpecial).length, 6);
+  assert.equal(room.cells.filter(cell => cell.isSpecial).length, 8);
   assert.ok(room.cells.every(cell => !cell.isCovered && !cell.teamId));
   assert.equal(room.linePrizes.length, 14);
 });
@@ -62,7 +62,7 @@ test('host settings and reset preserve custom dimensions instead of reapplying c
   game.migrate(room);
   assert.equal(room.size, 8); assert.equal(room.teamCount, 3);
   assert.equal(room.board.length, 64); assert.equal(room.cells.length, 64);
-  assert.equal(room.cells.filter(cell => cell.isSpecial).length, 10);
+  assert.equal(room.cells.filter(cell => cell.isSpecial).length, 13);
   assert.equal(room.linePrizes.length, 18);
 });
 
@@ -78,7 +78,7 @@ test('migration retains an existing room layout and team count after default cha
   assert.deepEqual(room.linePrizes, saved.linePrizes);
 });
 
-for (const [size, expected] of [[3, 2], [4, 3], [5, 4], [6, 6], [7, 8], [8, 10], [9, 13]]) {
+for (const [size, expected] of [[3, 2], [4, 4], [5, 5], [6, 8], [7, 10], [8, 13], [9, 17]]) {
   test(`${size}x${size} has exactly ${expected} special cells after rounding upward`, () => {
     const board = createBoard(size);
     for (const pick of [() => 0, bound => bound - 1]) {
@@ -92,7 +92,7 @@ for (const [size, expected] of [[3, 2], [4, 3], [5, 4], [6, 6], [7, 8], [8, 10],
 }
 
 test('empty, tiny and exact-multiple boards obey ceiling boundaries', () => {
-  for (const [total, expected] of [[0, 0], [1, 1], [6, 1], [7, 2], [8, 2], [9, 2], [10, 2], [11, 2], [20, 3], [21, 4], [25, 4], [26, 4]]) {
+  for (const [total, expected] of [[0, 0], [1, 1], [5, 1], [6, 2], [7, 2], [8, 2], [9, 2], [10, 2], [11, 3], [20, 4], [21, 5], [25, 5], [26, 6]]) {
     let calls = 0;
     const cells = createSpecialCells(Array.from({ length: total }, (_, i) => i + 1), () => { calls++; return 0; });
     assert.equal(cells.filter(cell => cell.isSpecial).length, expected);
@@ -100,13 +100,13 @@ test('empty, tiny and exact-multiple boards obey ceiling boundaries', () => {
   }
 });
 
-test('fifteen-percent layouts obey the ceiling for every total through the largest supported board', () => {
+test('twenty-percent layouts obey the ceiling for every total through the largest supported board', () => {
   for (let total = 0; total <= 81; total++) {
     const board = Object.freeze(Array.from({ length: total }, (_, i) => i + 1));
     for (const pick of [() => 0, bound => bound - 1]) {
       const cells = createSpecialCells(board, pick);
       const special = cells.filter(cell => cell.isSpecial);
-      assert.equal(special.length, Math.ceil(total * 15 / 100));
+      assert.equal(special.length, Math.ceil(total * 20 / 100));
       assert.equal(new Set(special.map(cell => cell.number)).size, special.length);
       assert.deepEqual(cells.map(cell => cell.number), board);
       assert.ok(cells.every(cell => cell.isCovered === false));
@@ -115,12 +115,12 @@ test('fifteen-percent layouts obey the ceiling for every total through the large
 });
 
 test('every position can be chosen when the board needs one special cell', () => {
-  const board = [1, 2, 3, 4, 5, 6];
+  const board = [1, 2, 3, 4, 5];
   const selected = board.map((_, index) => {
-    const cells = createSpecialCells(board, bound => { assert.equal(bound, 6); return index; });
+    const cells = createSpecialCells(board, bound => { assert.equal(bound, 5); return index; });
     return cells.findIndex(cell => cell.isSpecial);
   });
-  assert.deepEqual(selected, [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(selected, [0, 1, 2, 3, 4]);
 });
 
 test('sampling preserves frozen input and returns independent fresh cell objects', () => {
@@ -146,7 +146,7 @@ test('shuffle refreshes fixed-count specials while preserving mixed preparation 
   const room = lobby(), version = room.boardVersion;
   room.cells.forEach(cell => { cell.isSpecial = false; });
   act(room, { kind: 'board', board: room.board, boardVersion: version, rerollSpecial: true });
-  assert.equal(room.cells.filter(cell => cell.isSpecial).length, 6);
+  assert.equal(room.cells.filter(cell => cell.isSpecial).length, 8);
   assert.deepEqual(room.players.filter(player => player.id !== room.host).map(player => player.ready), [true, false]);
   assert.equal(room.boardVersion, version + 1);
 });
@@ -175,7 +175,7 @@ test('migration preserves saved layouts and initializes missing lobby flags only
   game.migrate(room); assert.deepEqual(room.cells, original);
   room.cells.forEach(cell => { delete cell.isSpecial; });
   game.migrate(room);
-  assert.equal(room.cells.filter(cell => cell.isSpecial).length, 6);
+  assert.equal(room.cells.filter(cell => cell.isSpecial).length, 8);
   const initialized = structuredClone(room.cells);
   game.migrate(room); assert.deepEqual(room.cells, initialized);
   const playing = lobby(); playing.phase = 'playing';

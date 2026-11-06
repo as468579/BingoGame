@@ -12,6 +12,8 @@ const { expireHint } = require('./captain-hint');
 const { isCaptain } = require('./participants');
 const { migrateDrawCounts } = require('./card-deck');
 const { migrateRetiredPrizes } = require('../../shared/prize-items');
+const { createOffers } = require('./hidden-goal-offers');
+const { selectionComplete, migrateGoalAliases, requiredCount } = require('./hidden-goal-state');
 module.exports = {
   id: 'teambingo',
   cardLibrary: require('./card-catalog').cards,
@@ -19,7 +21,7 @@ module.exports = {
     const teamTimeMinutes = validateTeamMinutes(options.teamTimeMinutes === undefined ? DEFAULT_TEAM_MINUTES : options.teamTimeMinutes);
     const size = 6, board = createBoard(size);
     return { size, boardVersion: 0, board, cells: createSpecialCells(board), teamCount: 2, playersPerTeam: 2, teamTimeMinutes,
-      called: [], turn: null, turnCursors: {}, hiddenGoals: null, hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamBonusRewards: {}, cardDrawCounts: {}, usedQuestionIds: [], winners: [], pending: null, lastDecision: null, history: [], teamHands: {}, captains: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(size) };
+      called: [], turn: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, usedQuestionIds: [], winners: [], pending: null, lastDecision: null, history: [], teamHands: {}, captains: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(size) };
   },
   createPlayer: (room, name, token) => ({ ...createIdentity(name, token), teamId: null, hand: [], usedDemoCards: [], ready: false }),
   capacity: room => room.teamCount * room.playersPerTeam,
@@ -33,6 +35,15 @@ module.exports = {
   },
   applyAction: applyGameAction, snapshot: roomSnapshot,
   migrate(room) {
+    migrateGoalAliases(room);
+    room.teamCorrectAnswers ||= {};
+    room.teamWrongAnswers ||= {};
+    room.roundNumber ??= 1; room.roundActedIds ||= [];
+    if (room.phase === 'choosing-goal' && room.hiddenGoals) {
+      for (const teamId of Object.keys(room.hiddenGoals.offers)) {
+        if (!selectionComplete(room, teamId)) room.hiddenGoals.offers[teamId] = createOffers(room.size, requiredCount(room));
+      }
+    }
     migrateRetiredPrizes(room);
     const retiredActive = ['star', 'shield', 'moon'].includes(room.activeCard?.cardId);
     migrateTeamHands(room);
