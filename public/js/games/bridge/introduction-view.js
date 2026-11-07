@@ -1,5 +1,5 @@
-import { $, element } from '../../views/dom.js';
-import { bindDialogDismiss } from '../../views/dialog.js';
+import { $ } from '../../views/dom.js';
+import { GameIntroductionView } from '../../views/game-introduction-view.js';
 import { bridgeIntroductionIllustration } from './introduction-illustrations.js';
 
 function sections(room) {
@@ -12,70 +12,11 @@ function sections(room) {
   ];
 }
 
-export class BridgeIntroductionView {
+export class BridgeIntroductionView extends GameIntroductionView {
   constructor() {
-    this.button = $('bridgeIntroduction'); this.dialog = $('bridgeIntroductionDialog');
-    this.body = $('bridgeIntroductionContent');
-    this.previous = $('bridgeIntroductionPrevious'); this.next = $('bridgeIntroductionNext');
-    this.pageLabel = $('bridgeIntroductionPage'); this.page = 0; this.pages = [];
-    this.previous.onclick = () => this.showPage(this.page - 1);
-    this.next.onclick = () => this.showPage(this.page + 1);
-    this.dialog.onkeydown = event => {
-      if (!this.available || !this.dialog.open || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-      event.preventDefault(); this.showPage(this.page + (event.key === 'ArrowRight' ? 1 : -1));
-    };
-    this.button.onclick = () => {
-      if (!this.available || this.dialog.open) return;
-      this.dialog.scrollTop = 0; this.body.scrollTop = 0; this.dialog.showModal();
-    };
-    bindDialogDismiss({ dialog: this.dialog, closeButton: $('bridgeCloseIntroduction') });
+    super({ lookup: $, sections, illustration: bridgeIntroductionIllustration, ids: {
+      button: 'bridgeIntroduction', dialog: 'bridgeIntroductionDialog', body: 'bridgeIntroductionContent',
+      previous: 'bridgeIntroductionPrevious', next: 'bridgeIntroductionNext', page: 'bridgeIntroductionPage', close: 'bridgeCloseIntroduction'
+    } });
   }
-
-  render({ room, playerId }) {
-    const key = `${room.code}:${playerId}`;
-    const changedRoom = this.key !== key;
-    if (changedRoom) { this.close(); this.page = 0; }
-    this.key = key;
-    this.available = playerId === room.host && ['lobby', 'playing'].includes(room.phase);
-    this.button.hidden = !this.available;
-    if (!this.available) { this.close(); return; }
-    const contentKey = `${room.size}:${room.goal}`;
-    if (this.contentKey === contentKey) { if (changedRoom) this.showPage(0); return; }
-    this.contentKey = contentKey;
-    this.pages = sections(room).map(([title, rules, subsection], index) => {
-      const section = element('section', 'bridge-introduction-section');
-      const list = element('ul');
-      list.append(...rules.map(rule => {
-        if (!rule.startsWith('遊戲訣竅：')) return element('li', '', rule);
-        const tip = element('li', 'bridge-introduction-tip');
-        tip.append(element('strong', '', '遊戲訣竅：'), element('span', '', rule.slice('遊戲訣竅：'.length)));
-        return tip;
-      }));
-      section.append(element('h3', '', title));
-      const illustration = bridgeIntroductionIllustration(index);
-      if (illustration) section.append(illustration);
-      section.append(list);
-      if (subsection) {
-        const extra = element('ul'); extra.append(...subsection[1].map(rule => element('li', '', rule)));
-        section.append(element('h4', '', subsection[0]));
-        if (subsection[2]) section.append(bridgeIntroductionIllustration(subsection[2]));
-        section.append(extra);
-      }
-      return section;
-    });
-    this.body.replaceChildren(...this.pages);
-    this.showPage(Math.min(this.page, this.pages.length - 1));
-  }
-
-  showPage(index) {
-    if (!this.available || index < 0 || index >= this.pages.length) return;
-    this.page = index;
-    this.pages.forEach((page, position) => { page.hidden = position !== index; });
-    this.previous.disabled = index === 0; this.next.disabled = index === this.pages.length - 1;
-    this.pageLabel.textContent = `${index + 1} / ${this.pages.length}`;
-    this.body.scrollTop = 0;
-  }
-
-  close() { if (this.dialog.open) this.dialog.close(); }
-  hide() { this.close(); this.available = false; this.key = null; this.contentKey = null; this.button.hidden = true; this.body.replaceChildren(); this.pages = []; this.page = 0; this.pageLabel.textContent = ''; this.previous.disabled = this.next.disabled = true; }
 }

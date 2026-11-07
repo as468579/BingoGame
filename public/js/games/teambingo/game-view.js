@@ -1,3 +1,4 @@
+import { TeamIntroductionView } from './introduction-view.js';
 import { $ } from './dom.js';
 import { PlayersView } from './views/players-view.js';
 import { BoardView } from './views/board-view.js';
@@ -14,6 +15,7 @@ import { HiddenGuessView } from './views/hidden-guess-view.js';
 
 export class TeamBingoView {
   constructor(actions, address, notify, getState) {
+    this.introduction = new TeamIntroductionView();
     this.players = new PlayersView(actions);
     this.board = new BoardView(actions);
     this.hostControls = new HostControlsView(actions);
@@ -38,6 +40,7 @@ export class TeamBingoView {
     $('game').dataset.phase = room.phase;
     $('handPanel').hidden = false;
     $('roomCode').textContent = room.code;
+    this.introduction.render(state);
     this.invitation.render(room, state.playerId);
     this.players.render(state);
     this.board.render(state);
@@ -51,12 +54,14 @@ export class TeamBingoView {
     this.drawCards.render(state);
     this.hiddenGoal.render(state);
     this.captainHint.render(state);
-    $('rulesText').textContent = `每回合只能圈選一個數字或使用一張隊伍卡牌，二擇一。圈選後直接佔領並換人；卡牌作答完成後，無論正誤都換人。建立或隨機排列時，隨機選出總格數 × 20%（無條件進位）個特殊格，圈選特殊格可獲得一張卡，當回合不能接著使用。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線或達成所選隱藏勝利條件即獲勝；盤面滿時按連線數結算。`;
-    $('winner').textContent = room.endReason === 'time-exhausted' ? '所有隊伍行動時間已用完，本局無勝者。' : room.winners.length
+    $('rulesText').textContent = `每回合只能圈選一個數字或使用一張隊伍卡牌，二擇一。圈選後直接佔領並換人；卡牌作答完成後，無論正誤都換人。建立或隨機排列時，隨機選出總格數 × 20%（無條件進位）個特殊格，圈選特殊格可獲得一張卡，當回合不能接著使用。整條線必須屬於同隊才可獲獎。先完成 ${room.goal} 條線或達成所選隱藏勝利條件即獲勝；盤面已滿仍無人達標時判定為和局。`;
+    $('winner').textContent = room.endReason === 'board-full-draw' ? '盤面已滿，無隊伍達成勝利條件，本局和局。'
+      : room.endReason === 'time-exhausted' ? '所有隊伍行動時間已用完，本局無勝者。' : room.winners.length
       ? `✳ ${room.teams.filter(team => room.winners.includes(team.id)).map(team => team.name).join('、')}${room.winners.length > 1 ? ' 並列獲勝' : ' 獲勝'}！` : '';
   }
 
   hide() {
+    this.introduction.hide();
     this.players.hide();
     this.board.hide();
     $('root').hidden = true;

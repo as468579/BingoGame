@@ -11,7 +11,7 @@ const { createBoard, createCells } = require('../src/games/teambingo/board');
 const { createLinePrizes } = require('../src/games/teambingo/prizes');
 const { advanceTurn } = require('../src/games/teambingo/turns');
 const { applyGameAction } = require('../src/games/teambingo/actions');
-const { TEAM_TIME_MS, initializeTeamClock, remainingTime, syncTeamClock, expireTeamClock } = require('../src/games/teambingo/team-clock');
+const { TEAM_TIME_MS, initializeTeamClock, remainingTime, overtimeState, syncTeamClock, expireTeamClock, addTeamTime } = require('../src/games/teambingo/team-clock');
 const { createApplication } = require('../src/app');
 const { drawForNumber } = require('../src/games/teambingo/card-actions');
 const { prepareCaptains, completeGoalSelection, separateHost, hostAction, HOST_ACTIONS } = require('../scripts/test-support/team-goal-setup.cjs');
@@ -55,30 +55,32 @@ test('a visible card question pauses all clock spending and resuming does not ch
   assert.equal(remainingTime(room, 'team-1', 10060000), 480000);
 });
 
-test('expiration skips every member of the timed-out team exactly at the deadline', () => {
+test('budget expiration starts three seconds for the current member and future teammates still receive turns', () => {
   const room = roomAt();
   assert.equal(expireTeamClock(room, 599999), false);
   assert.equal(expireTeamClock(room, 600000), true);
-  assert.equal(room.turn, 'c'); assert.equal(room.phase, 'playing');
+  assert.equal(room.turn, 'a'); assert.equal(room.phase, 'playing');
   assert.equal(remainingTime(room, 'team-1', 600000), 0);
+  assert.equal(expireTeamClock(room, 602999), false);
+  assert.equal(expireTeamClock(room, 603000), true); assert.equal(room.turn, 'c');
   advanceTurn(room); syncTeamClock(room, 610000);
-  assert.equal(room.turn, 'd');
-  advanceTurn(room); syncTeamClock(room, 620000);
-  assert.equal(room.turn, 'c');
+  assert.equal(room.turn, 'b'); assert.equal(room.teamClock.overtime.remainingMs, 3000);
+  assert.equal(expireTeamClock(room, 613000), true); assert.equal(room.turn, 'd');
 });
 
 test('delayed scheduler ticks account for the next team from the actual previous deadline', () => {
   const room = roomAt(); expireTeamClock(room, 900000);
-  assert.equal(room.turn, 'c'); assert.equal(room.teamClock.startedAt, 600000);
-  assert.equal(remainingTime(room, 'team-2', 900000), 300000);
+  assert.equal(room.turn, 'c'); assert.equal(room.teamClock.startedAt, 603000);
+  assert.equal(remainingTime(room, 'team-2', 900000), 303000);
 });
 
-test('all budgets exhausted ends without a winner or an infinite turn loop', () => {
+test('all budgets exhausted continues rotating in three-second turns without declaring a winner', () => {
   const room = roomAt(); assert.equal(expireTeamClock(room, 3000000), true);
-  assert.equal(room.phase, 'finished'); assert.equal(room.turn, null);
-  assert.equal(room.endReason, 'time-exhausted'); assert.deepEqual(room.winners, []);
-  assert.equal(room.teamClock.activeTeamId, null);
-  assert.equal(expireTeamClock(room, 4000000), false);
+  assert.equal(room.phase, 'playing'); assert.ok(room.turn);
+  assert.equal(room.endReason, null); assert.deepEqual(room.winners, []);
+  assert.ok(room.teamClock.overtime);
+  assert.equal(expireTeamClock(room, 4000000), true);
+  assert.equal(room.phase, 'playing');
 });
 
 test('an already achieved victory takes precedence over timeout exclusion', () => {
@@ -112,7 +114,7 @@ test('persisted clocks survive migration and continue from their saved deadline'
   const room = roomAt(); syncTeamClock(room, 50000);
   const saved = JSON.parse(JSON.stringify(room)); game.migrate(saved);
   assert.equal(remainingTime(saved, 'team-1', 200000), 400000);
-  expireTeamClock(saved, 600000); assert.equal(saved.turn, 'c');
+  expireTeamClock(saved, 603000); assert.equal(saved.turn, 'c');
 });
 
 function serviceFixture(t, teamTimeMinutes = 10) {
@@ -181,7 +183,7 @@ test('service ticks expire inactive-browser turns and persist and broadcast the 
   const f = serviceFixture(t); let broadcasts = 0;
   t.mock.method(f.service, 'broadcast', () => { broadcasts++; });
   const saved = f.saves(), revision = f.room.revision;
-  f.setTime(600000); f.service.tick();
+  f.setTime(603000); f.service.tick();
   assert.equal(f.room.turn, f.room.players[1].id);
   assert.equal(f.room.revision, revision + 1); assert.equal(f.saves(), saved + 1); assert.equal(broadcasts, 1);
   f.service.tick(); assert.equal(broadcasts, 1);
@@ -193,13 +195,13 @@ test('the server lifecycle starts an automatic timeout poll and stops it on clos
   t.mock.method(globalThis, 'setInterval', (callback, delay) => { assert.equal(delay, 250); poll = callback; return timer; });
   t.mock.method(globalThis, 'clearInterval', handle => { cleared = handle; });
   f.server.emit('listening');
-  f.setTime(600000); poll();
+  f.setTime(603000); poll();
   assert.equal(f.room.turn, f.room.players[1].id);
   f.server.emit('close'); assert.equal(cleared, timer);
 });
 
 test('a stale action at an expired deadline cannot claim a number before the scheduler ticks', t => {
-  const f = serviceFixture(t); f.setTime(600000);
+  const f = serviceFixture(t); f.setTime(603000);
   assert.throws(() => f.send('call', { number: 1 }), /輪到/);
   assert.deepEqual(f.room.called, []); assert.equal(f.room.teamClock.remaining['team-1'], 0);
 });
@@ -210,7 +212,7 @@ test('failed actions do not restart the active team clock or extend its deadline
   assert.throws(() => f.send('call', { number: 99 }), /無效/);
   assert.equal(f.room.teamClock.startedAt, startedAt);
   assert.equal(remainingTime(f.room, 'team-1'), 300000);
-  f.setTime(600000); f.service.tick();
+  f.setTime(603000); f.service.tick();
   assert.equal(f.room.turn, f.room.players[1].id);
   assert.equal(f.room.teamClock.remaining['team-1'], 0);
 });
@@ -228,4 +230,128 @@ test('real card use pauses clocks through submission and host judgment and resta
   f.send('cardFinish', { cardSessionId });
   assert.equal(f.room.teamClock.activeTeamId, 'team-2');
   assert.equal(f.service.snapshot(f.room, f.room.host).teams[0].timeRemainingMs, 620000);
+});
+
+test('overtime pauses for a card session and resumes only its unused fraction without resetting the deadline', () => {
+  const room = roomAt(); expireTeamClock(room, 600000);
+  assert.deepEqual(overtimeState(room, 602000), { playerId: 'a', remainingMs: 1000, running: true });
+  room.activeCard = { id: 'question' }; syncTeamClock(room, 602000);
+  assert.deepEqual(overtimeState(room, 900000), { playerId: 'a', remainingMs: 1000, running: false });
+  assert.equal(expireTeamClock(room, 900000), false);
+  const saved = JSON.parse(JSON.stringify(room)); game.migrate(saved);
+  assert.equal(overtimeState(saved, 900000).remainingMs, 1000);
+  saved.activeCard = null; syncTeamClock(saved, 900000);
+  assert.equal(expireTeamClock(saved, 900999), false);
+  assert.equal(expireTeamClock(saved, 901000), true); assert.equal(saved.turn, 'c');
+});
+
+test('each overtime turn gets exactly three seconds and timeout still advances the global round', () => {
+  const room = roomAt(); room.teamClock.remaining = { 'team-1': 0, 'team-2': 0 }; syncTeamClock(room, 0);
+  const order = [];
+  for (let i = 0; i < 5; i++) {
+    order.push(room.turn);
+    assert.equal(overtimeState(room, i * 3000).remainingMs, 3000);
+    assert.equal(expireTeamClock(room, i * 3000 + 2999), false);
+    assert.equal(expireTeamClock(room, (i + 1) * 3000), true);
+  }
+  assert.deepEqual(order, ['a', 'c', 'b', 'd', 'a']);
+  assert.equal(room.roundNumber, 2); assert.equal(room.phase, 'playing');
+});
+
+test('adding time during overtime returns the team to its normal budget without changing the active player', () => {
+  const room = roomAt(); expireTeamClock(room, 600000);
+  addTeamTime(room, 'team-1', 120000, 602000); syncTeamClock(room, 602000);
+  assert.equal(room.turn, 'a'); assert.equal(overtimeState(room, 602000), null);
+  assert.equal(remainingTime(room, 'team-1', 602000), 120000);
+  assert.equal(expireTeamClock(room, 603000), false);
+  assert.equal(remainingTime(room, 'team-1', 603000), 119000);
+  expireTeamClock(room, 722000); assert.equal(overtimeState(room, 722000).remainingMs, 3000);
+});
+
+test('overtime snapshots show an action countdown while retaining zero shared team time', t => {
+  t.mock.method(Date, 'now', () => 601000);
+  const room = roomAt(); expireTeamClock(room, 600000);
+  const snapshot = game.snapshot(room, { isOnline: () => true }, room.host);
+  assert.deepEqual(snapshot.overtime, { playerId: 'a', remainingMs: 2000, running: true });
+  const team = snapshot.teams.find(team => team.id === 'team-1');
+  assert.equal(team.timeRemainingMs, 0); assert.equal(team.clockRunning, false);
+  assert.equal(team.overtimeMode, true); assert.equal(team.overtimeRemainingMs, 2000);
+});
+
+test('a real player can claim during their grace period and late requests cannot revive an expired turn', t => {
+  const f = serviceFixture(t); f.setTime(602999);
+  f.send('call', { number: 1 }); assert.deepEqual(f.room.called, [1]);
+  assert.equal(f.room.turn, f.room.players[1].id);
+  const second = serviceFixture(t); second.setTime(603000);
+  assert.throws(() => second.send('call', { number: 1 }), /輪到/);
+  assert.deepEqual(second.room.called, []);
+});
+
+test('invalid requests during overtime never refresh the three-second limit', t => {
+  const f = serviceFixture(t); f.setTime(601000);
+  assert.throws(() => f.send('call', { number: 99 }), /無效/);
+  assert.equal(overtimeState(f.room).remainingMs, 2000);
+  f.setTime(602000); assert.throws(() => f.send('call', { number: 99 }), /無效/);
+  assert.equal(overtimeState(f.room).remainingMs, 1000);
+  f.setTime(603000); f.service.tick(); assert.equal(f.room.turn, f.room.players[1].id);
+});
+
+test('captain hints pause overtime and resume its remaining second after the hint ends', t => {
+  const f = serviceFixture(t); f.setTime(602000);
+  const captain = f.room.players.find(player => player.id === f.room.captains['team-1']);
+  f.send('captainHint', {}, captain.token);
+  assert.deepEqual(overtimeState(f.room), { playerId: f.room.turn, remainingMs: 1000, running: false });
+  f.setTime(632000); f.service.tick(); assert.equal(overtimeState(f.room).remainingMs, 1000);
+  f.setTime(633000); f.service.tick(); assert.equal(f.room.turn, f.room.players[1].id);
+});
+
+test('a time card used in overtime can answer normally and restore two minutes on a correct judgment', t => {
+  const f = serviceFixture(t);
+  const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] }, require('../src/games/teambingo/card-catalog').cards.find(card => card.id === 'team-time-plus-2m'));
+  f.setTime(602000); f.send('cardUse', { cardId: held.id });
+  const cardSessionId = f.room.activeCard.id;
+  assert.equal(overtimeState(f.room).remainingMs, 1000); assert.equal(overtimeState(f.room).running, false);
+  f.send('cardAnswer', { cardSessionId, choice: 0 });
+  f.setTime(900000); f.send('cardJudge', { cardSessionId, correct: true });
+  assert.equal(remainingTime(f.room, 'team-1'), 120000); assert.equal(overtimeState(f.room), null);
+  f.send('cardFinish', { cardSessionId }); assert.equal(f.room.turn, f.room.players[1].id);
+});
+
+test('persisted running overtime retains its original deadline after migration and repeated snapshots', t => {
+  let now = 601250; t.mock.method(Date, 'now', () => now);
+  const room = roomAt(); expireTeamClock(room, 600000);
+  const saved = JSON.parse(JSON.stringify(room)); game.migrate(saved);
+  assert.equal(overtimeState(saved).remainingMs, 1750);
+  for (let i = 0; i < 3; i++) assert.equal(game.snapshot(saved, { isOnline: () => true }, saved.host).overtime.remainingMs, 1750);
+  now = 602999; assert.equal(expireTeamClock(saved, now), false);
+  assert.equal(overtimeState(saved).remainingMs, 1);
+  now = 603000; assert.equal(expireTeamClock(saved, now), true); assert.equal(saved.turn, 'c');
+});
+
+test('unequal teams keep independently cycling when both teams have only three-second turns', () => {
+  const room = roomAt(); room.players = room.players.filter(player => player.id !== 'd');
+  room.teamClock.remaining = { 'team-1': 0, 'team-2': 0 }; syncTeamClock(room, 0);
+  const order = [];
+  for (let i = 0; i < 8; i++) {
+    order.push(room.turn); assert.equal(overtimeState(room, i * 3000).remainingMs, 3000);
+    expireTeamClock(room, (i + 1) * 3000);
+  }
+  assert.deepEqual(order, ['a', 'c', 'b', 'c', 'a', 'c', 'b', 'c']);
+  assert.equal(room.phase, 'playing'); assert.equal(room.roundNumber, 3);
+});
+
+test('a wrong time-card answer in overtime consumes the card and advances without granting extra time', t => {
+  const f = serviceFixture(t);
+  const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] }, require('../src/games/teambingo/card-catalog').cards.find(card => card.id === 'team-time-plus-2m'));
+  f.setTime(602000); f.send('cardUse', { cardId: held.id });
+  const cardSessionId = f.room.activeCard.id;
+  f.send('cardAnswer', { cardSessionId, choice: 0 });
+  f.setTime(700000); f.send('cardJudge', { cardSessionId, correct: false });
+  assert.equal(remainingTime(f.room, 'team-1'), 0);
+  assert.equal(overtimeState(f.room).remainingMs, 1000);
+  assert.equal((f.room.teamHands['team-1'] || []).some(card => card.id === held.id), false);
+  f.send('cardFinish', { cardSessionId }); assert.equal(f.room.turn, f.room.players[1].id);
+  f.send('call', { number: 1 }, f.room.players[1].token);
+  assert.equal(f.room.turn, f.room.players[0].id); assert.equal(overtimeState(f.room).remainingMs, 3000);
+  assert.equal(remainingTime(f.room, 'team-1'), 0);
 });

@@ -69,3 +69,50 @@ test('migration respects saved selection counts when rebuilding incomplete offer
     assert.equal(saved.phase, 'choosing-goal');
   }
 });
+
+test('public hidden-condition reference follows actual offer rules and never includes private progress', t => {
+  const f = fixture(t);
+  f.act('hiddenGoal', { goalId: 'mathematician' }, 'c1');
+  const before = structuredClone(f.room);
+  const catalog = require('../src/games/teambingo/hidden-goal-catalog');
+  const snapshots = ['host', 'c1', 'a', 'b'].map(id => f.snapshot(id));
+  for (const snapshot of snapshots) {
+    const list = snapshot.availableHiddenGoals;
+    assert.deepEqual(list.map(card => card.id), createOffers(f.room.size, 2).map(card => card.id));
+    assert.match(list.find(card => card.id === 'mathematician').effect, new RegExp(String(f.room.size - 1)));
+    assert.ok(list.every(card => !card.effect.includes('(n-1)')));
+    for (const card of list) {
+      assert.equal(card.name, catalog.find(item => item.id === card.id).name);
+      for (const field of ['selected', 'completed', 'progress', 'teamId']) assert.equal(card[field], undefined);
+    }
+  }
+  assert.deepEqual(snapshots[0].availableHiddenGoals, snapshots[2].availableHiddenGoals);
+  assert.deepEqual(f.room, before);
+  f.room.size = 3; f.room.hiddenGoals.requiredCount = 3;
+  const small = f.snapshot('host').availableHiddenGoals;
+  assert.ok(small.some(card => card.id === 'quick-finish'));
+  assert.ok(!small.some(card => ['round-66', 'round-77', 'round-88'].includes(card.id)));
+  delete f.room.hiddenGoals;
+  assert.ok(!f.snapshot('host').availableHiddenGoals.some(card => card.id === 'quick-finish'));
+});
+
+test('the public reference filters all supported board sizes and resolves dynamic goals without mutating the catalog', () => {
+  const { availableHiddenGoals } = require('../src/games/teambingo/hidden-goals');
+  const catalog = require('../src/games/teambingo/hidden-goal-catalog');
+  const before = structuredClone(catalog);
+  for (let size = 3; size <= 9; size++) for (const requiredCount of [1, 2, 3]) {
+    const room = { size, hiddenGoals: { requiredCount } };
+    const options = availableHiddenGoals(room);
+    assert.equal(new Set(options.map(card => card.id)).size, options.length);
+    assert.ok(options.every(card => !card.id.startsWith('pending-')));
+    assert.equal(options.some(card => card.id === 'quick-finish'), requiredCount >= 3);
+    for (const id of ['round-66', 'round-77', 'round-88']) assert.equal(options.some(card => card.id === id), size >= 4);
+    for (const id of ['mathematician', 'almost-bingo']) {
+      assert.match(options.find(card => card.id === id).effect, new RegExp(String(size - 1)));
+      assert.ok(!options.find(card => card.id === id).effect.includes('(n-1)'));
+    }
+    options[0].name = 'changed by viewer';
+    assert.notEqual(availableHiddenGoals(room)[0].name, 'changed by viewer');
+  }
+  assert.deepEqual(catalog, before);
+});

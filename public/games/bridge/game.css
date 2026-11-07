@@ -44,30 +44,5 @@
 #bridgeBoard input.cell{text-align:center;font-family:var(--board-font);appearance:textfield}
 #bridgeBoard input.cell::-webkit-inner-spin-button,#bridgeBoard input.cell::-webkit-outer-spin-button{appearance:none;margin:0}
 
-#bridgeIntroductionDialog{width:min(720px,calc(100vw - 28px));position:relative}
-#bridgeIntroductionDialog>h2{padding-right:28px}
-#bridgeIntroductionContent{font-size:16px;line-height:1.8;color:#514735}
-.bridge-introduction-section{margin:20px 0}
-.bridge-introduction-section h3{font-size:18px;color:#685332;margin:0 0 8px}
-.bridge-introduction-section ul{margin:0;padding-left:24px}
-.bridge-introduction-section li+li{margin-top:8px}
 #bridgeCopyCode{margin-left:auto}
-@media(max-width:600px){.bridge-heading{gap:12px}#bridgeIntroductionDialog{padding:20px}#bridgeIntroductionContent{font-size:15px}}
-
-.bridge-guide-figure{margin:14px 0;padding:10px;background:#fbf5e5;border:1px solid #d9c9a6;border-radius:10px}
-.bridge-guide-picture{display:block;width:100%;height:auto}
-.bridge-guide-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-@media(max-width:600px){.bridge-guide-pair{grid-template-columns:1fr}.bridge-guide-figure{padding:6px}}
-
-.bridge-guide-figure figcaption{text-align:center;font-size:13px;color:#85704c;margin-top:4px}
-
-.bridge-introduction-tip{list-style:none;margin-left:-24px;padding:12px 14px;border-left:3px solid #a78b51;background:#f4e8c9;border-radius:5px}
-
-#bridgeIntroductionDialog[open]{display:flex;flex-direction:column;height:min(760px,calc(100dvh - 32px));overflow:hidden}
-#bridgeIntroductionDialog>h2{flex-shrink:0}
-#bridgeIntroductionContent{min-height:0;overflow-y:auto;overscroll-behavior:contain;flex:1;padding-right:8px}
-.bridge-introduction-navigation{display:flex;align-items:center;justify-content:center;gap:24px;flex-shrink:0;margin-top:16px;padding-top:12px;border-top:1px solid #d8c7a4}
-.bridge-introduction-navigation button{font-size:30px;line-height:1;min-width:48px;min-height:42px;padding:4px 12px}
-#bridgeIntroductionPage{min-width:68px;text-align:center;font-size:16px;font-variant-numeric:tabular-nums}
-
-.bridge-introduction-section h4{font-size:17px;color:#685332;margin:20px 0 8px}
+@media(max-width:600px){.bridge-heading{gap:12px}}

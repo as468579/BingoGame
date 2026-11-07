@@ -242,13 +242,13 @@ test('unequal teams rotate their own members independently without empty team tu
   assert.deepEqual(order, ['a1', 'b1', 'c1', 'a2', 'b1', 'c2', 'a1', 'b1', 'c3', 'a2', 'b1', 'c1']);
 });
 
-test('interleaved turns skip all seats of expired teams without removing them from the roster', () => {
+test('interleaved turns retain every seat even after its team budget expires', () => {
   const room = playing();
   room.players.splice(1, 0, { id: 'teammate', teamId: 'team-1', hand: [] });
   room.teamClock.remaining['team-1'] = 0;
   const before = structuredClone(room.players);
   advanceTurn(room); assert.equal(room.turn, 'guest');
-  advanceTurn(room); assert.equal(room.turn, 'guest');
+  advanceTurn(room); assert.equal(room.turn, 'teammate');
   assert.deepEqual(room.players, before);
 });
 
@@ -334,11 +334,12 @@ test('one completed line ends immediately with that team winning', () => {
   assert.deepEqual(room, finished);
 });
 
-test('a full blocked board with zero lines declares all tied teams as winners', () => {
+test('a full blocked board with zero lines declares a draw without a winning team', () => {
   const room = playing(), owners = [1, 2, 1, 1, 2, 2, 2, 1];
   owners.forEach((owner, index) => occupy(room, index + 1, `team-${owner}`));
   act(room, { kind: 'call', number: 9 });
-  assert.equal(room.phase, 'finished'); assert.deepEqual(room.winners, ['team-1', 'team-2']);
+  assert.equal(room.phase, 'finished'); assert.deepEqual(room.winners, []);
+  assert.equal(room.endReason, 'board-full-draw');
   assert.equal(teamLines(room, 'team-1'), 0); assert.equal(teamLines(room, 'team-2'), 0);
 });
 
@@ -447,4 +448,30 @@ test('card questions pause game actions and only the answering member and host c
   act(room, { kind: 'cardJudge', cardSessionId, correct: false });
   act(room, { kind: 'cardFinish', cardSessionId }, guest);
   assert.equal(room.turn, 'host');
+});
+
+test('a full blocked board ends in a draw with no winning team and preserves earned rewards', () => {
+  const { settleVictory } = require('../src/games/teambingo/victory');
+  const owners = [1, 2, 1, 1, 2, 2, 2, 1, 1];
+  const room = { ...game.initializeRoom(), size: 3, phase: 'playing', turn: 'a',
+    players: [{ id: 'a', teamId: 'team-1' }, { id: 'b', teamId: 'team-2' }],
+    cells: owners.map((owner, index) => ({ number: index + 1, isCovered: true, teamId: `team-${owner}` })),
+    teamBonusRewards: { 'team-1': { '傳送石': 4 } } };
+  const prizes = structuredClone(room.linePrizes), bonuses = structuredClone(room.teamBonusRewards);
+  assert.equal(settleVictory(room), true);
+  assert.equal(room.phase, 'finished'); assert.equal(room.turn, null);
+  assert.equal(room.endReason, 'board-full-draw'); assert.deepEqual(room.winners, []);
+  assert.deepEqual(room.linePrizes, prizes); assert.deepEqual(room.teamBonusRewards, bonuses);
+  assert.equal(settleVictory(room), false);
+});
+
+test('a real victory on a full board takes priority over a draw and an unfinished board does not draw', () => {
+  const { settleVictory } = require('../src/games/teambingo/victory');
+  const room = { ...game.initializeRoom(), size: 3, phase: 'playing', turn: 'a',
+    players: [{ id: 'a', teamId: 'team-1' }, { id: 'b', teamId: 'team-2' }],
+    cells: [1, 2, 1, 1, 2, 2, 2, 1, 1].map((owner, index) => ({ number: index + 1, isCovered: index < 8, teamId: `team-${owner}` })) };
+  assert.equal(settleVictory(room), false); assert.equal(room.phase, 'playing');
+  room.cells.forEach(cell => Object.assign(cell, { isCovered: true, teamId: 'team-1' }));
+  assert.equal(settleVictory(room), true); assert.deepEqual(room.winners, ['team-1']);
+  assert.notEqual(room.endReason, 'board-full-draw');
 });

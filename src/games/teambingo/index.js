@@ -11,7 +11,7 @@ const { ensureQuestionDeadline, expireQuestion } = require('./question-clock');
 const { expireHint } = require('./captain-hint');
 const { isCaptain } = require('./participants');
 const { migrateDrawCounts } = require('./card-deck');
-const { migrateRetiredPrizes } = require('../../shared/prize-items');
+const { migrateRetiredPrizes, migrateLimitedPrizes } = require('../../shared/prize-items');
 const { createOffers } = require('./hidden-goal-offers');
 const { selectionComplete, migrateGoalAliases, requiredCount } = require('./hidden-goal-state');
 module.exports = {
@@ -45,6 +45,7 @@ module.exports = {
       }
     }
     migrateRetiredPrizes(room);
+    migrateLimitedPrizes(room);
     const retiredActive = ['star', 'shield', 'moon'].includes(room.activeCard?.cardId);
     migrateTeamHands(room);
     migrateDrawCounts(room);

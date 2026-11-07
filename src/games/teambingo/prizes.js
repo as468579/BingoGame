@@ -3,7 +3,7 @@
 const { randomInt } = require('node:crypto');
 const { teams } = require('./teams');
 
-const { ITEMS } = require('../../shared/prize-items');
+const { ITEMS, createPrizePicker } = require('../../shared/prize-items');
 
 function prizeLines(size) {
   const positions = Array.from({ length: size }, (_, index) => index);
@@ -16,9 +16,10 @@ function prizeLines(size) {
 }
 
 function createLinePrizes(size = 5, pickIndex = randomInt) {
+  const pickItem = createPrizePicker(pickIndex);
   return prizeLines(size).map(line => ({
     id: `${line.kind}-${line.index}`, kind: line.kind, index: line.index,
-    item: ITEMS[pickIndex(ITEMS.length)], claimedBy: null
+    item: pickItem(), claimedBy: null
   }));
 }
 

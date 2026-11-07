@@ -62,9 +62,10 @@ test('random prize selection excludes both potions and uses a fresh draw for eac
   assert.deepEqual(linePrizeItems, ITEMS);
   assert.deepEqual(ITEMS, ['突襲券', '傳送石', '飄雪結晶', '護身符', '龍王項鍊', '楓葉祝福20']);
   let draws = 0;
-  const first = createLinePrizes(3, max => { assert.equal(max, 6); return draws++ % max; });
+  const first = createLinePrizes(3, max => { assert.equal(max, draws < 5 ? 6 : 4); return draws++ % max; });
   assert.equal(draws, 8);
-  assert.deepEqual(first.slice(0, 6).map(p => p.item), ITEMS);
+  assert.deepEqual(first.slice(0, 5).map(p => p.item), ITEMS.slice(0, 5));
+  assert.ok(first.slice(5).every(prize => !['龍王項鍊', '楓葉祝福20'].includes(prize.item)));
   const second = createLinePrizes(3, () => 3);
   assert.ok(second.every(p => p.item === '護身符' && p.claimedBy === null));
   assert.notDeepEqual(second.map(p => p.item), first.map(p => p.item));
@@ -107,13 +108,17 @@ test('both Bingo games migrate unclaimed potions and share the six-item server a
   }
 });
 
-for (const expected of ['龍王項鍊', '楓葉祝福20']) test(`${expected} can be randomly assigned to every board prize slot in both Bingo games`, () => {
+for (const expected of ['龍王項鍊', '楓葉祝福20']) test(`${expected} can occupy any single board prize slot in both Bingo games`, () => {
   assert.ok(fs.existsSync(path.join(__dirname, '../public/assets/items', `${expected}.png`)));
   for (const gameType of ['bingo', 'teambingo']) {
     const { ITEMS: items, createLinePrizes: create } = require(`../src/games/${gameType}/prizes`);
-    const prizes = create(6, bound => { assert.equal(bound, 6); return items.indexOf(expected); });
-    assert.equal(prizes.length, 14);
-    assert.ok(prizes.every(prize => prize.item === expected && prize.claimedBy === null));
+    for (let position = 0; position < 14; position++) {
+      let draws = 0;
+      const prizes = create(6, () => draws++ === position ? items.indexOf(expected) : 0);
+      assert.equal(prizes.length, 14); assert.equal(prizes[position].item, expected);
+      assert.equal(prizes.filter(prize => ['龍王項鍊', '楓葉祝福20'].includes(prize.item)).length, 1);
+      assert.ok(prizes.every(prize => prize.claimedBy === null));
+    }
   }
 });
 
@@ -288,4 +293,70 @@ test('legacy migration uses earlier snapshots to preserve the actual first compl
   migrateRoom(legacy);
   assert.equal(legacy.linePrizes[0].claimedBy, f.guest.playerId);
   assert.equal(legacy.linePrizes.find(prize => prize.id === 'column-0').claimedBy, f.host.playerId);
+});
+
+for (const gameType of ['bingo', 'teambingo']) test(`${gameType} shares one total rare-prize allowance across all line slots and refreshes it on each board`, () => {
+  const { createLinePrizes: create } = require(`../src/games/${gameType}/prizes`);
+  const rare = item => ['龍王項鍊', '楓葉祝福20'].includes(item);
+  for (let size = 3; size <= 9; size++) {
+    for (const firstRare of [4, 5]) {
+      let draws = 0;
+      const prizes = create(size, bound => draws++ === 0 ? firstRare : bound - 1);
+      assert.equal(prizes.length, 2 * size + 2);
+      assert.equal(prizes.filter(prize => rare(prize.item)).length, 1);
+      assert.equal(prizes[0].item, ITEMS[firstRare]);
+      assert.ok(prizes.every(prize => ITEMS.includes(prize.item)));
+    }
+    assert.ok(create(size, () => 0).every(prize => !rare(prize.item)), 'at most one does not force a rare prize');
+    assert.equal(create(size, bound => bound - 1).filter(prize => rare(prize.item)).length, 1);
+  }
+});
+
+test('rare-prize migration keeps the awarded slot and makes unclaimed replacements consistent across undo history', () => {
+  const { migrateLimitedPrizes } = require('../src/shared/prize-items');
+  const prizes = [{ id: 'row-0', item: '龍王項鍊', claimedBy: null },
+    { id: 'column-0', item: '楓葉祝福20', claimedBy: 'winner' },
+    { id: 'diagonal-0', item: '楓葉祝福20', claimedBy: null }];
+  const room = { phase: 'playing', linePrizes: structuredClone(prizes), history: [{ linePrizes: structuredClone(prizes) }] };
+  let draws = 0; migrateLimitedPrizes(room, bound => { assert.equal(bound, 4); return draws++ % bound; });
+  assert.equal(draws, 2); assert.deepEqual(room.linePrizes.map(prize => prize.item), ['突襲券', '楓葉祝福20', '傳送石']);
+  assert.deepEqual(room.linePrizes[1], prizes[1]); assert.deepEqual(room.history[0].linePrizes, room.linePrizes);
+  const before = structuredClone(room); migrateLimitedPrizes(room, () => { throw Error('must not reroll'); });
+  assert.deepEqual(room, before);
+  const finished = { phase: 'finished', linePrizes: structuredClone(prizes) };
+  migrateLimitedPrizes(finished, () => { throw Error('completed games must remain intact'); });
+  assert.deepEqual(finished.linePrizes, prizes);
+});
+
+test('both games normalize existing unclaimed rare duplicates on loading a room', () => {
+  const { getGame } = require('../src/games');
+  for (const type of ['bingo', 'teambingo']) {
+    const game = getGame(type), room = { ...game.initializeRoom(), phase: 'lobby', players: [], history: [] };
+    room.linePrizes.forEach((prize, index) => { prize.item = index % 2 ? '龍王項鍊' : '楓葉祝福20'; });
+    room.history.push({ linePrizes: structuredClone(room.linePrizes) });
+    game.migrate(room);
+    assert.equal(room.linePrizes.filter(prize => ['龍王項鍊', '楓葉祝福20'].includes(prize.item)).length, 1);
+    assert.deepEqual(room.history[0].linePrizes, room.linePrizes);
+  }
+});
+
+test('Bingo creation, host rerolls, size changes and resets all enforce the shared rare-prize cap', () => {
+  const f = fixture();
+  const check = () => assert.ok(f.room.linePrizes.filter(prize => ['龍王項鍊', '楓葉祝福20'].includes(prize.item)).length <= 1);
+  check();
+  for (let i = 0; i < 12; i++) { f.send('rerollPrizes'); check(); }
+  f.send('settings', f.hostToken, { size: 6 }); check();
+  f.send('reset'); check();
+});
+
+test('Team Bingo host rerolls, size changes and resets all enforce the shared rare-prize cap', () => {
+  const game = require('../src/games/teambingo');
+  const host = { id: 'host', hand: [], ready: false };
+  const room = { ...game.initializeRoom(), phase: 'lobby', host: host.id, players: [host] };
+  const check = () => assert.ok(room.linePrizes.filter(prize => ['龍王項鍊', '楓葉祝福20'].includes(prize.item)).length <= 1);
+  const act = data => game.applyAction(room, host, data, { isOnline: () => true }, 0);
+  check();
+  for (let i = 0; i < 12; i++) { act({ kind: 'rerollPrizes' }); check(); }
+  act({ kind: 'settings', size: 4, teamCount: 2, playersPerTeam: 2 }); check();
+  room.phase = 'playing'; act({ kind: 'reset' }); check();
 });

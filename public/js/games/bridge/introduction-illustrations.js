@@ -1,22 +1,7 @@
+import { add, picture, text, arrow } from '../../views/guide-illustrations.js';
 import { element } from '../../views/dom.js';
 
 const ink = { red: '#c94a3d', yellow: '#a87913', blue: '#296c91' };
-function node(tag, attrs = {}, text) {
-  const result = document.createElementNS('http://www.w3.org/2000/svg', tag);
-  for (const [key, value] of Object.entries(attrs)) result.setAttribute(key, String(value));
-  if (text !== undefined) result.textContent = text;
-  return result;
-}
-function add(parent, tag, attrs, text) { const result = node(tag, attrs, text); parent.append(result); return result; }
-function picture(width, height, label) {
-  return node('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': label, focusable: 'false', class: 'bridge-guide-picture' });
-}
-function text(root, x, y, value, size = 20, color = '#5e5136') {
-  add(root, 'text', { x, y, 'text-anchor': 'middle', 'font-size': size, 'font-family': 'Microsoft JhengHei, sans-serif', fill: color }, value);
-}
-function arrow(root, x, y, length = 42) {
-  add(root, 'path', { d: `M${x} ${y}h${length}m-10-8 10 8-10 8`, fill: 'none', stroke: '#927a4d', 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
-}
 function card(root, x, y, number, color, width = 88, height = 124) {
   add(root, 'rect', { x, y, width, height, rx: 9, fill: '#fff9e9', stroke: '#9c855c', 'stroke-width': 2 });
   add(root, 'rect', { x: x + 5, y: y + 5, width: width - 10, height: height - 10, rx: 6, fill: 'none', stroke: '#ded0aa' });
@@ -111,9 +96,9 @@ function round() {
 export function bridgeIntroductionIllustration(index) {
   const builders = { 0: lines, 1: hands, 3: discard, 5: round, settlement: round };
   if (index !== 2 && !builders[index]) return null;
-  const figure = element('figure', 'bridge-guide-figure');
+  const figure = element('figure', 'game-guide-figure');
   if (index === 2) {
-    const pair = element('div', 'bridge-guide-pair'); pair.append(placement(false), placement(true)); figure.append(pair);
+    const pair = element('div', 'game-guide-pair'); pair.append(placement(false), placement(true)); figure.append(pair);
   } else {
     if (index === 1) figure.append(teamBoards());
     figure.append(builders[index]());

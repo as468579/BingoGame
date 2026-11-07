@@ -3,7 +3,7 @@ const { fail } = require('../../domain/errors');
 const { teams } = require('./teams');
 const { startTurn } = require('./turns');
 const { randomUUID } = require('node:crypto');
-const { remainingTime } = require('./team-clock');
+const { remainingTime, overtimeState } = require('./team-clock');
 const { settleVictory, countPrimeCells, bestOwnedLine, countCorners, roundNumberSum, goalCompleted, hasHiddenVictory, ascendingNumberStreak } = require('./victory');
 const { selectedIds, requiredCount, selectionComplete, DEFAULT_GOAL_COUNT } = require('./hidden-goal-state');
 const catalog = require('./hidden-goal-catalog');
@@ -16,6 +16,12 @@ function currentGoal(card, size) {
   if (current.id.startsWith('pending-')) current.symbol = 'question-mark';
   if (current.id === 'almost-bingo' || current.id === 'mathematician') current.effect = current.effect.replaceAll('(n-1)', String(size - 1));
   return current;
+}
+
+// Public rule reference, independent of each team's private selections and progress.
+function availableHiddenGoals(room) {
+  const count = room.hiddenGoals ? requiredCount(room) : DEFAULT_GOAL_COUNT;
+  return createOffers(room.size, count).map(card => currentGoal(card, room.size));
 }
 
 function goalProgress(room, teamId, id = selectedIds(room, teamId)[0]) {
@@ -83,9 +89,12 @@ function hostHiddenGoals(room, viewerId) {
 }
 
 function canGuess(room, player) {
+  const overtime = overtimeState(room);
+  const hasTime = player && (remainingTime(room, player.teamId) > 0 ||
+    (overtime?.remainingMs > 0 && room.players.find(member => member.id === overtime.playerId)?.teamId === player.teamId));
   return Boolean(player && player.id !== room.host && room.captains?.[player.teamId] === player.id &&
     selectedIds(room, player.teamId).includes('anticipate-opponent') && !room.hiddenGoals?.achieved?.[player.teamId] && room.phase === 'playing' &&
-    !room.activeCard && !room.hint && !room.hiddenGoalGuess && remainingTime(room, player.teamId) > 0 &&
+    !room.activeCard && !room.hint && !room.hiddenGoalGuess && hasTime &&
     room.hiddenGoals.guessRounds?.[player.teamId] !== (room.roundNumber || 1));
 }
 
@@ -109,4 +118,4 @@ function judgeHiddenGoalGuess(room, player, data, presence, now = Date.now()) {
   if (data.correct) settleVictory(room, undefined, now);
 }
 
-module.exports = { beginHiddenGoals, chooseHiddenGoal, privateHiddenGoal, hostHiddenGoals, guessHiddenGoal, judgeHiddenGoalGuess };
+module.exports = { beginHiddenGoals, chooseHiddenGoal, privateHiddenGoal, hostHiddenGoals, guessHiddenGoal, judgeHiddenGoalGuess, availableHiddenGoals };

@@ -7,3 +7,12 @@ dialog.game-dialog{
 }
 dialog.game-dialog::backdrop{background:#152e2580;backdrop-filter:blur(4px)}
 dialog.game-dialog>h2{color:#5e5136;font-size:22px;line-height:1.4;margin:8px 0 12px;overflow-wrap:anywhere}
+dialog.card-detail-dialog{position:relative;width:min(400px,calc(100vw - 28px));text-align:center}
+.card-detail-dialog>h2{padding:0 24px}
+.card-detail-content{display:flex;justify-content:center;padding:8px 0 12px}
+.card-detail-card{width:min(280px,100%);min-height:392px;aspect-ratio:5/7;padding:22px 20px;gap:16px}
+.card-detail-card .spell-type{font-size:14px}
+.card-detail-card .spell-art{width:90px;height:90px;margin:8px auto}
+.card-detail-card .spell-art svg{width:64px;height:76px}
+.card-detail-card .spell-name{font-size:26px;line-height:1.4}
+.card-detail-card .spell-description{font-size:20px;line-height:1.7;overflow-wrap:anywhere}

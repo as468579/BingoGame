@@ -181,10 +181,10 @@ test('only a homogeneous team line receives its prize and can reach the victory 
   assert.equal(snapshot.teams[1].rewards.length, 0);
   assert.throws(() => f.play(9));
 });
-test('a full blocked board settles by team score including a zero-line tie', () => {
+test('a full blocked board settles as a draw with no winning team', () => {
   const f = fixture(); f.start(); [1, 2, 3, 5, 4, 6, 8, 7, 9].forEach(f.play);
   assert.equal(f.room.called.length, 9); assert.equal(f.room.phase, 'finished'); assert.equal(f.room.turn, null);
-  assert.deepEqual(f.room.winners, ['team-1', 'team-2']);
+  assert.deepEqual(f.room.winners, []); assert.equal(f.room.endReason, 'board-full-draw');
   assert.ok(f.room.linePrizes.every(p => !p.claimedBy));
 });
 test('a completed team line wins when a restored board is settled', () => {

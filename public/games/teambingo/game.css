@@ -12,19 +12,19 @@
 #next-sharedCardStatus[data-countdown="true"]{display:block;font-size:26px;line-height:1.3;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;padding:9px 12px}
 .board-card>#next-boardHint{font-size:15px}
 .host-reference-answer{display:block;margin-top:10px;font-size:18px;line-height:1.5;color:#655538}
-:is(#next-handPanel,#next-hiddenGoalDialog){--team-hand-card-width:180px}
+:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example){--team-hand-card-width:180px}
 #next-handPanel .hand-list{gap:16px;align-items:flex-start;justify-content:center}
 #next-handPanel .hand-card{flex:0 0 var(--team-hand-card-width);width:var(--team-hand-card-width);min-height:0;padding:0;border:0;background:transparent;box-shadow:none}
-:is(#next-handPanel,#next-hiddenGoalDialog) .spell-card{width:var(--team-hand-card-width);height:calc(var(--team-hand-card-width)*7/5);min-height:0;aspect-ratio:5/7;padding:12px 14px 0;gap:0}
-:is(#next-handPanel,#next-hiddenGoalDialog) .spell-art{width:64px;height:64px;font-size:44px;margin:10px auto}
-:is(#next-handPanel,#next-hiddenGoalDialog) .spell-art>svg{max-width:100%;max-height:100%}
-:is(#next-handPanel,#next-hiddenGoalDialog) .spell-name{font-size:18px;line-height:1.3}
-:is(#next-handPanel,#next-hiddenGoalDialog) .spell-description{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;font-size:12px;line-height:1.45;margin:7px 0 8px}
-:is(#next-handPanel,#next-hiddenGoalDialog) .spell-lock{flex-shrink:0;margin-top:auto;font-size:11px;width:calc(100% + 28px);padding:9px 4px}
+:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example) .spell-card{width:var(--team-hand-card-width);height:calc(var(--team-hand-card-width)*7/5);min-height:0;aspect-ratio:5/7;padding:12px 14px 0;gap:0}
+:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example) .spell-art{width:64px;height:64px;font-size:44px;margin:10px auto}
+:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example) .spell-art>svg{max-width:100%;max-height:100%}
+:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example) .spell-name{font-size:18px;line-height:1.3}
+:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example) .spell-description{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;font-size:12px;line-height:1.45;margin:7px 0 8px}
+:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example) .spell-lock{flex-shrink:0;margin-top:auto;font-size:11px;width:calc(100% + 28px);padding:9px 4px}
 #next-handPanel .card-workshop{display:none}
-@media(max-width:700px){:is(#next-handPanel,#next-hiddenGoalDialog){--team-hand-card-width:160px}:is(#next-handPanel,#next-hiddenGoalDialog) .spell-art{width:54px;height:54px;font-size:38px;margin:6px auto}}
-#next-board .cell.is-special:not(.marked){background:#947c48;color:#f3e7c1!important;box-shadow:inset 0 0 0 1px #c5ab6d}
-#next-board .cell.is-special:not(.marked):hover:enabled{background:#a38b52}
+@media(max-width:700px){:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example){--team-hand-card-width:160px}:is(#next-handPanel,#next-hiddenGoalDialog,.team-guide-example) .spell-art{width:54px;height:54px;font-size:38px;margin:6px auto}}
+:is(#next-board,.team-guide-board) .cell.is-special:not(.marked){background:#947c48;color:#f3e7c1!important;box-shadow:inset 0 0 0 1px #c5ab6d}
+:is(#next-board,.team-guide-board) .cell.is-special:not(.marked):hover:enabled{background:#a38b52}
 .next-special-marker{position:absolute;top:3px;right:4px;font:700 13px/1 sans-serif;color:#ffe294;text-shadow:0 1px 2px #362805;pointer-events:none;z-index:3}
 #next-root [data-team="0"]{--team-ink:#b84840;--team-wash:#b8484040}
 #next-root [data-team="1"]{--team-ink:#488ac9;--team-wash:#488ac940}
@@ -32,8 +32,8 @@
 #next-root [data-team="3"]{--team-ink:#66aa77;--team-wash:#66aa7740}
 #next-root [data-team="4"]{--team-ink:#b185cb;--team-wash:#b185cb40}
 #next-root [data-team="5"]{--team-ink:#e29c60;--team-wash:#e29c6040}
-#next-board .cell.marked{background:var(--team-wash);color:#faf3d7!important}
-#next-board .cell.marked:after{border-color:var(--team-ink)}
+:is(#next-board,.team-guide-board) .cell.marked{background:var(--team-wash);color:#faf3d7!important}
+:is(#next-board,.team-guide-board) .cell.marked:after{border-color:var(--team-ink)}
 .next-cell-team{position:absolute;bottom:2px;left:0;right:0;font-family:"Microsoft JhengHei",sans-serif;font-size:9px;line-height:1.3;color:#fff3cf;z-index:3}
 #next-boardLines line[data-team]{stroke:var(--team-ink)}
 @media(max-width:700px){.next-team-settings{flex-wrap:wrap}}
@@ -58,3 +58,33 @@
 #next-hiddenGoalDialog[data-waiting="true"]{width:min(480px,calc(100vw - 28px));text-align:center}
 
 #next-guessDialog{width:min(560px,calc(100vw - 28px))}.hidden-goal-guess-button{flex-basis:100%;margin-top:8px}
+
+/* Read-only guide examples reuse live card, board, team and hint styles. */
+.team-guide-example-row{display:flex;align-items:center;justify-content:center;gap:28px;flex-wrap:wrap;padding:8px 0}
+.team-guide-example .team-guide-card{zoom:1;cursor:default;text-align:center}
+.team-guide-example button.team-guide-card{cursor:zoom-in}
+.team-guide-label{display:block;text-align:center;margin-bottom:10px;font-size:16px}
+.team-guide-board-wrap{position:relative;width:100%;max-width:260px;aspect-ratio:1;margin:8px auto}
+.team-guide-board{display:grid;width:100%;height:100%;grid-template-columns:repeat(6,minmax(0,1fr))}
+.team-guide-board .cell{min-height:0;height:auto;aspect-ratio:1;font-size:clamp(14px,2.3vw,25px)!important}
+.team-guide-board .next-cell-team{font-size:8px}
+.team-guide-board-wrap .chalk-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.team-guide-board-wrap .chalk-lines line{stroke:var(--team-ink)}
+.team-guide-special-cell{width:84px;height:84px;grid-template-columns:1fr}
+.team-guide-special-cell .cell{font-size:32px!important}
+.team-guide-arrow{font-size:28px;color:#876a38}
+.team-guide-hint-example{text-align:center}
+.team-guide-victory-board{width:240px;max-width:100%}
+.team-guide-victory-illustration{zoom:.8;display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr);gap:28px;justify-items:center;align-items:start}
+.team-guide-victory-divider{display:block;width:1px;height:100%;min-height:240px;background:#b6a17c;opacity:.75}
+@media(max-width:480px){.team-guide-victory-illustration{grid-template-columns:1fr}.team-guide-victory-divider{width:100%;height:1px;min-height:0}}
+.team-guide-example button:disabled{opacity:1;cursor:default}
+.team-guide-example .hint-countdown{width:150px;height:150px;margin:12px auto}
+.team-guide-example .hint-countdown strong{font-size:40px}
+.team-guide-question{padding:14px;background:#f8f0dc;border:1px solid #d8c7a4;border-radius:10px}
+.team-guide-question-effect{font-size:16px;font-weight:700;color:#315b3e}
+.team-guide-answer-clock{font-size:20px;font-weight:800;text-align:center;padding:8px 10px;background:#eee2c6;border-radius:8px;margin:12px 0}
+.team-guide-question-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.team-guide-question-options button{text-align:left;font-size:15px;padding:9px 12px}
+.team-guide-team-heading{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#f4ecd7;border:1px solid #c6b991;border-radius:8px;padding:12px}
+@media(max-width:480px){.team-guide-example .game-guide-pair{grid-template-columns:1fr}.team-guide-example-row{gap:16px}.team-guide-question-options{grid-template-columns:1fr}}

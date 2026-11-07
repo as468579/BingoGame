@@ -50,7 +50,8 @@ export class TeamRosterView {
       if (team.handCount !== undefined) group.append(element('p', 'team-roster-count', `隊伍手牌 ${team.handCount} 張`));
       if (Number.isFinite(team.timeRemainingMs)) {
         const label = element('span', 'team-roster-clock');
-        this.clockLabels.push({ label, remainingMs: team.timeRemainingMs, running: Boolean(team.clockRunning), receivedAt: Date.now() });
+        this.clockLabels.push({ label, remainingMs: team.timeRemainingMs, running: Boolean(team.clockRunning), receivedAt: Date.now(),
+          overtime: team.overtimeMode, overtimeMs: team.overtimeRemainingMs, overtimeRunning: team.overtimeRunning });
         heading.append(label);
       }
       members.filter(member => member.teamId === team.id).forEach(member => group.append(this.member(member, team.turn, disabled)));
@@ -84,6 +85,12 @@ export class TeamRosterView {
 
   updateClocks(now = Date.now()) {
     for (const entry of this.clockLabels || []) {
+      if (entry.overtime) {
+        const remaining = Math.max(0, (entry.overtimeMs ?? 3000) - (entry.overtimeRunning ? Math.max(0, now - entry.receivedAt) : 0));
+        entry.label.textContent = Number.isFinite(entry.overtimeMs) ? `本次行動 ${Math.ceil(remaining / 1000)} 秒` : '每人 3 秒';
+        entry.label.title = '隊伍時間已用完，每位隊員每次行動限時 3 秒';
+        entry.label.classList.add('is-expired'); continue;
+      }
       const remaining = Math.max(0, entry.remainingMs - (entry.running ? Math.max(0, now - entry.receivedAt) : 0));
       const seconds = Math.ceil(remaining / 1000);
       entry.label.textContent = seconds > 0 ? `剩餘 ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}` : '時間用完';

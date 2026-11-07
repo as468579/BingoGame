@@ -1,3 +1,4 @@
+import { teamBoardCell } from './board-cell.js';
 import { $, element } from '../dom.js';
 import { renderBoardLines } from '../../../views/board-lines.js';
 import { LinePrizesView } from './line-prizes-view.js';
@@ -23,7 +24,8 @@ export class BoardView {
     const activeTeam = room.teams.find(candidate => candidate.id === turn?.teamId);
     if (room.phase === 'playing' && Number.isFinite(activeTeam?.timeRemainingMs)) {
       this.actionClock = { label: element('span', 'next-action-clock'), name: activeTeam.name, remainingMs: activeTeam.timeRemainingMs,
-        running: Boolean(activeTeam.clockRunning), receivedAt: Date.now() };
+        running: Boolean(activeTeam.clockRunning), receivedAt: Date.now(), overtime: Boolean(room.overtime),
+        ...(room.overtime ? { remainingMs: room.overtime.remainingMs, running: room.overtime.running } : {}) };
       this.actionClock.label.setAttribute('role', 'timer');
       $('phaseText').append(this.actionClock.label);
       this.updateClock();
@@ -35,24 +37,12 @@ export class BoardView {
     const focused = document.activeElement?.dataset?.cell;
     const cells = editing ? draft.map((number, index) => ({ number, isCovered: false, isSpecial: Boolean(room.cells[index]?.isSpecial) })) : room.cells;
     $('board').replaceChildren(...cells.map((cell, index) => {
-      const node = element(editing ? 'input' : 'button', `cell${cell.isCovered ? ' marked' : ''}`);
-      const owner = room.teams.find(t => t.id === cell.teamId);
-      node.dataset.column = index % room.size % 5;
-      node.setAttribute('title', `${cell.number || '未填寫'}`);
-      if (cell.isSpecial) node.classList.add('is-special');
-      node.setAttribute('aria-label', `號碼 ${cell.number}${cell.isSpecial ? '，特殊格，佔領可獲得一張卡' : ''}，${owner ? `${owner.name} 已佔領` : '未佔領'}`);
+      const node = teamBoardCell(cell, index, room.size, room.teams, editing);
       if (editing) {
         Object.assign(node, { type: 'number', min: '1', max: room.size ** 2, inputMode: 'numeric', value: cell.number || '', disabled: busy || !connected });
         node.dataset.cell = index;
         node.oninput = () => this.actions.editCell(index, node.value === '' ? 0 : Number(node.value));
       } else {
-        node.append(element('span', 'next-cell-number', cell.number));
-        if (cell.isSpecial) {
-          const marker = element('span', 'next-special-marker', '✦');
-          marker.setAttribute('aria-hidden', 'true'); node.append(marker);
-        }
-        node.dataset.covered = String(cell.isCovered); node.setAttribute('aria-pressed', String(cell.isCovered));
-        if (owner) { node.dataset.team = room.teams.findIndex(t => t.id === owner.id) % 6; node.append(element('span', 'next-cell-team', owner.name)); }
         node.disabled = busy || !connected || Boolean(room.activeCard) || Boolean(room.hiddenGoalGuess) || Boolean(room.hint) || Boolean(me.spectating) || room.phase !== 'playing' || room.turn !== me.id || cell.isCovered;
         node.onclick = () => this.actions.call(cell.number);
       }
@@ -78,7 +68,7 @@ export class BoardView {
     const clock = this.actionClock;
     if (!clock) return;
     const seconds = Math.max(0, Math.ceil((clock.remainingMs - (clock.running ? Math.max(0, now - clock.receivedAt) : 0)) / 1000));
-    clock.label.textContent = `${clock.name} 剩餘 ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}${clock.running ? '' : ' · 暫停計時'}`;
+    clock.label.textContent = `${clock.name} ${clock.overtime ? '本次行動' : '剩餘'} ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}${clock.running ? '' : ' · 暫停計時'}`;
   }
 
   stopClock() { clearInterval(this.clockTimer); this.clockTimer = null; this.actionClock = null; }

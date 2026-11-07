@@ -22,6 +22,24 @@ function content(tag) {
 }
 const text = tag => content(tag).replace(/<[^>]*>/g, '').trim();
 
+test('team and bridge guides use the same dialog, content and navigation styles', () => {
+  for (const ids of [
+    ['next-introduction', 'next-introductionDialog', 'next-introductionTitle', 'next-introductionContent', 'next-introductionPrevious', 'next-introductionNext', 'next-introductionPage'],
+    ['bridgeIntroduction', 'bridgeIntroductionDialog', 'bridgeIntroductionTitle', 'bridgeIntroductionContent', 'bridgeIntroductionPrevious', 'bridgeIntroductionNext', 'bridgeIntroductionPage']
+  ]) {
+    const [button, dialog, title, body, previous, next, page] = ids;
+    assert.equal(byId(button).attrs['aria-controls'], dialog);
+    assert.match(html.slice(byId(button).start, byId(button).end), /\bhidden\b/);
+    assert.ok(hasClass(byId(dialog), 'game-dialog')); assert.ok(hasClass(byId(dialog), 'game-introduction-dialog'));
+    assert.equal(byId(dialog).attrs['aria-labelledby'], title);
+    assert.ok(hasClass(byId(body), 'game-introduction-content'));
+    for (const id of [previous, next]) assert.equal(byId(id).attrs['aria-controls'], body);
+    assert.equal(byId(page).attrs['aria-live'], 'polite');
+  }
+  assert.equal(text(byId('next-introductionTitle')), '[遊戲介紹] 團隊賓果');
+  assert.ok(tags.some(tag => tag.name === 'link' && tag.attrs.href === '/styles/game-introduction.css'));
+});
+
 test('page IDs are unique and labels and accessibility relationships resolve across all game roots', () => {
   const ids = tags.filter(tag => tag.attrs.id).map(tag => tag.attrs.id);
   assert.equal(new Set(ids).size, ids.length, 'Duplicate IDs can bind controls to the wrong game');

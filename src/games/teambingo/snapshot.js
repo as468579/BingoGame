@@ -6,8 +6,8 @@ const { demoCards, publicCard } = require('./card-catalog');
 const { teams } = require('./teams');
 const { teamLines, playerRewards } = require('./prizes');
 const { findQuestion } = require('./question-bank');
-const { DEFAULT_TEAM_MINUTES, remainingTime } = require('./team-clock');
-const { privateHiddenGoal, hostHiddenGoals } = require('./hidden-goals');
+const { DEFAULT_TEAM_MINUTES, remainingTime, overtimeState } = require('./team-clock');
+const { privateHiddenGoal, hostHiddenGoals, availableHiddenGoals } = require('./hidden-goals');
 const { isCaptain } = require('./participants');
 const { hintUses } = require('./captain-hint');
 const { selectionComplete } = require('./hidden-goal-state');
@@ -16,6 +16,7 @@ function roomSnapshot(room, presence, viewerId) {
   const card = active && demoCards.find(c => c.id === active.cardId);
   const question = active && (active.question || findQuestion(active.questionId || active.cardId));
   const now = Date.now();
+  const overtime = overtimeState(room, now);
   const hiddenGoal = privateHiddenGoal(room, viewer);
   const reviewedGoals = hostHiddenGoals(room, viewerId);
   const awardTeamId = room.lastDecision?.teamId;
@@ -26,12 +27,14 @@ function roomSnapshot(room, presence, viewerId) {
     symbol: demoCards.find(definition => definition.id === held.definitionId)?.symbol || held.symbol })) : [];
   const scores = teams(room).map(t => ({ ...t, playerIds: room.players.filter(p => p.id !== room.host && p.teamId === t.id).map(p => p.id),
     lines: teamLines(room, t.id), handCount: room.teamHands?.[t.id]?.length || 0, hintUsesRemaining: hintUses(room, t.id),
-    timeRemainingMs: remainingTime(room, t.id, now), clockRunning: room.phase === 'playing' && room.teamClock?.activeTeamId === t.id,
+    timeRemainingMs: remainingTime(room, t.id, now), clockRunning: room.phase === 'playing' && room.teamClock?.activeTeamId === t.id && !overtime,
+    overtimeMode: remainingTime(room, t.id, now) <= 0,
+    ...(overtime && room.players.find(player => player.id === overtime.playerId)?.teamId === t.id ? { overtimeRemainingMs: overtime.remainingMs, overtimeRunning: overtime.running } : {}),
     rewards: playerRewards(room.linePrizes, t.id),
     bonusRewards: room.phase === 'finished' ? Object.entries(room.teamBonusRewards?.[t.id] || {}).map(([item, quantity]) => ({ item, quantity })) : [] }));
   return { ...publicRoom(room, presence), size: room.size, boardVersion: room.boardVersion, goal: winningLineGoal(room.size),
     teamCount: room.teamCount, playersPerTeam: room.playersPerTeam, teamTimeMinutes: room.teamTimeMinutes ?? DEFAULT_TEAM_MINUTES, teams: scores, board: room.board, cells: room.cells,
-    turn: room.turn, roundNumber: room.roundNumber || 1, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
+    turn: room.turn, overtime, roundNumber: room.roundNumber || 1, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
     hiddenGoalGuess: room.hiddenGoalGuess ? { ...room.hiddenGoalGuess,
       teamName: scores.find(team => team.id === room.hiddenGoalGuess.teamId)?.name || '隊伍',
       captainName: room.players.find(player => player.id === room.hiddenGoalGuess.captainId)?.name || '隊長' } : null,
@@ -44,7 +47,7 @@ function roomSnapshot(room, presence, viewerId) {
     lastScanAt: room.lastScanAt || null, lastScanRemovedCount: room.lastScanRemovedCount || 0,
     lastDraw: awarded ? { ...publicCard({ ...awarded, name: awardDefinition?.name || awarded.name, symbol: awardDefinition?.symbol || awarded.symbol }),
       teamId: awardTeamId, teamName: scores.find(team => team.id === awardTeamId)?.name || '隊伍' } : null,
-    availableDemoCards: [],
+    availableDemoCards: [], availableHiddenGoals: availableHiddenGoals(room),
     activeCard: card && question ? { id: active.id, playerId: active.playerId, teamId: active.teamId, cardId: active.cardId, stage: active.stage,
       ...(active.stage === 'question' ? { answerRemainingMs: Math.max(0, (active.answerDeadlineAt ?? now) - now) } : {}),
       ...(active.timedOut ? { timedOut: true } : {}),

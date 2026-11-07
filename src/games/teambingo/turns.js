@@ -28,13 +28,13 @@ function advanceTurn(room) {
   }
   for (let offset = 1; offset <= groups.length; offset++) {
     const team = groups[(index + offset) % groups.length];
-    if (team.members.length && (room.teamClock?.remaining[team.id] ?? Infinity) > 0) {
+    if (team.members.length) {
       room.turn = team.members[(room.turnCursors[team.id] || 0) % team.members.length].id;
       return;
     }
   }
   room.phase = 'finished'; room.turn = null; room.winners = [];
-  room.endReason = groups.some(team => team.members.length) ? 'time-exhausted' : 'no-active-players';
+  room.endReason = 'no-active-players';
 }
 
 module.exports = { startTurn, advanceTurn };

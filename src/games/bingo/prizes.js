@@ -4,7 +4,7 @@ const { participants } = require('./participants');
 const { createCells } = require('./board');
 const { randomInt } = require('node:crypto');
 
-const { ITEMS, migrateRetiredPrizes } = require('../../shared/prize-items');
+const { ITEMS, createPrizePicker, migrateLimitedPrizes, migrateRetiredPrizes } = require('../../shared/prize-items');
 
 function prizeLines(size) {
   const positions = Array.from({ length: size }, (_, index) => index);
@@ -17,9 +17,10 @@ function prizeLines(size) {
 }
 
 function createLinePrizes(size = 5, pickIndex = randomInt) {
+  const pickItem = createPrizePicker(pickIndex);
   return prizeLines(size).map(line => ({
     id: `${line.kind}-${line.index}`, kind: line.kind, index: line.index,
-    item: ITEMS[pickIndex(ITEMS.length)], claimedBy: null
+    item: pickItem(), claimedBy: null
   }));
 }
 
@@ -57,6 +58,7 @@ function migrateLinePrizes(room, replay = false) {
   }
   const created = ensureLinePrizes(room);
   migrateRetiredPrizes(room);
+  migrateLimitedPrizes(room);
   if ((!created && !replay) || !['playing', 'finished'].includes(room.phase)) return;
   // Replay available pre-action snapshots before the current state, preserving first-completion order.
   for (const state of [...(room.roundStart ? [{ playerStates: room.roundStart, called: [] }] : []), ...(room.history || [])]) {

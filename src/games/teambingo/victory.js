@@ -95,9 +95,7 @@ function settleVictory(room, hiddenRule = hasHiddenVictory, now = Date.now()) {
   if (!room.winners.length && !full) return false;
   if (room.winners.some(teamId => hasHiddenVictory(room, teamId, now))) room.endReason = 'hidden-goal';
   if (!room.winners.length) {
-    // Preserve the existing full-board tie settlement when every team is blocked.
-    const best = Math.max(...teams(room).map(team => teamLines(room, team.id)));
-    room.winners = teams(room).filter(team => teamLines(room, team.id) === best).map(team => team.id);
+    room.endReason = 'board-full-draw';
   }
   room.phase = 'finished'; room.turn = null;
   return true;

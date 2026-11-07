@@ -123,12 +123,14 @@ test('using a card completes a member action only after review and does not rene
   f.play(); assert.equal(f.room.roundNumber, 2);
 });
 
-test('expired teams do not prevent a round boundary and cannot use their guessing allowance', t => {
+test('overtime teams still count toward rounds and their captain can guess during their active turn', t => {
   const f = fixture(t, [2, 1], true);
   f.room.teamClock.remaining['team-2'] = 0;
   assert.throws(() => f.act('hiddenGoalGuess', {}, 'c2'), /剩餘/);
+  f.play(); assert.equal(f.room.turn, 'b1'); assert.equal(f.room.roundNumber, 1);
+  f.act('hiddenGoalGuess', {}, 'c2'); f.wrong();
   f.play(); assert.equal(f.room.turn, 'a2'); assert.equal(f.room.roundNumber, 1);
-  f.play(); assert.equal(f.room.roundNumber, 2); assert.equal(f.room.turn, 'a1');
+  f.play(); assert.equal(f.room.roundNumber, 2); assert.equal(f.room.turn, 'b1');
 });
 
 test('save restoration retains an active guess, its paused clock and the already spent allowance', t => {

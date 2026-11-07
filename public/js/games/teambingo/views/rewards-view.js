@@ -24,7 +24,8 @@ export class RewardsView {
     $('viewGameResults').hidden = room.phase !== 'finished';
     if (room.phase === 'finished') {
       const winners = room.teams.filter(team => room.winners.includes(team.id));
-      $('gameResultsTitle').textContent = !winners.length ? '遊戲結束・無勝者' : winners.length > 1 ? '遊戲結束・平手' : `${winners[0].name}獲勝`;
+      $('gameResultsTitle').textContent = room.endReason === 'board-full-draw' ? '遊戲結束・和局'
+        : !winners.length ? '遊戲結束・無勝者' : winners.length > 1 ? '遊戲結束・平手' : `${winners[0].name}獲勝`;
       $('gameResultsList').replaceChildren(...this.rows(room.teams));
       if (opening && !$('gameResultsDialog').open) $('gameResultsDialog').showModal();
     } else {
