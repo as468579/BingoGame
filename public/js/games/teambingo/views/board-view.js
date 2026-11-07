@@ -16,7 +16,7 @@ export class BoardView {
     $('lineCount').textContent = host ? '房主觀戰' : `${team?.name || '未分隊'}：${team?.lines || 0} / ${room.goal} 條線`;
     const turn = room.players.find(p => p.id === room.turn);
     $('phaseText').hidden = room.phase === 'finished';
-    $('phaseText').textContent = room.hiddenGoalGuess ? '等待房主判定隊長猜測，遊戲時間暫停。' : room.hint ? '隊長提示中，遊戲時間暫停。' : room.activeCard ? '卡牌作答中，遊戲暫停。'
+    $('phaseText').textContent = room.introduction?.open ? '房主正在介紹遊戲，行動與計時暫停。' : room.hiddenGoalGuess ? '等待房主判定隊長猜測，遊戲時間暫停。' : room.hint ? '隊長提示中，遊戲時間暫停。' : room.activeCard ? '卡牌作答中，遊戲暫停。'
       : room.phase === 'choosing-goal' ? `等待 ${room.goalsRemaining ?? room.teams.length} 位隊長選擇隱藏勝利條件，行動與計時暫停。`
       : room.phase === 'lobby' ? host ? '房主可排列共用盤面；每隊至少 1 人且全員準備後即可開始，不需滿員。' : '房主設定共用盤面，選擇隊伍後請準備。'
         : room.turn === me.id ? '輪到你：圈選一個數字，或使用一張隊伍卡牌，本回合只能擇一。' : `等待 ${turn?.name || '玩家'} 行動${turn && !turn.online ? '（離線，等待重連）' : '…'}`;
@@ -43,7 +43,7 @@ export class BoardView {
         node.dataset.cell = index;
         node.oninput = () => this.actions.editCell(index, node.value === '' ? 0 : Number(node.value));
       } else {
-        node.disabled = busy || !connected || Boolean(room.activeCard) || Boolean(room.hiddenGoalGuess) || Boolean(room.hint) || Boolean(me.spectating) || room.phase !== 'playing' || room.turn !== me.id || cell.isCovered;
+        node.disabled = busy || !connected || Boolean(room.introduction?.open) || Boolean(room.activeCard) || Boolean(room.hiddenGoalGuess) || Boolean(room.hint) || Boolean(me.spectating) || room.phase !== 'playing' || room.turn !== me.id || cell.isCovered;
         node.onclick = () => this.actions.call(cell.number);
       }
       return node;

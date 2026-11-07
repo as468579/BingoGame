@@ -11,8 +11,8 @@ const { ensureQuestionDeadline, expireQuestion } = require('./question-clock');
 const { expireHint } = require('./captain-hint');
 const { isCaptain } = require('./participants');
 const { migrateDrawCounts } = require('./card-deck');
-const { migrateRetiredPrizes, migrateLimitedPrizes } = require('../../shared/prize-items');
-const { createOffers } = require('./hidden-goal-offers');
+const { migrateRetiredPrizes, migrateLimitedPrizes, migratePrizeQuantities } = require('../../shared/prize-items');
+const { createOffers, validateGoalCount } = require('./hidden-goal-offers');
 const { selectionComplete, migrateGoalAliases, requiredCount } = require('./hidden-goal-state');
 module.exports = {
   id: 'teambingo',
@@ -20,14 +20,15 @@ module.exports = {
   initializeRoom(options = {}) {
     const teamTimeMinutes = validateTeamMinutes(options.teamTimeMinutes === undefined ? DEFAULT_TEAM_MINUTES : options.teamTimeMinutes);
     const size = 6, board = createBoard(size);
-    return { size, boardVersion: 0, board, cells: createSpecialCells(board), teamCount: 2, playersPerTeam: 2, teamTimeMinutes,
-      called: [], turn: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, usedQuestionIds: [], winners: [], pending: null, lastDecision: null, history: [], teamHands: {}, captains: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(size) };
+    return { size, hiddenGoalCount: validateGoalCount(options.hiddenGoalCount ?? 2, size), boardVersion: 0, board, cells: createSpecialCells(board), teamCount: 2, playersPerTeam: 2, teamTimeMinutes,
+      winnerRewards: {}, winnerRewardSessionId: null, called: [], turn: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, usedQuestionIds: [], winners: [], pending: null, lastDecision: null, history: [], teamHands: {}, captains: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(size) };
   },
   createPlayer: (room, name, token) => ({ ...createIdentity(name, token), teamId: null, hand: [], usedDemoCards: [], ready: false }),
   capacity: room => room.teamCount * room.playersPerTeam,
   memberCount: room => room.players.filter(player => player.id !== room.host).length,
   joined: assignPlayer, restorePlayer: () => false,
   tick(room, now) {
+    if (room.introduction?.open) return false;
     const hintChanged = expireHint(room, now);
     const questionChanged = expireQuestion(room, now);
     const clockChanged = expireTeamClock(room, now);
@@ -36,6 +37,10 @@ module.exports = {
   applyAction: applyGameAction, snapshot: roomSnapshot,
   migrate(room) {
     migrateGoalAliases(room);
+    room.winnerRewards ||= {};
+    room.winnerRewardSessionId ??= null;
+    if (room.phase === 'finished' && room.winners?.length) room.winnerRewardSessionId ||= require('node:crypto').randomUUID();
+    room.hiddenGoalCount ??= room.hiddenGoals?.requiredCount ?? 2;
     room.teamCorrectAnswers ||= {};
     room.teamWrongAnswers ||= {};
     room.roundNumber ??= 1; room.roundActedIds ||= [];
@@ -46,6 +51,7 @@ module.exports = {
     }
     migrateRetiredPrizes(room);
     migrateLimitedPrizes(room);
+    migratePrizeQuantities(room);
     const retiredActive = ['star', 'shield', 'moon'].includes(room.activeCard?.cardId);
     migrateTeamHands(room);
     migrateDrawCounts(room);

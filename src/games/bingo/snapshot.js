@@ -16,7 +16,7 @@ function roomSnapshot(room, presence, viewerId) {
     ...publicRoom(room, presence), turn: room.turn,
     size: room.size || 5, goal: winningLineGoal(room.size || 5), boardVersion: room.boardVersion || 0,
     called: room.called, winners: room.winners,
-    linePrizes: (room.linePrizes || []).map(({ id, kind, index, item, claimedBy }) => ({ id, kind, index, item, claimedBy })),
+    linePrizes: (room.linePrizes || []).map(({ id, kind, index, item, quantity = 1, claimedBy }) => ({ id, kind, index, item, quantity, claimedBy })),
     pending: room.pending || null, lastDecision: room.lastDecision || null,
     lastDraw: room.lastDecision?.approved && room.lastDecision.playerId === viewerId
       ? viewer?.hand.find(held => held.id === room.lastDecision.drawnCardId) || null : null,

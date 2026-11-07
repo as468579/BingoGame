@@ -1,5 +1,6 @@
 // All card icons share the same simple black line treatment.
 const paths = Object.freeze({
+  'math-symbols': 'M8 21h18 M17 12v18 M40 14l16 16 M56 14L40 30 M8 51h18 M40 47h18 M40 57h18',
   'pocket-watch': 'M26 14V8a6 6 0 0 1 12 0v6 M25 18h14 M32 22a24 24 0 1 0 0 48a24 24 0 1 0 0-48 M32 28v3 M32 61v3 M14 46h3 M47 46h3 M32 34v13l9 5',
   'light-bulb': 'M23 53v-5c0-7-10-10-10-23a19 19 0 0 1 38 0c0 13-10 16-10 23v5Z M23 59h18 M25 65h14 M29 71h6 M32 52V33 M25 28l7 5 7-5 M32 1V4 M5 13l5 3 M54 16l5-3 M2 31h6 M56 31h6',
   gift: 'M7 27h50v13H7Z M12 40v29h40V40 M27 27v42 M37 27v42 M32 27C10 27 12 6 23 11c6 3 9 16 9 16Z M32 27C54 27 52 6 41 11c-6 3-9 16-9 16Z',

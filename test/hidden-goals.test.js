@@ -120,7 +120,7 @@ test('save migration keeps captain choices and reset removes them without affect
   const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
   assert.deepEqual(saved.hiddenGoals.choices, f.room.hiddenGoals.choices);
   assert.deepEqual(saved.hiddenGoals.offers['team-1'], f.room.hiddenGoals.offers['team-1']);
-  assert.equal(saved.hiddenGoals.offers['team-2'].length, 10);
+  assert.equal(saved.hiddenGoals.offers['team-2'].length, 12);
   assert.equal(saved.phase, 'choosing-goal'); assert.equal(saved.teamClock.activeTeamId, null);
   assert.equal(game.snapshot(saved, { isOnline: () => true }, 'host').hiddenGoal.selected.id, 'mathematician');
   assert.equal(game.snapshot(saved, { isOnline: () => true }, 'member').hiddenGoal, undefined);

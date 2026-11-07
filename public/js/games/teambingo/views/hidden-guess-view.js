@@ -13,6 +13,7 @@ export class HiddenGuessView {
   }
 
   render({ room, playerId, busy, connected }) {
+    if (room.introduction?.open) { this.hide(); return; }
     const guess = room.hiddenGoalGuess;
     if (!guess) { this.hide(); return; }
     this.guessId = guess.id;

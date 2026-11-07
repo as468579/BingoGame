@@ -58,7 +58,7 @@ function syncTeamClock(room, now = Date.now()) {
   }
   if (clock.overtime?.playerId !== room.turn || room.phase !== 'playing') clock.overtime = null;
   clock.activeTeamId = null; clock.startedAt = null;
-  if (room.phase !== 'playing' || room.activeCard || room.hint || room.hiddenGoalGuess) return;
+  if (room.phase !== 'playing' || room.activeCard || room.hint || room.hiddenGoalGuess || room.introduction?.open) return;
   let member = room.players.find(player => player.id === room.turn);
   if (member && (isCaptain(room, member.id) || member.id === room.host)) {
     const teammates = participants(room).filter(player => player.teamId === member.teamId);
@@ -78,7 +78,7 @@ function syncTeamClock(room, now = Date.now()) {
 // A delayed timer may cross multiple deadlines. Charge each team only for its actual interval.
 function expireTeamClock(room, now = Date.now()) {
   let changed = false;
-  while (room.phase === 'playing' && room.teamClock?.activeTeamId && !room.activeCard && !room.hint && !room.hiddenGoalGuess) {
+  while (room.phase === 'playing' && room.teamClock?.activeTeamId && !room.activeCard && !room.hint && !room.hiddenGoalGuess && !room.introduction?.open) {
     const clock = room.teamClock, teamId = clock.activeTeamId;
     const overtime = clock.overtime;
     const deadline = overtime ? overtime.startedAt + overtime.remainingMs : clock.startedAt + clock.remaining[teamId];

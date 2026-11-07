@@ -12,6 +12,7 @@ export class SharedCardView {
   render(state) {
     this.state = state;
     const { room, me, busy, connected } = state;
+    if (room.introduction?.open) { this.close(); return; }
     const active = room.activeCard;
     if (!active) { this.close(); this.sessionId = null; return; }
     if (this.sessionId !== active.id) { this.choice = null; this.sessionId = active.id; this.answerDeadline = undefined; }

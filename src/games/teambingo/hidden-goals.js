@@ -4,43 +4,35 @@ const { teams } = require('./teams');
 const { startTurn } = require('./turns');
 const { randomUUID } = require('node:crypto');
 const { remainingTime, overtimeState } = require('./team-clock');
-const { settleVictory, countPrimeCells, bestOwnedLine, countCorners, roundNumberSum, goalCompleted, hasHiddenVictory, ascendingNumberStreak } = require('./victory');
+const { settleVictory, goalCompleted, hasHiddenVictory } = require('./victory');
 const { selectedIds, requiredCount, selectionComplete, DEFAULT_GOAL_COUNT } = require('./hidden-goal-state');
 const catalog = require('./hidden-goal-catalog');
-const { createOffers } = require('./hidden-goal-offers');
+const { goalProgress, publishGoalProgress } = require('./goal-progress');
+const { createOffers, validateGoalCount } = require('./hidden-goal-offers');
 
 // Keep displayed rules current without changing saved selections or round progress.
 function currentGoal(card, size) {
   if (!card) return null;
   const current = { ...card, ...catalog.find(definition => definition.id === card.id) };
+  if (current.reward) current.reward = { ...current.reward };
   if (current.id.startsWith('pending-')) current.symbol = 'question-mark';
   if (current.id === 'almost-bingo' || current.id === 'mathematician') current.effect = current.effect.replaceAll('(n-1)', String(size - 1));
+  if (current.id === 'consecutive-numbers') current.effect = current.effect.replaceAll('(n)', String(size));
   return current;
 }
 
 // Public rule reference, independent of each team's private selections and progress.
 function availableHiddenGoals(room) {
-  const count = room.hiddenGoals ? requiredCount(room) : DEFAULT_GOAL_COUNT;
+  const count = room.hiddenGoals ? requiredCount(room) : room.hiddenGoalCount ?? DEFAULT_GOAL_COUNT;
   return createOffers(room.size, count).map(card => currentGoal(card, room.size));
-}
-
-function goalProgress(room, teamId, id = selectedIds(room, teamId)[0]) {
-  if (id === 'consecutive-numbers') return { current: ascendingNumberStreak(room, teamId), target: 4 };
-  if (id === 'sage') return { current: room.teamCorrectAnswers?.[teamId] || 0, target: 4 };
-  if (id === 'reckless') return { current: room.teamWrongAnswers?.[teamId] || 0, target: 3 };
-  const roundSum = catalog.find(card => card.id === id)?.roundSum;
-  if (roundSum !== undefined) return { current: roundNumberSum(room, teamId), target: roundSum };
-  if (id === 'mathematician') return { current: countPrimeCells(room, teamId), target: room.size - 1 };
-  if (id === 'almost-bingo') return { current: bestOwnedLine(room, teamId), target: room.size - 1 };
-  if (id === 'four-corners') return { current: countCorners(room, teamId), target: 4 };
-  return undefined;
 }
 
 // Placeholder choices have no victory predicate. Captains choose; hosts may review selected goals.
 function beginHiddenGoals(room) {
   if (teams(room).some(team => !team.captainId)) fail('請先為每隊指定隊長。');
-  room.hiddenGoals = { catalogVersion: 2, requiredCount: DEFAULT_GOAL_COUNT, choices: {}, guessRounds: {}, achieved: {}, completed: {},
-    offers: Object.fromEntries(teams(room).map(team => [team.id, createOffers(room.size, DEFAULT_GOAL_COUNT)])) };
+  const count = validateGoalCount(room.hiddenGoalCount ?? DEFAULT_GOAL_COUNT, room.size);
+  room.hiddenGoals = { catalogVersion: 2, requiredCount: count, choices: {}, guessRounds: {}, achieved: {}, completed: {},
+    offers: Object.fromEntries(teams(room).map(team => [team.id, createOffers(room.size, count)])) };
   room.phase = 'choosing-goal';
   room.turn = null;
 }
@@ -56,6 +48,8 @@ function chooseHiddenGoal(room, player, data) {
   room.hiddenGoals.choices[team.id] = requiredCount(room) === 1 ? data.goalId : [...selectedIds(room, team.id), data.goalId];
   if (teams(room).every(candidate => selectionComplete(room, candidate.id))) {
     room.phase = 'playing';
+    publishGoalProgress(room);
+    room.hiddenGoals.publicProgressRound = 0;
     startTurn(room);
   }
 }
@@ -94,7 +88,7 @@ function canGuess(room, player) {
     (overtime?.remainingMs > 0 && room.players.find(member => member.id === overtime.playerId)?.teamId === player.teamId));
   return Boolean(player && player.id !== room.host && room.captains?.[player.teamId] === player.id &&
     selectedIds(room, player.teamId).includes('anticipate-opponent') && !room.hiddenGoals?.achieved?.[player.teamId] && room.phase === 'playing' &&
-    !room.activeCard && !room.hint && !room.hiddenGoalGuess && hasTime &&
+    !room.activeCard && !room.hint && !room.hiddenGoalGuess && !room.introduction?.open && hasTime &&
     room.hiddenGoals.guessRounds?.[player.teamId] !== (room.roundNumber || 1));
 }
 

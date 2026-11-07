@@ -73,8 +73,16 @@ test('a team that selected mathematician can still win by a normal line before c
 
 test('undo a prime victory restores four-cell progress while preserving the selected condition', t => {
   const f = fixture(t); [2, 3, 5, 7].forEach(number => f.cover(number));
+  assert.deepEqual(f.snapshot('a1').teams[0].hiddenProgress.conditions[0].reward, { item: '突襲券', quantity: 14 });
+  assert.deepEqual(f.snapshot('a1').teams[0].bonusRewards, []);
   f.act('call', { number: 11 }, 'a1');
+  const rewards = [{ item: '突襲券', quantity: 14 }];
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, rewards);
+  assert.deepEqual(f.snapshot('a1').teams[0].bonusRewards, rewards);
+  const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'host').teams[0].bonusRewards, rewards);
   f.act('undo', { revision: f.room.revision });
+  assert.deepEqual(f.snapshot('a1').teams[0].bonusRewards, []);
   assert.equal(f.room.phase, 'playing'); assert.deepEqual(f.room.winners, []);
   assert.equal(f.room.endReason, null); assert.equal(f.room.turn, 'a1');
   assert.equal(f.room.hiddenGoals.choices['team-1'], 'mathematician');

@@ -1,5 +1,6 @@
+import { renderCardArt } from '../../views/card-art.js';
 import { element } from '../../views/dom.js';
-import { add, picture, text, arrow } from '../../views/guide-illustrations.js';
+import { picture } from '../../views/guide-illustrations.js';
 import { cardFace } from '../../views/playing-card.js';
 import { renderBoardLines } from '../../views/board-lines.js';
 import { teamBoardCell } from './views/board-cell.js';
@@ -44,16 +45,18 @@ function sharedBoard(room) {
   }
   return pair;
 }
-function turns() {
-  const svg = picture(720, 200, '隊伍1三人、隊伍2兩人：1-1、2-1、1-2、2-2、1-3、2-1，隊內各自循環。');
-  ['1-1', '2-1', '1-2', '2-2', '1-3', '2-1'].forEach((name, i) => {
-    const x = 15 + i * 118, color = ['#b84840', '#488ac9'][i % 2];
-    add(svg, 'rect', { x, y: 30, width: 94, height: 76, rx: 7, fill: '#f4ecd7', stroke: color, 'stroke-width': 2 });
-    text(svg, x + 47, 56, `隊伍 ${i % 2 + 1}`, 17, color); text(svg, x + 47, 88, `隊員 ${name.slice(2)}`, 22, color);
-    if (i < 5) arrow(svg, x + 97, 68, 17);
-  });
-  text(svg, 360, 151, '隊伍 1 三人、隊伍 2 兩人，各自循環', 22);
-  text(svg, 360, 190, '圈選一個數字　或　使用一張隊伍效果卡', 22); return svg;
+function strategies() {
+  const row = element('div', 'team-guide-strategies');
+  for (const [art, title, description] of [
+    ['thinking', '溝通與推理', '合作完成隱藏條件'],
+    ['pocket-watch', '特殊格與卡牌', '答對取得獎勵或優勢'],
+    ['flag', '連線與阻擋', '完成本隊，阻止對手']
+  ]) {
+    const example = element('div', 'team-guide-strategy');
+    const icon = element('span', 'team-guide-strategy-icon'); renderCardArt(icon, art);
+    example.append(icon, element('strong', '', title), element('span', '', description)); row.append(example);
+  }
+  return row;
 }
 function cards(room) {
   const row = element('div', 'team-guide-example-row');
@@ -98,7 +101,7 @@ function clock() {
   return row;
 }
 export function teamIntroductionIllustration(index, room = {}, inspect) {
-  const builder = [captain, hiddenConditions, sharedBoard, cards, clock, turns][index];
+  const builder = [captain, hiddenConditions, sharedBoard, cards, clock, strategies][index];
   if (!builder) return null;
   const figure = element('figure', 'game-guide-figure team-guide-example');
   figure.append(builder(room, inspect)); caption(figure, '介面示例，非本局即時資料'); return figure;

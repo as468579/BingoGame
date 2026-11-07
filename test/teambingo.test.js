@@ -410,3 +410,30 @@ test('shared ownership, private hands and undo survive a repository restart and 
   assert.equal(restored.players[0].hand.length, 0);
   assert.equal(restored.teamHands['team-1']?.length || 0, 0);
 });
+
+test('Team Bingo ignores forged prize and quantity fields and blocks replay or wrong-player reward claims', () => {
+  const f = fixture(); f.start();
+  const metadata = () => f.room.linePrizes.map(({ id, item, quantity }) => ({ id, item, quantity }));
+  const initial = metadata();
+  [1, 4, 2, 5].forEach(f.play);
+  const actor = f.room.players.find(player => player.id === f.room.turn);
+  const opponent = f.room.players.find(player => player.teamId && player.teamId !== actor.teamId && player.id !== f.room.captains[player.teamId]);
+  const requestId = randomUUID(), forged = [{ id: 'row-0', item: '龍王項鍊', quantity: Number.MAX_SAFE_INTEGER, claimedBy: actor.teamId }];
+  const called = [...f.room.called];
+  assert.throws(() => f.send('call', { number: 3, quantity: 999999, linePrizes: forged }, opponent.token), error => error.status === 403);
+  assert.deepEqual(f.room.called, called); assert.deepEqual(metadata(), initial);
+  f.send('call', { number: 3, requestId, linePrizes: forged, quantity: -10, teamBonusRewards: { [actor.teamId]: { '龍王項鍊': 999999 } } }, actor.token);
+  const expected = f.room.linePrizes.find(prize => prize.id === 'row-0').quantity;
+  const earned = () => f.service.snapshot(f.room, actor.id).teams.find(team => team.id === actor.teamId).rewards.filter(prize => prize.id === 'row-0');
+  assert.equal(earned().length, 1); assert.equal(earned()[0].quantity, expected); assert.deepEqual(metadata(), initial);
+  assert.equal(f.room.teamBonusRewards[actor.teamId]?.['龍王項鍊'], undefined);
+  const revision = f.room.revision;
+  f.send('call', { number: 3, requestId, quantity: 999999 }, actor.token);
+  assert.equal(f.room.revision, revision); assert.equal(earned().length, 1);
+  assert.throws(() => f.send('call', { number: 3 }, actor.token), /階段/);
+  f.send('undo', { revision: f.room.revision });
+  assert.equal(earned().length, 0); assert.deepEqual(metadata(), initial);
+  f.send('call', { number: 3, requestId }, actor.token); assert.equal(earned().length, 0);
+  f.send('call', { number: 3 }, actor.token);
+  assert.equal(earned().length, 1); assert.equal(earned()[0].quantity, expected);
+});

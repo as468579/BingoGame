@@ -101,6 +101,8 @@ test('guess review pauses action clocks and rejects gameplay until the host judg
 
 test('only the host can judge a current guess and a correct verdict wins without a line', t => {
   const f = fixture(t); f.act('hiddenGoalGuess', {}, 'c1');
+  assert.deepEqual(f.snapshot('c1').teams[0].hiddenProgress.conditions[0].reward, { item: '飄雪結晶', quantity: 100 });
+  assert.deepEqual(f.snapshot('c1').teams[0].bonusRewards, []);
   const guessId = f.room.hiddenGoalGuess.id, before = structuredClone(f.room);
   assert.throws(() => f.act('hiddenGoalJudge', { guessId, correct: true }, 'c1'), /只有房主/);
   assert.throws(() => f.act('hiddenGoalJudge', { guessId: 'stale', correct: true }), /已結束/);
@@ -110,6 +112,11 @@ test('only the host can judge a current guess and a correct verdict wins without
   assert.equal(f.room.phase, 'finished'); assert.deepEqual(f.room.winners, ['team-1']);
   assert.equal(f.room.turn, null); assert.equal(f.room.endReason, 'hidden-goal');
   assert.equal(hasHiddenVictory(f.room, 'team-1'), true); assert.equal(f.room.called.length, 0);
+  const rewards = [{ item: '飄雪結晶', quantity: 100 }];
+  assert.deepEqual(f.snapshot('c1').teams[0].bonusRewards, rewards);
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, rewards);
+  const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'host').teams[0].bonusRewards, rewards);
   assert.throws(() => f.act('hiddenGoalJudge', { guessId, correct: true }), /已結束/);
 });
 
@@ -156,6 +163,7 @@ test('undo restores round progress, a hidden win and its guess allowance; reset 
   f.act('undo', { revision: f.room.revision });
   assert.equal(f.room.phase, 'playing'); assert.deepEqual(f.room.winners, []);
   assert.equal(hasHiddenVictory(f.room, 'team-1'), false);
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
   f.act('reset'); assert.equal(f.room.hiddenGoals, null); assert.equal(f.room.hiddenGoalGuess, null);
   assert.equal(f.room.roundNumber, 1); assert.deepEqual(f.room.roundActedIds, []);
 });

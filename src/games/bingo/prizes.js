@@ -4,7 +4,7 @@ const { participants } = require('./participants');
 const { createCells } = require('./board');
 const { randomInt } = require('node:crypto');
 
-const { ITEMS, createPrizePicker, migrateLimitedPrizes, migrateRetiredPrizes } = require('../../shared/prize-items');
+const { ITEMS, createPrizePicker, migrateLimitedPrizes, migratePrizeQuantities, migrateRetiredPrizes } = require('../../shared/prize-items');
 
 function prizeLines(size) {
   const positions = Array.from({ length: size }, (_, index) => index);
@@ -17,10 +17,10 @@ function prizeLines(size) {
 }
 
 function createLinePrizes(size = 5, pickIndex = randomInt) {
-  const pickItem = createPrizePicker(pickIndex);
-  return prizeLines(size).map(line => ({
+  const lines = prizeLines(size), pickItem = createPrizePicker(lines.length, pickIndex);
+  return lines.map(line => ({
     id: `${line.kind}-${line.index}`, kind: line.kind, index: line.index,
-    item: pickItem(), claimedBy: null
+    ...pickItem(), claimedBy: null
   }));
 }
 
@@ -46,7 +46,7 @@ function awardLinePrizes(room) {
 }
 
 function playerRewards(prizes, playerId) {
-  return prizes.filter(slot => slot.claimedBy === playerId).map(({ id, kind, index, item }) => ({ id, kind, index, item }));
+  return prizes.filter(slot => slot.claimedBy === playerId).map(({ id, kind, index, item, quantity = 1 }) => ({ id, kind, index, item, quantity }));
 }
 
 function migrateLinePrizes(room, replay = false) {
@@ -59,6 +59,7 @@ function migrateLinePrizes(room, replay = false) {
   const created = ensureLinePrizes(room);
   migrateRetiredPrizes(room);
   migrateLimitedPrizes(room);
+  migratePrizeQuantities(room);
   if ((!created && !replay) || !['playing', 'finished'].includes(room.phase)) return;
   // Replay available pre-action snapshots before the current state, preserving first-completion order.
   for (const state of [...(room.roundStart ? [{ playerStates: room.roundStart, called: [] }] : []), ...(room.history || [])]) {

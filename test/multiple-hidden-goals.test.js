@@ -58,8 +58,8 @@ test('a high opening clock cannot complete quick finish before the other two con
   assert.equal(hasHiddenVictory(f.room, 'team-1'), false);
 });
 
-for (const [remaining, expected] of [[299999, false], [300000, false], [300001, true]]) {
-  test(`quick finish checks strictly greater than five minutes at ${remaining}ms`, t => {
+for (const [remaining, expected] of [[359999, false], [360000, false], [360001, true]]) {
+  test(`quick finish checks strictly greater than six minutes at ${remaining}ms`, t => {
     const f = fixture(t); f.prerequisites(); f.budget(remaining);
     assert.equal(settleVictory(f.room), expected);
     assert.equal(f.room.phase, expected ? 'finished' : 'playing');
@@ -69,7 +69,7 @@ for (const [remaining, expected] of [[299999, false], [300000, false], [300001, 
 
 test('the final ordinary condition immediately completes quick finish when time permits', t => {
   const f = fixture(t); [1, 6, 31, 36, 2, 3, 5].forEach(n => f.cover(n));
-  f.budget(300001);
+  f.budget(360001);
   f.act('call', { number: 7 }, 'a');
   assert.equal(f.room.phase, 'finished'); assert.equal(f.room.endReason, 'hidden-goal');
   assert.deepEqual(f.room.winners, ['team-1']);
@@ -77,15 +77,15 @@ test('the final ordinary condition immediately completes quick finish when time 
 
 test('running elapsed time is subtracted instead of using the stored clock budget', t => {
   const f = fixture(t); f.prerequisites();
-  f.room.teamClock.remaining['team-1'] = 310000;
+  f.room.teamClock.remaining['team-1'] = 370000;
   f.room.teamClock.activeTeamId = 'team-1'; f.room.teamClock.startedAt = 0;
   f.time(10000);
-  assert.equal(remainingTime(f.room, 'team-1'), 300000);
+  assert.equal(remainingTime(f.room, 'team-1'), 360000);
   assert.equal(settleVictory(f.room), false);
 });
 
 for (const correct of [true, false]) test(`time card judgment ${correct ? 'correct' : 'wrong'} can only win after a successful bonus`, t => {
-  const f = fixture(t); f.prerequisites(); f.budget(181000);
+  const f = fixture(t); f.prerequisites(); f.budget(241000);
   assert.equal(settleVictory(f.room), false);
   const definition = require('../src/games/teambingo/card-catalog').cards.find(c => c.id === 'team-time-plus-2m');
   const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] }, definition);
@@ -94,14 +94,14 @@ for (const correct of [true, false]) test(`time card judgment ${correct ? 'corre
   f.act('cardAnswer', { cardSessionId: active.id, ...(active.question.type === 'oral' ? { answered: true } : { choice: 0 }) }, 'a');
   f.time(100000);
   f.act('cardJudge', { cardSessionId: active.id, correct });
-  assert.equal(remainingTime(f.room, 'team-1'), correct ? 301000 : 181000);
+  assert.equal(remainingTime(f.room, 'team-1'), correct ? 361000 : 241000);
   assert.equal(f.room.phase, correct ? 'finished' : 'playing');
   assert.deepEqual(f.room.winners, correct ? ['team-1'] : []);
   if (correct) {
     f.act('cardFinish', { cardSessionId: active.id }, 'a');
     f.act('undo', { revision: f.room.revision });
     assert.equal(f.room.phase, 'playing'); assert.deepEqual(f.room.winners, []);
-    assert.equal(remainingTime(f.room, 'team-1'), 181000);
+    assert.equal(remainingTime(f.room, 'team-1'), 241000);
     assert.equal(f.room.hiddenGoals.completed['team-1']['four-corners'], true);
   }
 });
@@ -191,21 +191,21 @@ test('only captains can choose individual conditions and a fourth choice cannot 
 
 test('quick finish depends on completion rather than the position of its card in the selection order', t => {
   for (const goals of [quickGoals, ['quick-finish', 'four-corners', 'mathematician'], ['mathematician', 'quick-finish', 'four-corners']]) {
-    const f = fixture(t, { goals }); f.prerequisites(); f.budget(300001);
+    const f = fixture(t, { goals }); f.prerequisites(); f.budget(360001);
     assert.equal(settleVictory(f.room), true); assert.deepEqual(f.room.winners, ['team-1']);
     assert.equal(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'quick-finish').completed, true);
   }
 });
 
 test('time-card bonuses gained before the other conditions cannot trigger an early victory', t => {
-  const f = fixture(t); f.budget(181000);
+  const f = fixture(t); f.budget(241000);
   const definition = require('../src/games/teambingo/card-catalog').cards.find(c => c.id === 'team-time-plus-2m');
   const held = drawForNumber({ hand: f.room.teamHands['team-1'] ||= [] }, definition);
   f.act('cardUse', { cardId: held.id }, 'a');
   const active = f.room.activeCard;
   f.act('cardAnswer', { cardSessionId: active.id, ...(active.question.type === 'oral' ? { answered: true } : { choice: 0 }) }, 'a');
   f.act('cardJudge', { cardSessionId: active.id, correct: true });
-  assert.equal(remainingTime(f.room, 'team-1'), 301000);
+  assert.equal(remainingTime(f.room, 'team-1'), 361000);
   assert.equal(f.room.phase, 'playing'); assert.deepEqual(f.room.winners, []);
   assert.equal(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'quick-finish').completed, false);
 });
@@ -217,4 +217,29 @@ test('private selection snapshots cannot mutate saved choices or another team co
   assert.deepEqual(f.room.hiddenGoals, before);
   assert.equal(f.snapshot('c2').hostHiddenGoals, undefined);
   assert.ok(f.snapshot('c2').hiddenGoal.selections.every(c => c.name !== 'Tampered'));
+});
+test('quick finish shows a necklace reward and settles exactly one, with undo and reconnect support', t => {
+  const f = fixture(t);
+  const report = f.snapshot('a').teams.find(team => team.id === 'team-1').hiddenProgress;
+  assert.deepEqual(report.conditions[2].reward, { item: '龍王項鍊', quantity: 1 });
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
+  [1, 6, 31, 36, 2, 3, 5].forEach(n => f.cover(n));
+  f.budget(360001); f.act('call', { number: 7 }, 'a');
+  assert.equal(f.room.phase, 'finished');
+  const reward = [{ item: '飄雪結晶', quantity: 50 }, { item: '突襲券', quantity: 14 }, { item: '龍王項鍊', quantity: 1 }];
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, reward);
+  assert.deepEqual(f.snapshot('a').teams[0].bonusRewards, reward);
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, reward);
+  const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'a').teams[0].bonusRewards, reward);
+  f.act('undo', { revision: 0 });
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
+});
+test('quick finish does not award a necklace at exactly six minutes or without completing other goals', t => {
+  const f = fixture(t); f.prerequisites(); f.budget(360000);
+  assert.equal(settleVictory(f.room), false);
+  f.room.phase = 'finished';
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, [{ item: '飄雪結晶', quantity: 50 }, { item: '突襲券', quantity: 14 }]);
+  f.budget(480000); f.room.hiddenGoals.choices['team-1'] = ['quick-finish', 'sage', 'reckless'];
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
 });

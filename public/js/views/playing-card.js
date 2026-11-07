@@ -3,7 +3,7 @@ import { renderCardArt } from './card-art.js';
 export { renderCardArt } from './card-art.js';
 
 // Shared card stock and face/back artwork; games supply their own content and actions.
-export function cardFace({ tag = 'div', className = '', type, art, name, description, footer, watermark = false }) {
+export function cardFace({ tag = 'div', className = '', type, art, name, description, reward, footer, watermark = false }) {
   const card = element(tag, `game-card game-card-front ${className}`.trim());
   if (tag === 'button') card.type = 'button';
   if (type) card.append(element('span', 'game-card-type spell-type', type));
@@ -14,6 +14,7 @@ export function cardFace({ tag = 'div', className = '', type, art, name, descrip
   }
   if (name) card.append(element('strong', 'spell-name', name));
   if (description) card.append(element('span', 'spell-description', description));
+  if (reward !== undefined) card.append(element('span', 'game-card-reward', reward ? `獎品：${reward.item} ×${reward.quantity}` : '獎品待定'));
   if (footer) card.append(element('span', 'spell-lock', footer));
   if (watermark) card.append(anchorArtwork('card-anchor-watermark'));
   return card;

@@ -12,11 +12,13 @@ export class HiddenGoalView {
   }
 
   render(state) {
+    if (state.room.introduction?.open) { this.close(); return; }
     const key = `${state.room.code}:${state.playerId}`;
     if (this.key !== key) { this.close(); this.pendingId = null; }
     this.key = key; this.state = state;
     const choosing = state.room.phase === 'choosing-goal';
     const goal = state.room.hiddenGoal;
+    this.dialog.dataset.selecting = 'false';
     if (!choosing || goal?.selected || !goal?.options?.some(card => card.id === this.pendingId)) this.pendingId = null;
     const waiting = choosing && !goal && state.playerId !== state.room.host;
     this.dialog.dataset.waiting = String(waiting);
@@ -40,6 +42,7 @@ export class HiddenGoalView {
         tag: 'div', className: 'spell-card hidden-goal-card', type: team.teamName,
         art: card?.symbol || '?', name: card?.name || '尚未選擇',
         description: card?.effect || '等待隊長選擇隱藏勝利條件。',
+        reward: card ? card.reward || null : undefined,
         footer: card?.completed ? '已達成' : (card?.progress || team.progress) ? `進度：${(card?.progress || team.progress).current} / ${(card?.progress || team.progress).target}` : card ? '已選擇' : '等待選擇'
       }))));
       return;
@@ -50,12 +53,13 @@ export class HiddenGoalView {
     const selections = goal.selections || (goal.selected ? [goal.selected] : []);
     $('closeHiddenGoal').hidden = !goal.selected;
     const pending = goal.options.find(card => card.id === this.pendingId);
+    this.dialog.dataset.selecting = String(choosing && !goal.selected && !pending);
     $('hiddenGoalTitle').textContent = pending ? '確認隱藏勝利條件' : '隱藏勝利條件';
     $('hiddenGoalHint').textContent = pending ? '確定選擇此條件？確認後無法更換。' : goal.selected ? '僅你與房主可查看此條件，全部達成即可獲勝。' : `選擇 ${goal.requiredCount || 1} 個不同隱藏勝利條件，已選 ${selections.length} 個。${selections.length ? `已選：${selections.map(card => card.name).join('、')}。` : ''}僅你與房主可查看。`;
     const cards = goal.selected ? selections : pending ? [pending] : goal.options;
     $('hiddenGoalCards').replaceChildren(...cards.map(card => {
       const node = cardFace({ tag: goal.selected || pending ? 'div' : 'button', className: 'spell-card hidden-goal-card',
-        type: '隱藏勝利條件', art: card.symbol, name: card.name, description: card.effect,
+        type: '隱藏勝利條件', art: card.symbol, name: card.name, description: card.effect, reward: card.reward || null,
         footer: card.completed ? '已達成' : (card.progress || (cards.length === 1 && goal.progress)) ? `進度：${(card.progress || goal.progress).current} / ${(card.progress || goal.progress).target}` : goal.selected ? '已選擇' : pending ? '待確認' : '選擇此條件' });
       if (!goal.selected && !pending) {
         node.setAttribute('aria-label', `選擇第 ${goal.options.indexOf(card) + 1} 張隱藏勝利條件卡`);
@@ -94,6 +98,7 @@ export class HiddenGoalView {
   hide() {
     this.close(); this.key = null; this.wasChoosing = false; this.pendingId = null;
     this.dialog.dataset.waiting = 'false';
+    this.dialog.dataset.selecting = 'false';
     $('viewHiddenGoal').hidden = true;
     $('hiddenGoalCards').replaceChildren();
     $('hiddenGoalHint').textContent = '';

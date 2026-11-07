@@ -93,8 +93,13 @@ test('only a valid host verdict counts and repeating or finishing it does not co
 
 test('undo retracts the third wrong answer and its hidden victory', t => {
   const f = fixture(t); f.coverCorners(); f.room.teamWrongAnswers['team-1'] = 2;
+  assert.deepEqual(f.snapshot('a').teams[0].hiddenProgress.conditions[0].reward, { item: '突襲券', quantity: 7 });
   settleVictory(f.room); f.answer(false); assert.equal(f.room.phase, 'finished');
+  assert.ok(f.snapshot('host').teams[0].bonusRewards.some(reward => reward.item === '突襲券' && reward.quantity === 7));
+  const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'host').teams[0].bonusRewards, f.snapshot('host').teams[0].bonusRewards);
   f.act('undo', { revision: f.room.revision });
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
   assert.equal(f.room.phase, 'playing'); assert.deepEqual(f.room.winners, []);
   assert.equal(f.room.teamWrongAnswers['team-1'], 2);
   assert.equal(f.room.hiddenGoals.completed['team-1'].reckless, undefined);

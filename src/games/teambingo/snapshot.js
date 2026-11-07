@@ -1,4 +1,8 @@
 'use strict';
+const { maxGoalCount } = require('./hidden-goal-offers');
+const { winnerReward } = require('./winner-rewards');
+const { hiddenGoalRewards } = require('./goal-rewards');
+const { publicGoalProgress } = require('./goal-progress');
 const { publicRoom, publicIdentity } = require('../../shared/public-room');
 const { canUndo } = require('./history');
 const { winningLineGoal } = require('./board');
@@ -11,11 +15,13 @@ const { privateHiddenGoal, hostHiddenGoals, availableHiddenGoals } = require('./
 const { isCaptain } = require('./participants');
 const { hintUses } = require('./captain-hint');
 const { selectionComplete } = require('./hidden-goal-state');
+const { introductionTime, publicIntroduction } = require('./introduction');
 function roomSnapshot(room, presence, viewerId) {
   const viewer = room.players.find(p => p.id === viewerId), active = room.activeCard;
   const card = active && demoCards.find(c => c.id === active.cardId);
   const question = active && (active.question || findQuestion(active.questionId || active.cardId));
   const now = Date.now();
+  const timerNow = introductionTime(room, now);
   const overtime = overtimeState(room, now);
   const hiddenGoal = privateHiddenGoal(room, viewer);
   const reviewedGoals = hostHiddenGoals(room, viewerId);
@@ -26,30 +32,30 @@ function roomSnapshot(room, presence, viewerId) {
     name: demoCards.find(definition => definition.id === held.definitionId)?.name || held.name,
     symbol: demoCards.find(definition => definition.id === held.definitionId)?.symbol || held.symbol })) : [];
   const scores = teams(room).map(t => ({ ...t, playerIds: room.players.filter(p => p.id !== room.host && p.teamId === t.id).map(p => p.id),
-    lines: teamLines(room, t.id), handCount: room.teamHands?.[t.id]?.length || 0, hintUsesRemaining: hintUses(room, t.id),
+    hiddenProgress: publicGoalProgress(room, t.id), lines: teamLines(room, t.id), handCount: room.teamHands?.[t.id]?.length || 0, hintUsesRemaining: hintUses(room, t.id),
     timeRemainingMs: remainingTime(room, t.id, now), clockRunning: room.phase === 'playing' && room.teamClock?.activeTeamId === t.id && !overtime,
     overtimeMode: remainingTime(room, t.id, now) <= 0,
     ...(overtime && room.players.find(player => player.id === overtime.playerId)?.teamId === t.id ? { overtimeRemainingMs: overtime.remainingMs, overtimeRunning: overtime.running } : {}),
-    rewards: playerRewards(room.linePrizes, t.id),
-    bonusRewards: room.phase === 'finished' ? Object.entries(room.teamBonusRewards?.[t.id] || {}).map(([item, quantity]) => ({ item, quantity })) : [] }));
+    winnerReward: winnerReward(room, t.id, viewerId), rewards: playerRewards(room.linePrizes, t.id),
+    bonusRewards: room.phase === 'finished' ? [...Object.entries(room.teamBonusRewards?.[t.id] || {}).map(([item, quantity]) => ({ item, quantity })), ...hiddenGoalRewards(room, t.id), ...(winnerReward(room, t.id, viewerId)?.selected ? [winnerReward(room, t.id, viewerId).selected] : [])] : [] }));
   return { ...publicRoom(room, presence), size: room.size, boardVersion: room.boardVersion, goal: winningLineGoal(room.size),
-    teamCount: room.teamCount, playersPerTeam: room.playersPerTeam, teamTimeMinutes: room.teamTimeMinutes ?? DEFAULT_TEAM_MINUTES, teams: scores, board: room.board, cells: room.cells,
-    turn: room.turn, overtime, roundNumber: room.roundNumber || 1, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
+    hiddenGoalCount: room.hiddenGoalCount ?? room.hiddenGoals?.requiredCount ?? 2, hiddenGoalMaxCount: maxGoalCount(room.size), teamCount: room.teamCount, playersPerTeam: room.playersPerTeam, teamTimeMinutes: room.teamTimeMinutes ?? DEFAULT_TEAM_MINUTES, teams: scores, board: room.board, cells: room.cells,
+    turn: room.turn, overtime, introduction: publicIntroduction(room), roundNumber: room.roundNumber || 1, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
     hiddenGoalGuess: room.hiddenGoalGuess ? { ...room.hiddenGoalGuess,
       teamName: scores.find(team => team.id === room.hiddenGoalGuess.teamId)?.name || '隊伍',
       captainName: room.players.find(player => player.id === room.hiddenGoalGuess.captainId)?.name || '隊長' } : null,
     lastDecision: room.lastDecision, canUndo: canUndo(room), participantCount: room.players.filter(p => p.id !== room.host).length,
     ...(hiddenGoal ? { hiddenGoal } : {}),
     ...(reviewedGoals ? { hostHiddenGoals: reviewedGoals } : {}),
-    hint: room.hint ? { id: room.hint.id, teamId: room.hint.teamId, captainId: room.hint.captainId, teamName: scores.find(team => team.id === room.hint.teamId)?.name || '隊伍', remainingMs: Math.max(0, room.hint.endsAt - now) } : null,
-    canHint: Boolean(viewer && isCaptain(room, viewer.id) && hintUses(room, viewer.teamId) > 0 && room.phase === 'playing' && !room.activeCard && !room.hint && !room.hiddenGoalGuess && room.players.find(player => player.id === room.turn)?.teamId === viewer.teamId),
+    hint: room.hint ? { id: room.hint.id, teamId: room.hint.teamId, captainId: room.hint.captainId, teamName: scores.find(team => team.id === room.hint.teamId)?.name || '隊伍', remainingMs: Math.max(0, room.hint.endsAt - timerNow) } : null,
+    canHint: Boolean(viewer && isCaptain(room, viewer.id) && hintUses(room, viewer.teamId) > 0 && room.phase === 'playing' && !room.introduction?.open && !room.activeCard && !room.hint && !room.hiddenGoalGuess && room.players.find(player => player.id === room.turn)?.teamId === viewer.teamId),
     ...(room.phase === 'choosing-goal' ? { goalsRemaining: scores.filter(team => !selectionComplete(room, team.id)).length } : {}),
     lastScanAt: room.lastScanAt || null, lastScanRemovedCount: room.lastScanRemovedCount || 0,
     lastDraw: awarded ? { ...publicCard({ ...awarded, name: awardDefinition?.name || awarded.name, symbol: awardDefinition?.symbol || awarded.symbol }),
       teamId: awardTeamId, teamName: scores.find(team => team.id === awardTeamId)?.name || '隊伍' } : null,
     availableDemoCards: [], availableHiddenGoals: availableHiddenGoals(room),
     activeCard: card && question ? { id: active.id, playerId: active.playerId, teamId: active.teamId, cardId: active.cardId, stage: active.stage,
-      ...(active.stage === 'question' ? { answerRemainingMs: Math.max(0, (active.answerDeadlineAt ?? now) - now) } : {}),
+      ...(active.stage === 'question' ? { answerRemainingMs: Math.max(0, (active.answerDeadlineAt ?? timerNow) - timerNow) } : {}),
       ...(active.timedOut ? { timedOut: true } : {}),
       ...(viewerId === room.host && active.stage === 'review' ? { referenceAnswer: question.type === 'oral' ? question.referenceAnswer || '' : Number.isInteger(question.answer) && question.options[question.answer] !== undefined ? `${'ABCD'[question.answer]}：${question.options[question.answer]}` : '' } : {}),
       ...(active.choice !== undefined ? { choice: active.choice } : {}), ...(active.answered ? { answered: true } : {}), ...(active.correct !== undefined ? { correct: active.correct } : {}), card: { ...publicCard(card), question: question.question, questionCategory: question.category || '未分類', options: question.options, questionType: question.type || 'multiple-choice' } } : null,

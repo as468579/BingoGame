@@ -16,10 +16,10 @@ function prizeLines(size) {
 }
 
 function createLinePrizes(size = 5, pickIndex = randomInt) {
-  const pickItem = createPrizePicker(pickIndex);
-  return prizeLines(size).map(line => ({
+  const lines = prizeLines(size), pickItem = createPrizePicker(lines.length, pickIndex);
+  return lines.map(line => ({
     id: `${line.kind}-${line.index}`, kind: line.kind, index: line.index,
-    item: pickItem(), claimedBy: null
+    ...pickItem(), claimedBy: null
   }));
 }
 
@@ -45,7 +45,7 @@ function awardLinePrizes(room) {
 }
 
 function playerRewards(prizes, playerId) {
-  return prizes.filter(slot => slot.claimedBy === playerId).map(({ id, kind, index, item }) => ({ id, kind, index, item }));
+  return prizes.filter(slot => slot.claimedBy === playerId).map(({ id, kind, index, item, quantity = 1 }) => ({ id, kind, index, item, quantity }));
 }
 
 function teamLines(room, id) {

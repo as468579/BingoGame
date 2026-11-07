@@ -31,12 +31,16 @@ function fixture(t, a = 3, b = 3) {
 test('66 wins immediately at exactly 66 before the other team completes its round', t => {
   const f = fixture(t);
   [36, 1, 19, 2].forEach(f.call);
-  assert.deepEqual(f.snapshot('c1').hiddenGoal.progress, { current: 55, target: 66 });
+  assert.deepEqual(f.snapshot('c1').hiddenGoal.progress, { current: 0, target: 1 });
   assert.equal(f.room.phase, 'playing');
   f.call(11);
   assert.equal(roundNumberSum(f.room, 'team-1'), 66);
   assert.equal(f.room.roundNumber, 1); assert.equal(f.room.phase, 'finished');
   assert.equal(f.room.endReason, 'hidden-goal'); assert.deepEqual(f.room.winners, ['team-1']);
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, [{ item: '超級藥水', quantity: 1000 }]);
+  assert.deepEqual(f.snapshot('c1').teams[0].bonusRewards, [{ item: '超級藥水', quantity: 1000 }]);
+  f.act('undo', { revision: f.room.revision });
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
 });
 
 test('exceeding 66 does not satisfy the condition', t => {
@@ -84,10 +88,10 @@ test('undo restores the total before the winning claim and removes its round met
 test('saved totals remain private to captains and host and reset with a new game', t => {
   const f = fixture(t); f.call(36);
   const saved = structuredClone(f.room); game.migrate(saved);
-  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'c1').hiddenGoal.progress, { current: 36, target: 66 });
-  assert.deepEqual(f.snapshot('host').hostHiddenGoals[0].progress, { current: 36, target: 66 });
+  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'c1').hiddenGoal.progress, { current: 0, target: 1 });
+  assert.deepEqual(f.snapshot('host').hostHiddenGoals[0].progress, { current: 0, target: 1 });
   assert.equal(f.snapshot('a1').hiddenGoal, undefined);
-  assert.deepEqual(f.snapshot('c2').hiddenGoal.progress, { current: 0, target: 66 });
+  assert.deepEqual(f.snapshot('c2').hiddenGoal.progress, { current: 0, target: 1 });
   f.act('reset'); assert.equal(roundNumberSum(f.room, 'team-1'), 0);
 });
 
@@ -106,7 +110,7 @@ test('migration renames saved 88 choices and offers to 66 and uses the new targe
   const card = f.snapshot('c1').hiddenGoal.selected;
   assert.equal(card.name, '66'); assert.equal(card.symbol, 'double-six');
   assert.match(card.effect, /66/); assert.ok(!card.effect.includes('88'));
-  assert.deepEqual(card.progress, { current: 0, target: 66 });
+  assert.deepEqual(card.progress, { current: 0, target: 1 });
 });
 
 test('migration preserves earned conditions and updates undo history without restoring the old ID', t => {

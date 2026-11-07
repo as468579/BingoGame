@@ -39,6 +39,7 @@ test('66, 77 and 88 are independent options available on every board of size fou
       const goal = offers.find(card => card.id === `round-${target}`);
       assert.equal(Boolean(goal), size >= 4);
       if (goal) { assert.equal(goal.name, String(target)); assert.equal(goal.roundSum, target); }
+      if (goal) assert.deepEqual(goal.reward, { item: '超級藥水', quantity: 1000 });
     }
   }
 });
@@ -49,11 +50,18 @@ for (const [target, numbers] of [[77, [35, 25, 17]], [88, [35, 29, 24]]]) {
     [1, 6, 31, 36].forEach(number => Object.assign(f.room.cells.find(c => c.number === number), { isCovered: true, teamId: 'team-1' }));
     for (const n of [numbers[0], 2, numbers[1], 3]) f.call(n);
     assert.equal(f.room.phase, 'playing');
-    assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === `round-${target}`).progress, { current: numbers[0] + numbers[1], target });
+    assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === `round-${target}`).progress, { current: 0, target: 1 });
     f.call(numbers[2]);
     assert.equal(roundNumberSum(f.room, 'team-1'), target);
     assert.equal(f.room.roundNumber, 1); assert.equal(f.room.phase, 'finished');
     assert.deepEqual(f.room.winners, ['team-1']);
+    const potions = snapshot => snapshot.teams[0].bonusRewards.filter(reward => reward.item === '超級藥水');
+    assert.deepEqual(potions(f.snapshot('c1')), [{ item: '超級藥水', quantity: 1000 }]);
+    assert.deepEqual(potions(f.snapshot('host')), [{ item: '超級藥水', quantity: 1000 }]);
+    const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+    assert.deepEqual(potions(game.snapshot(saved, { isOnline: () => true }, 'host')), [{ item: '超級藥水', quantity: 1000 }]);
+    f.act('undo', { revision: f.room.revision });
+    assert.deepEqual(potions(f.snapshot('host')), []);
   });
 
   test(`${target} rejects totals above its target and cannot borrow the opponent sum`, t => {
@@ -80,7 +88,7 @@ for (const [target, numbers] of [[77, [35, 25, 17]], [88, [35, 29, 24]]]) {
 
 test('one team can select all three totals and retain each achievement from a different round', t => {
   const f = fixture(t, 77, ['round-66', 'round-77', 'round-88']);
-  assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.map(c => c.progress.target), [66, 77, 88]);
+  assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.map(c => c.progress.target), [1, 1, 1]);
   for (const [round, target, numbers] of [[1, 66, [36, 19, 11]], [2, 77, [35, 25, 17]], [3, 88, [34, 30, 24]]]) {
     f.room.roundNumber = round;
     numbers.forEach(number => Object.assign(f.room.cells.find(c => c.number === number), { isCovered: true, teamId: 'team-1', claimedRound: round }));
@@ -96,5 +104,5 @@ test('new total goals reset current-round progress at the same global round boun
   for (const n of [8, 20, 9, 21, 10, 22]) f.call(n);
   assert.equal(f.room.roundNumber, 2); assert.equal(roundNumberSum(f.room, 'team-1'), 0);
   f.call(11);
-  assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'round-88').progress, { current: 11, target: 88 });
+  assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'round-88').progress, { current: 0, target: 1 });
 });

@@ -1,9 +1,28 @@
 
-.next-team-settings{display:flex;gap:12px;margin-bottom:16px}.next-team-settings input{width:100px}
+.next-team-settings{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}.next-team-settings input{width:100px}
 #next-root{--team-roster-width:340px}
+#next-boardPrizeLayout{--game-board-scale:1.3225}
 #next-root .room-heading{justify-content:flex-start;flex-wrap:wrap;gap:10px;padding-left:calc(var(--team-roster-width) + 20px)}
 #next-copy{order:1;margin-left:auto}
 #next-root .game-layout.no-draw{grid-template-columns:var(--team-roster-width) minmax(0,1fr)}
+#next-root .game-layout.no-draw:has(.goal-progress-panel:not([hidden])){grid-template-columns:var(--team-roster-width) minmax(0,1fr) 280px}
+.goal-progress-panel{align-self:start;min-width:0}
+.goal-progress-panel .team-roster-heading{margin:0}
+.goal-progress-conditions{list-style:none;padding:0;margin:0}
+.goal-progress-row{display:flex;align-items:baseline;white-space:nowrap;font-size:16px}
+.goal-progress-row strong{font-size:inherit}
+.goal-progress-value{font-size:inherit;font-variant-numeric:tabular-nums}
+.winner-reward-choice{display:flex;flex-wrap:wrap;gap:8px;padding:12px 0}
+.winner-reward-choice>strong{flex-basis:100%;font-size:16px}
+.winner-reward-choice button{font-size:14px;padding:9px 12px}
+.winner-reward-info{margin-top:18px;padding-top:14px;border-top:1px solid #b6a17c66;text-align:left;color:#655538}
+.winner-reward-info h3{font-size:17px;margin:0 0 8px}
+.winner-reward-info p{font-size:14px;line-height:1.6;margin:0 0 10px}
+.winner-reward-info-options{display:flex;flex-wrap:wrap;gap:10px 18px}
+.winner-reward-info-item{display:flex;align-items:center;gap:8px;font-size:14px}
+.winner-reward-info-item img{flex:none;object-fit:contain;image-rendering:pixelated}
+@media(max-width:1100px){#next-root .game-layout.no-draw:has(.goal-progress-panel:not([hidden])){grid-template-columns:var(--team-roster-width) minmax(0,1fr)}.goal-progress-panel{grid-column:2}}
+@media(max-width:700px){#next-root .game-layout.no-draw:has(.goal-progress-panel:not([hidden])){grid-template-columns:1fr}.goal-progress-panel{grid-column:1}}
 @media(max-width:1050px){#next-root{--team-roster-width:280px}}
 @media(max-width:700px){#next-root .game-layout.no-draw{grid-template-columns:1fr}#next-root .room-heading{padding-left:0}}
 #next-root .team-roster-clock,#next-root .team-roster-captain-badge{white-space:nowrap}
@@ -38,11 +57,14 @@
 #next-boardLines line[data-team]{stroke:var(--team-ink)}
 @media(max-width:700px){.next-team-settings{flex-wrap:wrap}}
 #next-hiddenGoalDialog{width:min(740px,calc(100vw - 32px))}
+#next-hiddenGoalDialog[data-selecting="true"]{width:min(1140px,calc(100vw - 32px))}
+#next-hiddenGoalDialog[data-selecting="true"] .hidden-goal-cards{display:grid;grid-template-columns:repeat(4,max-content);justify-content:start;gap:16px;width:max-content;min-width:100%;padding-bottom:8px}
 #next-hiddenGoalHint{font-size:15px;line-height:1.6;color:#78603b}
 .hidden-goal-cards{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-top:20px}
-.hidden-goal-card{text-align:center;flex-shrink:0;zoom:1.21}
+.hidden-goal-card{text-align:center;flex-shrink:0;zoom:1.331}
 .hidden-goal-confirm-actions{display:flex;justify-content:center;gap:12px;flex-basis:100%;flex-wrap:wrap}
-#next-hiddenGoalDialog .spell-description{font-size:14px;line-height:1.5}
+#next-hiddenGoalDialog .spell-description{font-size:12px;line-height:1.5}
+#next-hiddenGoalDialog .game-card-reward{display:block;flex-shrink:0;font-size:12px;font-weight:700;line-height:1.5;color:#655538;margin:0 0 8px;overflow-wrap:anywhere}
 #next-sharedCardQuestion .question-category{font-weight:700}
 #next-sharedCardQuestion{white-space:pre-line}
 #next-sharedCardEffect{font-size:16px}
@@ -87,4 +109,9 @@
 .team-guide-question-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .team-guide-question-options button{text-align:left;font-size:15px;padding:9px 12px}
 .team-guide-team-heading{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#f4ecd7;border:1px solid #c6b991;border-radius:8px;padding:12px}
+.team-guide-strategies{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:12px 0}
+.team-guide-strategy{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;font-size:14px;line-height:1.5}
+.team-guide-strategy-icon{display:grid;place-items:center;width:76px;height:86px}
+.team-guide-strategy strong{font-size:17px}
+@media(max-width:480px){.team-guide-strategies{gap:8px}.team-guide-strategy{font-size:12px}.team-guide-strategy strong{font-size:14px}}
 @media(max-width:480px){.team-guide-example .game-guide-pair{grid-template-columns:1fr}.team-guide-example-row{gap:16px}.team-guide-question-options{grid-template-columns:1fr}}

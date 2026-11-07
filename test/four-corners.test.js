@@ -55,6 +55,20 @@ test('opponent or unoccupied corners and owned interior cells cannot satisfy fou
   f.room.cells[corners[3]].isCovered = false;
   assert.equal(countCorners(f.room, 'team-1'), 3);
 });
+test('four corners awards fifty snow crystals once and undo removes the settlement', () => {
+  const f = fixture(), corners = cornerIndices(6);
+  assert.deepEqual(f.snapshot('a1').teams[0].hiddenProgress.conditions[0].reward, { item: '飄雪結晶', quantity: 50 });
+  assert.deepEqual(f.snapshot('a1').teams[0].bonusRewards, []);
+  corners.slice(0, 3).forEach(index => f.cover(index));
+  f.act('call', { number: f.room.cells[corners[3]].number }, 'a1');
+  const reward = [{ item: '飄雪結晶', quantity: 50 }];
+  assert.deepEqual(f.snapshot('a1').teams[0].bonusRewards, reward);
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, reward);
+  const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'a1').teams[0].bonusRewards, reward);
+  f.act('undo', { revision: f.room.revision });
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
+});
 
 test('an opponent owning the four corners cannot win with a different selected condition', () => {
   const f = fixture(); cornerIndices(6).forEach(index => f.cover(index, 'team-2'));
@@ -129,5 +143,5 @@ test('invalid conditions are rejected and migration expands old unselected offer
   f.room.hiddenGoals.offers['team-2'] = f.room.hiddenGoals.offers['team-2'].slice(0, 1);
   const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
   assert.equal(saved.hiddenGoals.choices['team-1'], 'four-corners');
-  assert.equal(saved.hiddenGoals.offers['team-2'].length, 10);
+  assert.equal(saved.hiddenGoals.offers['team-2'].length, 12);
 });

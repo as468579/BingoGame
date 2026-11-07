@@ -5,6 +5,7 @@ export class HostControlsView {
     $('boardSize').onchange = actions.settingsChanged;
     $('teamCount').oninput = actions.settingsChanged;
     $('playersPerTeam').oninput = actions.settingsChanged;
+    $('hiddenGoalCount').oninput = actions.settingsChanged;
     $('applySize').onclick = () => actions.applySize(Number($('boardSize').value));
     for (const kind of ['start', 'skip', 'reset', 'scan', 'rerollPrizes']) $(kind).onclick = () => {
       if (kind === 'reset' && !confirm('要結束目前這一局並讓所有玩家重新準備嗎？')) return;
@@ -19,6 +20,9 @@ export class HostControlsView {
     $('settingsPanel').hidden = me.id !== room.host || room.phase !== 'lobby';
     if (!settingsDirty) $('boardSize').value = size;
     if (!settingsDirty) { $('teamCount').value = room.teamCount; $('playersPerTeam').value = room.playersPerTeam; }
+    if (!settingsDirty) $('hiddenGoalCount').value = room.hiddenGoalCount ?? 2;
+    $('hiddenGoalCount').max = room.hiddenGoalMaxCount ?? 13;
+    $('hiddenGoalCount').disabled = busy || !connected;
     $('teamCount').disabled = busy || !connected; $('playersPerTeam').disabled = busy || !connected;
     $('boardSize').disabled = busy || !connected;
     $('applySize').disabled = busy || !connected;

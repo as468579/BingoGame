@@ -5,6 +5,47 @@ const { applyGameAction } = require('../src/games/teambingo/actions');
 const { createOffers } = require('../src/games/teambingo/hidden-goal-offers');
 const { settleVictory } = require('../src/games/teambingo/victory');
 
+function settingsFixture() {
+  const room = { ...game.initializeRoom(), code: 'CONFIG', host: 'host', phase: 'lobby', revision: 0,
+    players: ['host', 'c1', 'a', 'c2', 'b'].map(id => ({ id, name: id, hand: [], teamId: null, ready: false })) };
+  const act = (kind, data = {}, id = 'host') => applyGameAction(room, room.players.find(p => p.id === id), { kind, ...data }, { isOnline: () => true }, 0);
+  return { room, act };
+}
+test('host settings configure the exact number of choices and retain it across reset and reload', () => {
+  const { maxGoalCount } = require('../src/games/teambingo/hidden-goal-offers');
+  for (const count of [1, 2, 3, maxGoalCount(6)]) {
+    const f = settingsFixture(); f.act('settings', { hiddenGoalCount: count });
+    assert.equal(f.room.hiddenGoalCount, count);
+    const snapshot = game.snapshot(f.room, { isOnline: () => true }, 'host');
+    assert.equal(snapshot.hiddenGoalCount, count); assert.equal(snapshot.hiddenGoalMaxCount, maxGoalCount(6));
+    assert.equal(snapshot.availableHiddenGoals.some(card => card.id === 'quick-finish'), count >= 3);
+    f.room.players.forEach(p => { if (p.id !== 'host') p.ready = true; });
+    f.act('captain', { teamId: 'team-1', playerId: 'c1' }); f.act('captain', { teamId: 'team-2', playerId: 'c2' });
+    f.act('start');
+    assert.equal(f.room.hiddenGoals.requiredCount, count);
+    for (const captain of ['c1', 'c2']) {
+      const teamId = f.room.players.find(p => p.id === captain).teamId;
+      for (const card of f.room.hiddenGoals.offers[teamId].slice(0, count)) f.act('hiddenGoal', { goalId: card.id }, captain);
+    }
+    assert.equal(f.room.phase, 'playing');
+    assert.throws(() => f.act('settings', { hiddenGoalCount: 2 }), /重新開局/);
+    const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved); assert.equal(saved.hiddenGoalCount, count);
+    f.act('reset'); assert.equal(f.room.hiddenGoalCount, count);
+  }
+});
+test('goal count settings reject invalid values, nonhosts and unavailable counts atomically', () => {
+  const f = settingsFixture();
+  for (const hiddenGoalCount of [0, -1, 1.5, '3', null, 999]) {
+    const before = structuredClone(f.room);
+    assert.throws(() => f.act('settings', { hiddenGoalCount }), /隱藏條件數量/);
+    assert.deepEqual(f.room, before);
+  }
+  assert.throws(() => f.act('settings', { hiddenGoalCount: 3 }, 'a'), /只有房主/);
+  assert.throws(() => f.act('settings', { size: 3, hiddenGoalCount: 13 }), /隱藏條件數量/);
+  f.act('settings', { size: 3, hiddenGoalCount: 3 });
+  assert.equal(f.room.size, 3); assert.equal(f.room.hiddenGoalCount, 3);
+});
+
 function fixture(t) {
   t.mock.method(Date, 'now', () => 0);
   const room = { ...game.initializeRoom(), code: 'TWO', host: 'host', phase: 'lobby', revision: 0,
@@ -18,7 +59,7 @@ function fixture(t) {
 test('new games require exactly two different conditions and do not offer quick finish', t => {
   const f = fixture(t), view = f.snapshot('c1');
   assert.equal(f.room.hiddenGoals.requiredCount, 2); assert.equal(view.hiddenGoal.requiredCount, 2);
-  assert.equal(view.hiddenGoal.options.length, 10);
+  assert.equal(view.hiddenGoal.options.length, 12);
   assert.ok(view.hiddenGoal.options.every(card => card.id !== 'quick-finish'));
 });
 

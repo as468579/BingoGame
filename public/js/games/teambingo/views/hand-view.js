@@ -25,7 +25,7 @@ export class HandView {
         const button = cardFace({ tag: 'button', className: `spell-card ${card.theme}`, type: card.type, art: card.symbol, name: card.name, description: card.effect || '能力待定', footer: '使用卡片 →' });
         button.type = 'button';
         button.setAttribute('aria-label', `使用${card.name}`);
-        button.disabled = busy || !connected || Boolean(me?.spectating) || room.phase !== 'playing' || room.turn !== playerId || Boolean(room.pending) || Boolean(room.activeCard) || Boolean(room.hiddenGoalGuess) || Boolean(room.hint);
+        button.disabled = busy || !connected || Boolean(room.introduction?.open) || Boolean(me?.spectating) || room.phase !== 'playing' || room.turn !== playerId || Boolean(room.pending) || Boolean(room.activeCard) || Boolean(room.hiddenGoalGuess) || Boolean(room.hint);
         button.onclick = () => this.actions.useCard(card.id);
         item.append(button);
       } else item.append(element('span', 'hand-card-symbol', '✦'), element('strong', '', card.name || `手牌 ${index + 1}`));

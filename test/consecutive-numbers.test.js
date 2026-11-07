@@ -35,11 +35,34 @@ function fixture(t) {
   return { room, act, snapshot, coverCorners, begin, submit, answer };
 }
 
-test('ordered-number goal has a four-number private progress target', t => {
+test('ordered-number goal has a board-size private progress target', t => {
   const f = fixture(t), card = f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'consecutive-numbers');
   assert.equal(card.name, '強迫症'); assert.equal(card.symbol, 'ordered-numbers');
-  assert.deepEqual(card.progress, { current: 0, target: 4 });
+  assert.deepEqual(card.progress, { current: 0, target: 6 });
   assert.equal(f.snapshot('a').hiddenGoal, undefined);
+});
+
+test('ordered-number goal scales its description, progress and completion boundary with every board size', () => {
+  const { goalCompleted } = require('../src/games/teambingo/victory');
+  const { goalProgress, publishGoalProgress, publicGoalProgress } = require('../src/games/teambingo/goal-progress');
+  const { availableHiddenGoals } = require('../src/games/teambingo/hidden-goals');
+  for (let size = 3; size <= 9; size++) {
+    const target = size;
+    const room = { size, phase: 'playing', teamCount: 2, players: [], called: [],
+      cells: Array.from({ length: size ** 2 }, (_, i) => ({ number: i + 1, isCovered: false })),
+      hiddenGoals: { requiredCount: 1, choices: { 'team-1': 'consecutive-numbers' }, completed: {} } };
+    assert.equal(availableHiddenGoals(room).find(card => card.id === 'consecutive-numbers').effect,
+      `同隊連續圈選${target}個由小到大的連續數字，可跨回合。`);
+    for (let number = 1; number < target; number++) {
+      room.called.push(number); Object.assign(room.cells[number - 1], { isCovered: true, teamId: 'team-1' });
+    }
+    assert.equal(goalCompleted(room, 'team-1', 'consecutive-numbers'), false);
+    assert.deepEqual(goalProgress(room, 'team-1'), { current: target - 1, target });
+    room.called.push(target); Object.assign(room.cells[target - 1], { isCovered: true, teamId: 'team-1' });
+    assert.equal(goalCompleted(room, 'team-1', 'consecutive-numbers'), true);
+    publishGoalProgress(room);
+    assert.equal(publicGoalProgress(room, 'team-1').conditions[0].percentage, 100);
+  }
 });
 
 test('ascending consecutive numbers across rounds and opposing turns complete the condition', t => {
@@ -49,8 +72,12 @@ test('ascending consecutive numbers across rounds and opposing turns complete th
   assert.equal(f.room.phase, 'playing');
   f.act('call', { number: 10 }, 'a');
   assert.equal(f.room.phase, 'playing');
-  assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'consecutive-numbers').progress, { current: 3, target: 4 });
+  assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'consecutive-numbers').progress, { current: 3, target: 6 });
   f.act('call', { number: 22 }, 'b'); f.act('call', { number: 11 }, 'a');
+  assert.equal(f.room.phase, 'playing');
+  f.act('call', { number: 23 }, 'b'); f.act('call', { number: 12 }, 'a');
+  assert.equal(f.room.phase, 'playing');
+  f.act('call', { number: 24 }, 'b'); f.act('call', { number: 13 }, 'a');
   assert.equal(f.room.phase, 'finished'); assert.deepEqual(f.room.winners, ['team-1']);
 });
 
@@ -77,13 +104,15 @@ test('using an effect card between number claims does not interrupt the number s
   f.act('call', { number: 21 }, 'b'); f.act('call', { number: 9 }, 'a');
   f.act('call', { number: 22 }, 'b'); f.act('call', { number: 10 }, 'a');
   f.act('call', { number: 23 }, 'b'); f.act('call', { number: 11 }, 'a');
+  f.act('call', { number: 24 }, 'b'); f.act('call', { number: 12 }, 'a');
+  f.act('call', { number: 25 }, 'b'); f.act('call', { number: 13 }, 'a');
   assert.equal(f.room.hiddenGoals.completed['team-1']['consecutive-numbers'], true);
   assert.equal(f.room.phase, 'playing');
 });
 
 test('once reached the condition remains achieved after later nonconsecutive claims', t => {
   const f = fixture(t);
-  for (const [n, actor] of [[8, 'a'], [20, 'b'], [9, 'a'], [21, 'b'], [10, 'a'], [22, 'b'], [11, 'a'], [23, 'b'], [15, 'a']]) f.act('call', { number: n }, actor);
+  for (const [n, actor] of [[8, 'a'], [20, 'b'], [9, 'a'], [21, 'b'], [10, 'a'], [22, 'b'], [11, 'a'], [23, 'b'], [12, 'a'], [24, 'b'], [13, 'a'], [25, 'b'], [15, 'a']]) f.act('call', { number: n }, actor);
   assert.equal(ascendingNumberStreak(f.room, 'team-1'), 1);
   assert.equal(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'consecutive-numbers').completed, true);
   assert.equal(f.room.phase, 'playing');
@@ -99,10 +128,19 @@ test('rearranged board positions do not change number order and uncovered claims
 
 test('undo retracts the last consecutive claim and its resulting victory', t => {
   const f = fixture(t); f.coverCorners();
-  for (const [n, actor] of [[8, 'a'], [20, 'b'], [9, 'a'], [21, 'b'], [10, 'a'], [22, 'b'], [11, 'a']]) f.act('call', { number: n }, actor);
+  assert.deepEqual(f.snapshot('a').teams[0].hiddenProgress.conditions[0].reward, { item: '楓葉祝福20', quantity: 1 });
+  assert.deepEqual(f.snapshot('a').teams[0].bonusRewards, []);
+  for (const [n, actor] of [[8, 'a'], [20, 'b'], [9, 'a'], [21, 'b'], [10, 'a'], [22, 'b'], [11, 'a'], [23, 'b'], [12, 'a'], [24, 'b'], [13, 'a']]) f.act('call', { number: n }, actor);
+  const maple = [{ item: '楓葉祝福20', quantity: 1 }];
+  const earned = snapshot => snapshot.teams[0].bonusRewards.filter(reward => reward.item === '楓葉祝福20');
+  assert.deepEqual(earned(f.snapshot('a')), maple);
+  assert.deepEqual(earned(f.snapshot('a')), maple);
+  const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+  assert.deepEqual(earned(game.snapshot(saved, { isOnline: () => true }, 'host')), maple);
   f.act('undo', { revision: f.room.revision });
+  assert.deepEqual(earned(f.snapshot('a')), []);
   assert.equal(f.room.phase, 'playing'); assert.deepEqual(f.room.winners, []);
-  assert.equal(ascendingNumberStreak(f.room, 'team-1'), 3);
+  assert.equal(ascendingNumberStreak(f.room, 'team-1'), 5);
   assert.equal(f.room.hiddenGoals.completed['team-1']['consecutive-numbers'], undefined);
 });
 
@@ -111,7 +149,7 @@ test('saved sequence progress remains private across migration and resets on res
   const saved = structuredClone(f.room); game.migrate(saved);
   assert.equal(ascendingNumberStreak(saved, 'team-1'), 2);
   const own = game.snapshot(saved, { isOnline: () => true }, 'c1').hiddenGoal.selections.find(c => c.id === 'consecutive-numbers');
-  assert.deepEqual(own.progress, { current: 2, target: 4 });
+  assert.deepEqual(own.progress, { current: 2, target: 6 });
   assert.equal(f.snapshot('a').hiddenGoal, undefined);
   assert.deepEqual(f.snapshot('host').hostHiddenGoals[0].selections.find(c => c.id === 'consecutive-numbers').progress, own.progress);
   f.act('reset'); assert.equal(ascendingNumberStreak(f.room, 'team-1'), 0);

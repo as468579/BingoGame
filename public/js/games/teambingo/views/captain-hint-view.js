@@ -10,6 +10,7 @@ export class CaptainHintView {
   }
 
   render({ room, me, busy, connected }) {
+    if (room.introduction?.open) { this.close(); this.key = null; this.button.disabled = true; return; }
     $('captainHint').hidden = !me?.spectating || room.phase !== 'playing';
     $('captainHint').textContent = `提示隊員（${room.teams.find(team => team.id === me?.teamId)?.hintUsesRemaining ?? 3} 次）`;
     $('captainHint').disabled = Boolean(busy || !connected || !room.canHint);

@@ -1,10 +1,7 @@
 import { $, element } from '../../../views/dom.js';
 
-export function rewardTotals(rewards = []) {
-  const totals = new Map();
-  for (const reward of rewards) totals.set(reward.item, (totals.get(reward.item) || 0) + 1);
-  return [...totals].map(([item, count]) => ({ item, count }));
-}
+import { rewardTotals } from '../../../views/reward-totals.js';
+export { rewardTotals } from '../../../views/reward-totals.js';
 
 export class RewardsView {
   constructor() {

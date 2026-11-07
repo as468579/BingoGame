@@ -29,6 +29,7 @@ function mount(t) {
     focus() { this.focused = true; }
   }
   const ids = [
+    'goalProgressPanel', 'goalProgressList', 'hiddenGoalCount', 'winnerRewardInfo',
     'introduction', 'introductionDialog', 'introductionContent', 'introductionPrevious', 'introductionNext', 'introductionPage', 'closeIntroduction',
     'handCount', 'handEmpty', 'handList', 'handPanel', 'openHand', 'closeHand', 'handDock',
     'cardPreviewDialog', 'closePreviewCard', 'previewCardsEmpty', 'previewCardList',
@@ -61,7 +62,7 @@ function mount(t) {
   ];
   const nodes = Object.fromEntries(ids.map(id => [id, new Node()]));
   for (const id of [...ids, 'root', 'publicAddress', 'saveAddress', 'copy', 'copyInvite', 'invitePanel', 'inviteLink', 'inviteHint',
-    'roomCode', 'rulesText', 'winner', 'players', 'playerCount', 'presenceSummary', 'teamCount', 'playersPerTeam', 'gameResultsTitle', 'joinControls', 'ownTeam']) nodes[`next-${id}`] = new Node();
+    'roomCode', 'winner', 'players', 'playerCount', 'presenceSummary', 'teamCount', 'playersPerTeam', 'gameResultsTitle', 'joinControls', 'ownTeam']) nodes[`next-${id}`] = new Node();
   const original = globalThis.document;
   globalThis.document = { getElementById: id => {
     assert.ok(nodes[id], `Unexpected DOM dependency: ${id}`);
@@ -108,11 +109,29 @@ test('TeamBingo renders only its own shared board, team roster, team rewards and
   view.render(s);
   assert.equal(document.title, '團隊賓果 · Alberta');
   assert.equal(nodes['next-root'].hidden, false); assert.equal(nodes['next-boardTitle'].textContent, '全場共用盤面');
+  assert.match(nodes['next-winnerRewardInfo'].textContent, /獲勝獎勵.*隊長.*擇一.*龍王項鍊 ×1.*楓葉祝福20 ×1/);
   assert.equal(nodes['next-board'].children.length, 9); assert.equal(nodes['next-board'].children[0].dataset.team, 0);
   assert.equal(nodes['next-board'].children[0].disabled, true); assert.equal(nodes['next-board'].children[1].disabled, false);
   assert.equal(nodes['next-board'].children[1].classList.contains('is-special'), true);
+  assert.equal(nodes['next-hiddenGoalCount'].value, 2);
   assert.match(nodes['next-board'].children[1].attributes['aria-label'], /特殊格/);
   assert.match(nodes['next-board'].children[1].textContent, /✦/);
+  s.room.introduction = { id: 'presentation', version: 1, open: true, page: 1 };
+  view.render(s);
+  assert.equal(s.busy, false, 'Presentation must not mutate the live state');
+  assert.ok(nodes['next-board'].children.every(node => node.disabled));
+  assert.equal(nodes['next-introductionDialog'].open, true);
+  assert.equal(nodes['next-introductionPage'].textContent, '2 / 6');
+  s.room.introduction = { ...s.room.introduction, version: 2, open: false };
+  view.render(s);
+  assert.equal(nodes['next-introductionDialog'].open, false);
+  assert.equal(nodes['next-board'].children[1].disabled, false);
+  s.room.teams[0].hiddenProgress = { round: 1, conditions: [{ percentage: 40, reward: null }, { percentage: 100, reward: { item: '龍王項鍊', quantity: 1 } }] };
+  view.render(s);
+  assert.equal(nodes['next-goalProgressPanel'].hidden, false);
+  assert.match(nodes['next-goalProgressList'].textContent, /第 1 輪結算條件 1：目前進度 40 %條件 2：目前進度 100 %/);
+  assert.doesNotMatch(nodes['next-goalProgressList'].textContent, /獎品|龍王項鍊/);
+  assert.doesNotMatch(nodes['next-players'].textContent, /條件 1|獎品待定/);
   s.room.lastDraw = { id: 'drawn', name: '星光指引', theme: 'gold', symbol: '✧' };
   view.render(s); assert.equal(nodes['next-drawnCardDialog'].open, true);
   nodes['next-closeDrawnCard'].click();
@@ -121,8 +140,8 @@ test('TeamBingo renders only its own shared board, team roster, team rewards and
   s.room.endReason = 'board-full-draw'; s.room.winners = []; view.render(s);
   assert.match(nodes['next-winner'].textContent, /本局和局/);
   assert.equal(nodes['next-gameResultsTitle'].textContent, '遊戲結束・和局');
-  assert.match(nodes['next-rulesText'].textContent, /盤面已滿仍無人達標時判定為和局/);
   view.hide(); assert.equal(nodes['next-root'].hidden, true); assert.equal(nodes['next-gameResultsDialog'].open, false);
+  assert.equal(nodes['next-goalProgressPanel'].hidden, true);
 });
 
 test('Team Bingo card awards notify immediately once per card and show the effect without descriptions', async t => {
@@ -247,7 +266,7 @@ for (const symbol of ['pocket-watch', 'light-bulb', 'gift']) test(`Team Bingo re
   shared.close(); drawn.hide();
 });
 
-for (const symbol of ['thinking', 'abacus', 'near-line', 'flag', 'question-mark', 'double-six', 'double-seven', 'double-eight', 'running', 'book', 'book-cross', 'ordered-numbers']) test(`hidden goal ${symbol} uses the same black line SVG for captain and host cards`, async t => {
+for (const symbol of ['math-symbols', 'thinking', 'abacus', 'near-line', 'flag', 'question-mark', 'double-six', 'double-seven', 'double-eight', 'running', 'book', 'book-cross', 'ordered-numbers']) test(`hidden goal ${symbol} uses the same black line SVG for captain and host cards`, async t => {
   const nodes = mount(t);
   const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
   const catalog = require('../src/games/teambingo/hidden-goal-catalog');
@@ -2120,9 +2139,11 @@ for (const goalCount of [2, 3]) test(`${goalCount}-goal selection confirms each 
   const state = { playerId: 'captain', connected: true, room: { code: 'THREE', host: 'host', phase: 'choosing-goal', hiddenGoal: goal } };
   view.render(state);
   assert.match(nodes['next-hiddenGoalHint'].textContent, new RegExp(`選擇 ${goalCount} 個不同隱藏勝利條件`));
+  assert.equal(nodes['next-hiddenGoalDialog'].dataset.selecting, 'true');
   for (const card of cards) {
     nodes['next-hiddenGoalCards'].children[0].click();
     assert.equal(nodes['next-hiddenGoalTitle'].textContent, '確認隱藏勝利條件');
+    assert.equal(nodes['next-hiddenGoalDialog'].dataset.selecting, 'false');
     nodes['next-hiddenGoalCards'].children.at(-1).children[1].click();
     goal.selections.push(card); goal.options = cards.filter(c => !goal.selections.includes(c));
     goal.selectionComplete = goal.selections.length === goalCount;
@@ -2134,6 +2155,96 @@ for (const goalCount of [2, 3]) test(`${goalCount}-goal selection confirms each 
   state.room.phase = 'playing'; view.render(state); nodes['next-viewHiddenGoal'].click();
   assert.equal(nodes['next-hiddenGoalCards'].children.length, goalCount);
   assert.match(nodes['next-hiddenGoalCards'].textContent, new RegExp(cards.map(card => card.name).join('.*')));
+});
+test('winner reward explanation matches server options and uses existing item images without selection controls', async t => {
+  mount(t);
+  const { winnerRewardInfo } = await import('../public/js/games/teambingo/views/winner-reward-info.js');
+  const { winnerReward } = require('../src/games/teambingo/winner-rewards');
+  const fs = require('node:fs'), path = require('node:path');
+  const section = winnerRewardInfo();
+  const visit = node => [node, ...node.children.flatMap(visit)];
+  const nodes = visit(section);
+  const items = winnerReward({ phase: 'finished', winners: ['t1'], host: 'host', captains: { t1: 'captain' } }, 't1', 'captain').options;
+  assert.match(section.textContent, /獲勝隊伍的隊長.*結算視窗擇一.*每隊每局限選一次/);
+  assert.equal(nodes.filter(node => node.tagName === 'img').length, items.length);
+  for (const item of items) {
+    assert.ok(section.textContent.includes(`${item} ×1`));
+    const image = nodes.find(node => node.tagName === 'img' && decodeURIComponent(node.src) === `/assets/items/${item}.png`);
+    assert.ok(image, item); assert.equal(image.alt, '');
+    assert.ok(fs.existsSync(path.join(__dirname, '../public', decodeURIComponent(image.src))));
+  }
+  assert.ok(nodes.every(node => !['button', 'input', 'select'].includes(node.tagName)));
+});
+
+test('guide and sidebar share the reward explanation with independent DOM instances', async t => {
+  const nodes = mount(t);
+  const { PlayersView } = await import('../public/js/games/teambingo/views/players-view.js');
+  const { TeamIntroductionView } = await import('../public/js/games/teambingo/introduction-view.js');
+  new PlayersView({});
+  const sidebar = nodes['next-winnerRewardInfo'].children[0];
+  const guide = new TeamIntroductionView();
+  guide.render({ playerId: 'host', room: { code: 'INFO', host: 'host', phase: 'lobby', size: 6, goal: 1 } });
+  const explanation = guide.pages[0].children.find(node => node.className === 'winner-reward-info');
+  assert.ok(explanation); assert.notEqual(explanation, sidebar);
+  assert.equal(explanation.textContent, sidebar.textContent);
+  explanation.children[0].textContent = 'Local guide mutation';
+  assert.equal(sidebar.children[0].textContent, '獲勝獎勵');
+  guide.hide(); assert.match(sidebar.textContent, /龍王項鍊 ×1.*楓葉祝福20 ×1/);
+  new PlayersView({}); assert.equal(nodes['next-winnerRewardInfo'].children.length, 1);
+});
+
+test('sidebar reward explanation survives roster updates and does not affect ready controls', async t => {
+  const nodes = mount(t), calls = [];
+  const { PlayersView } = await import('../public/js/games/teambingo/views/players-view.js');
+  const view = new PlayersView({ ready: () => calls.push('ready') });
+  t.after(() => view.hide());
+  const me = { id: 'member', name: 'Member', teamId: 't1', ready: false, online: true };
+  const room = { host: 'host', playersPerTeam: 2, goal: 1, turn: 'member', players: [me],
+    teams: [{ id: 't1', name: '隊伍 1', playerIds: ['member'], lines: 0, rewards: [] }] };
+  const sidebar = nodes['next-winnerRewardInfo'].children[0];
+  for (const phase of ['lobby', 'playing', 'finished', 'lobby']) {
+    room.phase = phase;
+    view.render({ room, me, playerId: me.id, connected: true, busy: false });
+    assert.equal(nodes['next-winnerRewardInfo'].children.length, 1);
+    assert.equal(nodes['next-winnerRewardInfo'].children[0], sidebar);
+    assert.match(sidebar.textContent, /每隊每局限選一次/);
+  }
+  nodes['next-ready'].click(); assert.deepEqual(calls, ['ready']);
+});
+
+test('winning captain chooses a settlement reward once and other viewers only see the result', async t => {
+  const nodes = mount(t), calls = [];
+  const { RewardsView } = await import('../public/js/games/teambingo/views/rewards-view.js');
+  const view = new RewardsView({ winnerReward: (...args) => calls.push(args) });
+  const team = { id: 't1', name: '隊伍 1', rewards: [], bonusRewards: [], winnerReward: { sessionId: 'win', options: ['龍王項鍊', '楓葉祝福20'], canChoose: true, selected: null } };
+  const state = { connected: true, room: { code: 'WIN', phase: 'finished', winners: ['t1'], teams: [team] } };
+  view.render(state);
+  assert.match(nodes['next-gameResultsList'].textContent, /獲勝獎勵：由隊長擇一/);
+  const choice = nodes['next-gameResultsList'].children[0].children[1];
+  choice.children[1].click(); choice.children[2].click();
+  assert.deepEqual(calls, [['龍王項鍊', 'win']]);
+  team.winnerReward.canChoose = false; team.winnerReward.selected = { item: '龍王項鍊', quantity: 1 };
+  team.bonusRewards = [{ item: '龍王項鍊', quantity: 1 }]; view.render(state);
+  assert.match(nodes['next-gameResultsList'].textContent, /獲勝獎勵：龍王項鍊 ×1/);
+  assert.equal(nodes['next-gameResultsList'].children[0].children[1].children.length, 1);
+  team.winnerReward.selected = null; team.winnerReward.canChoose = true; state.busy = true; view.render(state);
+  assert.equal(nodes['next-gameResultsList'].children[0].children[1].children[1].disabled, true);
+});
+
+test('captain sees hidden-condition rewards on option, confirmation and selected cards', async t => {
+  const nodes = mount(t);
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const card = { id: 'round-66', name: '66', symbol: 'double-six', effect: '同隊數字總和恰好為66。', reward: { item: '超級藥水', quantity: 1000 } };
+  const goal = { selected: null, selections: [], options: [card, { ...card, id: 'pending', name: '未設定', reward: null }], requiredCount: 1 };
+  const state = { playerId: 'captain', connected: true, room: { code: 'REWARD', host: 'host', phase: 'choosing-goal', hiddenGoal: goal } };
+  const view = new HiddenGoalView({ chooseHiddenGoal() {} });
+  view.render(state);
+  assert.match(nodes['next-hiddenGoalCards'].children[0].textContent, /獎品：超級藥水 ×1000/);
+  assert.match(nodes['next-hiddenGoalCards'].children[1].textContent, /獎品待定/);
+  nodes['next-hiddenGoalCards'].children[0].click();
+  assert.match(nodes['next-hiddenGoalCards'].children[0].textContent, /獎品：超級藥水 ×1000/);
+  goal.selected = card; goal.selections = [card]; goal.options = []; state.room.phase = 'playing'; view.render(state);
+  assert.match(nodes['next-hiddenGoalCards'].children[0].textContent, /獎品：超級藥水 ×1000/);
 });
 
 test('host reviews every selected condition and its completed status for each team', async t => {
@@ -2392,7 +2503,7 @@ test('team introduction shares pagination and provides six illustrated player to
   assert.equal(JSON.stringify(s), before);
 });
 
-test('team introduction is host-only during preparation and play and closes on role, room or phase changes', async t => {
+test('team introduction is available to players during preparation and play and closes on room or phase changes', async t => {
   const nodes = mount(t);
   const { TeamIntroductionView } = await import('../public/js/games/teambingo/introduction-view.js');
   const view = new TeamIntroductionView(), s = { playerId: 'host', room: { code: 'TEAM', host: 'host', phase: 'lobby', size: 6, goal: 1 } };
@@ -2402,7 +2513,7 @@ test('team introduction is host-only during preparation and play and closes on r
     assert.equal(nodes['next-introductionDialog'].open, true);
   }
   view.render({ ...s, playerId: 'captain' }); nodes['next-introduction'].click();
-  assert.equal(nodes['next-introduction'].hidden, true); assert.equal(nodes['next-introductionDialog'].open, false);
+  assert.equal(nodes['next-introduction'].hidden, false); assert.equal(nodes['next-introductionDialog'].open, true);
   view.render(s); nodes['next-introduction'].click(); nodes['next-introductionNext'].click();
   nodes['next-introductionContent'].scrollTop = 90; view.render(s);
   assert.equal(nodes['next-introductionPage'].textContent, '2 / 6'); assert.equal(nodes['next-introductionContent'].scrollTop, 90);
@@ -2430,12 +2541,13 @@ test('team guide explains its own victory, turn, card and clock rules without Br
   assert.equal(openingRules.children[1].children[1].textContent, '率先完成 1 條連線即宣布獲勝，取得該線獎品，並結束該局遊戲。');
   assert.doesNotMatch(view.pages[0].textContent, /額外獎勵|禮物卡/);
   assert.equal(view.pages[0].children[0].textContent, '勝利條件');
+  assert.match(view.pages[0].textContent, /獲勝獎勵.*隊長.*擇一.*龍王項鍊 ×1.*楓葉祝福20 ×1/);
   assert.equal(view.pages[1].children[0].children[0].textContent, '隱藏的勝利條件');
   for (const phrase of ['確認後不能更換', '不同隊伍可以選擇相同條件', '每完成一個隱藏條件，該隊會獲得一個獎勵。', '必須完成全部選定條件']) assert.ok(view.pages[1].textContent.includes(phrase), phrase);
   for (const phrase of ['秘密目標', '由隊長選擇', '只有隊長與房主', '全部選定條件都達成']) assert.ok(view.pages[0].textContent.includes(phrase), phrase);
   assert.doesNotMatch(view.pages[0].textContent, /所有隊伍共用一張盤面/);
   const text = view.pages.map(page => page.textContent).join('\n');
-  for (const phrase of ['所有隊伍共用一張盤面', '數字或是手牌', '不會輪空', '首次佔領特殊格', '當次行動不能接著用卡', '開始作答前可以取消', '全部選定條件都達成', '只有隊長與房主', '暫停 30 秒', '不必等待其他隊伍完成同一輪', '如果你是隊長', '你和隊友共用同一份行動時間']) assert.ok(text.includes(phrase), phrase);
+  for (const phrase of ['所有隊伍共用一張盤面', '首次佔領特殊格', '當次行動不能接著用卡', '開始作答前可以取消', '全部選定條件都達成', '只有隊長與房主', '不能直接告訴隊員隱藏勝利條件的名稱或具體內容', '不必等待其他隊伍完成同一輪', '如果你是隊長', '你和隊友共用同一份行動時間']) assert.ok(text.includes(phrase), phrase);
   assert.doesNotMatch(text, /回答問題，發動卡牌效果|跟色|只能丟棄|同輪達標|預設|6×6|2 隊|8 分鐘/);
   view.showPage(2); view.render({ ...s, room: { ...s.room, goal: 2 } });
   assert.equal(view.page, 2); assert.match(view.pages[2].textContent, /完成 2 條連線/);
@@ -2590,7 +2702,7 @@ test('team introduction keeps the final six-page order and each page uses its ma
   assert.ok(walk(view.pages[3]).some(node => node.className === 'team-guide-normal-example'));
   assert.ok(walk(view.pages[3]).some(node => node.className === 'team-guide-special-example'));
   assert.ok(walk(view.pages[4]).some(node => node.className === 'team-guide-clock-example'));
-  assert.ok(walk(view.pages[5]).some(node => node.tagName === 'svg' && node.attributes['aria-label']?.includes('隊內各自循環')));
+  assert.equal(walk(view.pages[5]).filter(node => node.className === 'team-guide-strategy').length, 3);
   assert.match(view.pages[4].textContent, /每位隊員每次輪到時仍有 3 秒可以行動/);
   assert.match(view.pages[4].textContent, /若盤面已滿仍無人達標，則判定為和局/);
 });
@@ -2606,4 +2718,113 @@ test('enlarged condition cards close when the host changes rooms or loses host a
     assert.equal(view.cardDetail.dialog.open, true);
     view.render(next); assert.equal(view.cardDetail.dialog.open, false); assert.equal(nodes['next-introductionDialog'].open, false);
   }
+});
+
+for (const type of ['bingo', 'teambingo']) test(`${type} board prize icons show quantities using the shared view and update when rewards change`, async t => {
+  const nodes = mount(t);
+  const { LinePrizesView } = await import(`../public/js/games/${type}/views/line-prizes-view.js`);
+  const { LinePrizesView: SharedLinePrizesView } = await import('../public/js/views/line-prizes-view.js');
+  const view = new LinePrizesView(); assert.ok(view instanceof SharedLinePrizesView);
+  const cells = Array.from({ length: 9 }, () => ({ isCovered: false }));
+  const prize = { id: 'row-0', item: '飄雪結晶', quantity: 100, claimedBy: null };
+  const prefix = type === 'teambingo' ? 'next-' : '';
+  view.render(cells, 3, 'playing', [prize]);
+  let icon = nodes[`${prefix}rowPrizes`].children[0].children[0];
+  assert.match(icon.attributes['aria-label'], /飄雪結晶 × 100/); assert.match(icon.title, /× 100/);
+  assert.equal(icon.children.find(node => node.className === 'line-prize-quantity').textContent, '×100');
+  view.render(cells, 3, 'playing', [{ ...prize, quantity: 50, claimedBy: 'team-1' }], 'team-1');
+  icon = nodes[`${prefix}rowPrizes`].children[0].children[0];
+  assert.match(icon.textContent, /×50/); assert.doesNotMatch(icon.textContent, /100/); assert.match(icon.attributes['aria-label'], /已取得/);
+});
+
+test('both reward summaries and award notices add actual quantities while legacy records still count as one', async t => {
+  const nodes = mount(t);
+  t.mock.method(globalThis, 'setTimeout', () => 0);
+  const rewards = [{ item: '飄雪結晶', quantity: 100 }, { item: '飄雪結晶', quantity: 50 }, { item: '飄雪結晶', quantity: 20 }, { item: '龍王項鍊' }];
+  for (const type of ['bingo', 'teambingo']) {
+    const { rewardTotals, RewardsView } = await import(`../public/js/games/${type}/views/rewards-view.js`);
+    const { LineNoticeView } = await import(`../public/js/games/${type}/views/line-notice-view.js`);
+    assert.deepEqual(rewardTotals(rewards), [{ item: '飄雪結晶', count: 170 }, { item: '龍王項鍊', count: 1 }]);
+    const rows = new RewardsView().rows([{ name: 'Winner', rewards }]);
+    assert.match(rows[0].textContent, /飄雪結晶× 170/);
+    new LineNoticeView().show([{ name: 'Winner', rewards }]);
+    assert.match(nodes.lineNotices.textContent, /飄雪結晶 × 170/);
+  }
+});
+
+test('players can independently read and navigate the guide without publishing or pausing the game', async t => {
+  const nodes = mount(t), commands = [];
+  const { TeamIntroductionView } = await import('../public/js/games/teambingo/introduction-view.js');
+  const view = new TeamIntroductionView({ introduction: data => commands.push(data) });
+  const s = { playerId: 'member', busy: true, connected: false, room: { code: 'LOCAL', host: 'host', phase: 'playing', size: 6, goal: 1 } };
+  const before = JSON.stringify(s); view.render(s); nodes['next-introduction'].click();
+  assert.equal(nodes['next-introductionDialog'].open, true); nodes['next-introductionNext'].click();
+  assert.equal(view.page, 1); nodes['next-closeIntroduction'].click();
+  assert.equal(nodes['next-introductionDialog'].open, false); assert.deepEqual(commands, []); assert.equal(JSON.stringify(s), before);
+});
+
+test('host guide controls publish opening, page changes and closing with the current presentation session', async t => {
+  const nodes = mount(t), commands = [];
+  const { TeamIntroductionView } = await import('../public/js/games/teambingo/introduction-view.js');
+  const view = new TeamIntroductionView({ introduction: data => commands.push(data) });
+  const s = { playerId: 'host', busy: false, connected: true, room: { code: 'HOST', host: 'host', phase: 'playing', size: 6, goal: 1 } };
+  view.render(s); assert.equal(view.pages.length, require('../src/games/teambingo/introduction').PAGE_COUNT);
+  nodes['next-introduction'].click(); assert.deepEqual(commands.shift(), { open: true, page: 0 });
+  s.room.introduction = { id: 'session', version: 1, open: true, page: 0 }; view.render(s);
+  nodes['next-introductionNext'].click(); assert.deepEqual(commands.shift(), { open: true, page: 1, sessionId: 'session' });
+  view.render({ ...s, busy: true }); nodes['next-introductionNext'].click(); nodes['next-closeIntroduction'].click();
+  assert.deepEqual(commands, []); assert.equal(nodes['next-introductionDialog'].open, true);
+  s.room.introduction = { ...s.room.introduction, version: 2, page: 1 }; view.render(s);
+  nodes['next-closeIntroduction'].click(); assert.deepEqual(commands.shift(), { open: false, sessionId: 'session' });
+  assert.equal(nodes['next-introductionDialog'].open, false);
+});
+
+test('players follow host page changes and close events, but unchanged snapshots preserve local browsing', async t => {
+  const nodes = mount(t), commands = [];
+  const { TeamIntroductionView } = await import('../public/js/games/teambingo/introduction-view.js');
+  const view = new TeamIntroductionView({ introduction: data => commands.push(data) });
+  const s = { playerId: 'member', connected: true, room: { code: 'FOLLOW', host: 'host', phase: 'playing', size: 6, goal: 1,
+    introduction: { id: 'session', version: 1, open: true, page: 2 } } };
+  view.render(s); assert.equal(nodes['next-introductionDialog'].open, true); assert.equal(view.page, 2);
+  nodes['next-introductionNext'].click(); assert.equal(view.page, 3);
+  nodes['next-introductionContent'].scrollTop = 75; view.render(s);
+  assert.equal(view.page, 3); assert.equal(nodes['next-introductionContent'].scrollTop, 75);
+  nodes['next-closeIntroduction'].click(); view.render(s); assert.equal(nodes['next-introductionDialog'].open, false);
+  s.room.introduction = { ...s.room.introduction, version: 2, page: 4 }; view.render(s);
+  assert.equal(nodes['next-introductionDialog'].open, true); assert.equal(view.page, 4);
+  s.room.introduction = { ...s.room.introduction, version: 3, open: false }; view.render(s);
+  assert.equal(nodes['next-introductionDialog'].open, false);
+  nodes['next-introduction'].click(); view.render(s); assert.equal(nodes['next-introductionDialog'].open, true);
+  assert.deepEqual(commands, []);
+});
+
+test('reconnecting to a shared introduction opens its current page and reset clears the shared presentation', async t => {
+  const nodes = mount(t);
+  const { TeamIntroductionView } = await import('../public/js/games/teambingo/introduction-view.js');
+  const view = new TeamIntroductionView();
+  const s = { playerId: 'member', room: { code: 'RECONNECT', host: 'host', phase: 'playing', size: 6, goal: 1,
+    introduction: { id: 'session', version: 4, open: true, page: 3 } } };
+  view.render(s); view.hide(); view.render(s);
+  assert.equal(nodes['next-introductionDialog'].open, true); assert.equal(view.page, 3);
+  view.render({ ...s, room: { ...s.room, phase: 'lobby', introduction: null } });
+  assert.equal(nodes['next-introductionDialog'].open, false);
+});
+
+test('a host presentation suspends question and hint dialogs so the guide remains visible', async t => {
+  const nodes = mount(t);
+  const { SharedCardView } = await import('../public/js/games/teambingo/views/shared-card-view.js');
+  const { CaptainHintView } = await import('../public/js/games/teambingo/views/captain-hint-view.js');
+  const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
+  const { BoardView } = await import('../public/js/games/teambingo/views/board-view.js');
+  const { HandView } = await import('../public/js/games/teambingo/views/hand-view.js');
+  const state = boardClockState(); state.room.introduction = { id: 'sync', version: 1, open: true, page: 0 };
+  state.room.activeCard = { id: 'question', stage: 'question' }; state.room.hint = { id: 'hint', remainingMs: 30000 };
+  state.hand = [{ id: 'held', definitionId: 'team-time-plus-2m', name: '加時' }];
+  nodes['next-sharedCardDialog'].showModal(); nodes['next-hintDialog'].showModal(); nodes['next-hiddenGoalDialog'].showModal();
+  new SharedCardView({}).render(state); new CaptainHintView({}).render(state); new HiddenGoalView({}).render(state);
+  assert.equal(nodes['next-sharedCardDialog'].open, false); assert.equal(nodes['next-hintDialog'].open, false); assert.equal(nodes['next-hiddenGoalDialog'].open, false);
+  const board = new BoardView({}); board.render(state); t.after(() => board.hide());
+  assert.match(nodes['next-phaseText'].textContent, /房主正在介紹遊戲/);
+  assert.ok(nodes['next-board'].children.every(node => node.disabled));
+  new HandView({ useCard() {} }).render(state); assert.equal(nodes['next-handList'].children[0].children[0].disabled, true);
 });

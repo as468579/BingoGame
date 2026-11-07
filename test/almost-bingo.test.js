@@ -92,8 +92,16 @@ test('only the team selecting the condition benefits from its own near-complete 
 
 test('undo removes a near-line victory and returns progress to the previous count', () => {
   const f = fixture(); f.choose(); [1, 2, 3, 4].forEach(number => f.cover(number));
+  assert.deepEqual(f.snapshot('a1').teams[0].hiddenProgress.conditions[0].reward, { item: '飄雪結晶', quantity: 50 });
+  assert.deepEqual(f.snapshot('a1').teams[0].bonusRewards, []);
   f.act('call', { number: 5 }, 'a1');
+  const reward = [{ item: '飄雪結晶', quantity: 50 }];
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, reward);
+  assert.deepEqual(f.snapshot('a1').teams[0].bonusRewards, reward);
+  const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'a1').teams[0].bonusRewards, reward);
   f.act('undo', { revision: f.room.revision });
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
   assert.equal(f.room.phase, 'playing'); assert.deepEqual(f.room.winners, []);
   assert.equal(f.room.endReason, null); assert.equal(f.room.cells[4].isCovered, false);
   assert.deepEqual(f.snapshot('c1').hiddenGoal.progress, { current: 4, target: 5 });

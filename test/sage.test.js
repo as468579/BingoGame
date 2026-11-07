@@ -92,9 +92,14 @@ test('duplicate judgments and finishing a card cannot count the same answer twic
 
 test('undo restores the previous answer count and retracts a sage victory', t => {
   const f = fixture(t); f.coverCorners(); f.room.teamCorrectAnswers['team-1'] = 3;
+  assert.deepEqual(f.snapshot('a').teams[0].hiddenProgress.conditions[0].reward, { item: '突襲券', quantity: 7 });
   settleVictory(f.room); f.answer(true);
   assert.equal(f.room.phase, 'finished');
+  assert.ok(f.snapshot('host').teams[0].bonusRewards.some(reward => reward.item === '突襲券' && reward.quantity === 7));
+  const saved = JSON.parse(JSON.stringify(f.room)); game.migrate(saved);
+  assert.deepEqual(game.snapshot(saved, { isOnline: () => true }, 'host').teams[0].bonusRewards, f.snapshot('host').teams[0].bonusRewards);
   f.act('undo', { revision: f.room.revision });
+  assert.deepEqual(f.snapshot('host').teams[0].bonusRewards, []);
   assert.equal(f.room.phase, 'playing'); assert.deepEqual(f.room.winners, []);
   assert.equal(f.room.teamCorrectAnswers['team-1'], 3);
   assert.equal(f.room.hiddenGoals.completed['team-1'].sage, undefined);

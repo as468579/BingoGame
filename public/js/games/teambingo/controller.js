@@ -13,6 +13,8 @@ export class TeamBingoController {
   leave() { this.lineNotice.clear(); }
   actions() {
     return {
+      winnerReward: (item, sessionId) => this.app.command('winnerReward', { item, sessionId }),
+      introduction: data => this.app.command('introduction', data),
       team: (playerId, teamId) => this.app.command('team', { playerId, teamId }),
       captain: (teamId, playerId) => this.app.command('captain', { teamId, playerId }),
       chooseHiddenGoal: goalId => this.app.command('hiddenGoal', { goalId }),
@@ -41,7 +43,7 @@ export class TeamBingoController {
       }),
       settingsChanged: () => { this.state.settingsDirty = true; },
       applySize: size => this.app.perform(async () => {
-        const result = await this.app.api.send('settings', { size, teamCount: Number($('teamCount').value), playersPerTeam: Number($('playersPerTeam').value) });
+        const result = await this.app.api.send('settings', { size, hiddenGoalCount: Number($('hiddenGoalCount').value), teamCount: Number($('teamCount').value), playersPerTeam: Number($('playersPerTeam').value) });
         this.state.settingsDirty = false;
         this.app.update(result.room);
         this.app.notify(`已套用 ${size} × ${size}，請所有玩家確認盤面並準備。`);
