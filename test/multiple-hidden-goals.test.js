@@ -7,7 +7,7 @@ const { remainingTime } = require('../src/games/teambingo/team-clock');
 const { drawForNumber } = require('../src/games/teambingo/card-actions');
 
 const quickGoals = ['four-corners', 'mathematician', 'quick-finish'];
-const otherGoals = ['round-66', 'anticipate-opponent', 'almost-bingo'];
+const otherGoals = ['round-44', 'anticipate-opponent', 'almost-bingo'];
 function fixture(t, { choose = true, goals = quickGoals } = {}) {
   let now = 0; t.mock.method(Date, 'now', () => now);
   const room = { ...game.initializeRoom(), code: 'THREE', phase: 'lobby', host: 'host', revision: 0,
@@ -46,7 +46,7 @@ test('new games require three distinct confirmed choices per team before startin
   quickGoals.forEach(goalId => f.act('hiddenGoal', { goalId }, 'c2'));
   assert.equal(f.room.phase, 'playing');
   assert.deepEqual(f.room.hiddenGoals.choices['team-1'], f.room.hiddenGoals.choices['team-2']);
-  assert.throws(() => f.act('hiddenGoal', { goalId: 'round-66' }, 'c1'), /不是選擇/);
+  assert.throws(() => f.act('hiddenGoal', { goalId: 'round-44' }, 'c1'), /不是選擇/);
 });
 
 test('a high opening clock cannot complete quick finish before the other two conditions', t => {
@@ -107,10 +107,10 @@ for (const correct of [true, false]) test(`time card judgment ${correct ? 'corre
 });
 
 test('ordinary conditions stay achieved across rounds while all three are still required', t => {
-  const f = fixture(t, { goals: ['round-66', 'four-corners', 'mathematician'] });
-  [36, 19, 11].forEach(n => f.cover(n, 'team-1', { claimedRound: 1 }));
+  const f = fixture(t, { goals: ['round-44', 'four-corners', 'mathematician'] });
+  [20, 13, 11].forEach(n => f.cover(n, 'team-1', { claimedRound: 1 }));
   assert.equal(settleVictory(f.room), false);
-  assert.equal(f.room.hiddenGoals.completed['team-1']['round-66'], true);
+  assert.equal(f.room.hiddenGoals.completed['team-1']['round-44'], true);
   f.room.roundNumber = 2;
   f.prerequisites();
   assert.equal(settleVictory(f.room), true);

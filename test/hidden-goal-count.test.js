@@ -132,7 +132,7 @@ test('public hidden-condition reference follows actual offer rules and never inc
   f.room.size = 3; f.room.hiddenGoals.requiredCount = 3;
   const small = f.snapshot('host').availableHiddenGoals;
   assert.ok(small.some(card => card.id === 'quick-finish'));
-  assert.ok(!small.some(card => ['round-66', 'round-77', 'round-88'].includes(card.id)));
+  assert.ok(!small.some(card => ['round-44', 'round-55', 'round-66'].includes(card.id)));
   delete f.room.hiddenGoals;
   assert.ok(!f.snapshot('host').availableHiddenGoals.some(card => card.id === 'quick-finish'));
 });
@@ -147,7 +147,7 @@ test('the public reference filters all supported board sizes and resolves dynami
     assert.equal(new Set(options.map(card => card.id)).size, options.length);
     assert.ok(options.every(card => !card.id.startsWith('pending-')));
     assert.equal(options.some(card => card.id === 'quick-finish'), requiredCount >= 3);
-    for (const id of ['round-66', 'round-77', 'round-88']) assert.equal(options.some(card => card.id === id), size >= 4);
+    for (const id of ['round-44', 'round-55', 'round-66']) assert.equal(options.some(card => card.id === id), size >= 4);
     for (const id of ['mathematician', 'almost-bingo']) {
       assert.match(options.find(card => card.id === id).effect, new RegExp(String(size - 1)));
       assert.ok(!options.find(card => card.id === id).effect.includes('(n-1)'));

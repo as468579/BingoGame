@@ -31,7 +31,7 @@ function availableHiddenGoals(room) {
 function beginHiddenGoals(room) {
   if (teams(room).some(team => !team.captainId)) fail('請先為每隊指定隊長。');
   const count = validateGoalCount(room.hiddenGoalCount ?? DEFAULT_GOAL_COUNT, room.size);
-  room.hiddenGoals = { catalogVersion: 2, requiredCount: count, choices: {}, guessRounds: {}, achieved: {}, completed: {},
+  room.hiddenGoals = { catalogVersion: 3, requiredCount: count, choices: {}, guessRounds: {}, achieved: {}, completed: {},
     offers: Object.fromEntries(teams(room).map(team => [team.id, createOffers(room.size, count)])) };
   room.phase = 'choosing-goal';
   room.turn = null;

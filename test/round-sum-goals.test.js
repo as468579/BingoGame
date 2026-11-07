@@ -5,7 +5,7 @@ const { applyGameAction } = require('../src/games/teambingo/actions');
 const { roundNumberSum, hasHiddenVictory } = require('../src/games/teambingo/victory');
 const { createOffers } = require('../src/games/teambingo/hidden-goal-offers');
 
-function fixture(t, target = 77, goals = [`round-${target}`, 'four-corners', 'quick-finish']) {
+function fixture(t, target = 55, goals = [`round-${target}`, 'four-corners', 'quick-finish']) {
   const a = 3, b = 3;
   t.mock.method(Date, 'now', () => 0);
   const room = { ...game.initializeRoom(), code: 'SIXTY', host: 'host', phase: 'lobby', revision: 0,
@@ -32,10 +32,10 @@ function fixture(t, target = 77, goals = [`round-${target}`, 'four-corners', 'qu
   return { room, act, call, snapshot };
 }
 
-test('66, 77 and 88 are independent options available on every board of size four or greater', () => {
+test('44, 55 and 66 are independent options available on every board of size four or greater', () => {
   for (let size = 3; size <= 9; size++) {
     const offers = createOffers(size);
-    for (const target of [66, 77, 88]) {
+    for (const target of [44, 55, 66]) {
       const goal = offers.find(card => card.id === `round-${target}`);
       assert.equal(Boolean(goal), size >= 4);
       if (goal) { assert.equal(goal.name, String(target)); assert.equal(goal.roundSum, target); }
@@ -44,7 +44,7 @@ test('66, 77 and 88 are independent options available on every board of size fou
   }
 });
 
-for (const [target, numbers] of [[77, [35, 25, 17]], [88, [35, 29, 24]]]) {
+for (const [target, numbers] of [[55, [24, 18, 13]], [66, [25, 22, 19]]]) {
   test(`${target} completes at its exact total without waiting for the global round to end`, t => {
     const f = fixture(t, target);
     [1, 6, 31, 36].forEach(number => Object.assign(f.room.cells.find(c => c.number === number), { isCovered: true, teamId: 'team-1' }));
@@ -79,7 +79,7 @@ for (const [target, numbers] of [[77, [35, 25, 17]], [88, [35, 29, 24]]]) {
     f.room.history.push(require('../src/games/teambingo/history').captureGameState(f.room));
     game.migrate(f.room); game.migrate(f.room);
     assert.ok(f.room.hiddenGoals.choices['team-1'].includes(`round-${target}`));
-    assert.ok(!f.room.hiddenGoals.choices['team-1'].includes('round-66'));
+    assert.ok(!f.room.hiddenGoals.choices['team-1'].includes('round-44'));
     assert.equal(f.room.hiddenGoals.completed['team-1'][`round-${target}`], true);
     assert.equal(f.room.history.at(-1).hiddenGoalProgress.completed['team-1'][`round-${target}`], true);
     assert.equal(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === `round-${target}`).name, String(target));
@@ -87,22 +87,22 @@ for (const [target, numbers] of [[77, [35, 25, 17]], [88, [35, 29, 24]]]) {
 }
 
 test('one team can select all three totals and retain each achievement from a different round', t => {
-  const f = fixture(t, 77, ['round-66', 'round-77', 'round-88']);
+  const f = fixture(t, 55, ['round-44', 'round-55', 'round-66']);
   assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.map(c => c.progress.target), [1, 1, 1]);
-  for (const [round, target, numbers] of [[1, 66, [36, 19, 11]], [2, 77, [35, 25, 17]], [3, 88, [34, 30, 24]]]) {
+  for (const [round, target, numbers] of [[1, 44, [20, 13, 11]], [2, 55, [25, 18, 12]], [3, 66, [35, 17, 14]]]) {
     f.room.roundNumber = round;
     numbers.forEach(number => Object.assign(f.room.cells.find(c => c.number === number), { isCovered: true, teamId: 'team-1', claimedRound: round }));
     const finished = require('../src/games/teambingo/victory').settleVictory(f.room);
     assert.equal(f.room.hiddenGoals.completed['team-1'][`round-${target}`], true);
-    assert.equal(finished, target === 88);
+    assert.equal(finished, target === 66);
   }
   assert.deepEqual(f.room.winners, ['team-1']);
 });
 
 test('new total goals reset current-round progress at the same global round boundary', t => {
-  const f = fixture(t, 88);
+  const f = fixture(t, 66);
   for (const n of [8, 20, 9, 21, 10, 22]) f.call(n);
   assert.equal(f.room.roundNumber, 2); assert.equal(roundNumberSum(f.room, 'team-1'), 0);
   f.call(11);
-  assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'round-88').progress, { current: 0, target: 1 });
+  assert.deepEqual(f.snapshot('c1').hiddenGoal.selections.find(c => c.id === 'round-66').progress, { current: 0, target: 1 });
 });

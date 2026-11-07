@@ -21,6 +21,7 @@ export class TeamBingoController {
       guessHiddenGoal: () => this.app.command('hiddenGoalGuess'),
       judgeHiddenGoalGuess: (guessId, correct) => this.app.command('hiddenGoalJudge', { guessId, correct }),
       hint: () => this.app.command('captainHint'),
+      endHint: hintId => this.app.command('endHint', { hintId }),
       useCard: cardId => this.app.command('cardUse', { cardId }),
       answerCard: (cardSessionId, choice, answered = false) => this.app.command('cardAnswer', answered ? { cardSessionId, answered: true } : { cardSessionId, choice }),
       judgeCard: (cardSessionId, correct) => this.app.command('cardJudge', { cardSessionId, correct }),

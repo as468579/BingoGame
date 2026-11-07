@@ -14,7 +14,7 @@ const { useCard, cancelCard, answerCard, judgeCard, nextQuestion, finishCard, dr
 const { drawRoomCard } = require('./card-deck');
 const { beginHiddenGoals, chooseHiddenGoal, guessHiddenGoal, judgeHiddenGoalGuess } = require('./hidden-goals');
 const { participants, isCaptain } = require('./participants');
-const { startHint } = require('./captain-hint');
+const { startHint, endHint } = require('./captain-hint');
 const { updateIntroduction } = require('./introduction');
 const { selectWinnerReward } = require('./winner-rewards');
 const { validateGoalCount } = require('./hidden-goal-offers');
@@ -119,7 +119,7 @@ function skip(room, player, data, presence) {
 }
 function resetProgress(room) {
   Object.assign(room, { cells: createSpecialCells(room.board), called: [], turn: null, winners: [], pending: null, lastDecision: null,
-    activeCard: null, winnerRewards: {}, winnerRewardSessionId: null, introduction: null, hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, history: [], roundStart: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], usedQuestionIds: [], teamHands: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(room.size) });
+    activeCard: null, lastRoundEnd: null, winnerRewards: {}, winnerRewardSessionId: null, introduction: null, hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, history: [], roundStart: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], usedQuestionIds: [], teamHands: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(room.size) });
   room.players.forEach(p => { p.usedDemoCards = []; });
 }
 function reset(room, player) {
@@ -133,7 +133,7 @@ function rerollPrizes(room, player) {
   if (room.phase !== 'lobby') fail('只能在遊戲開始前重新隨機獎品。');
   room.linePrizes = createLinePrizes(room.size);
 }
-const handlers = { winnerReward: selectWinnerReward, settings, board, team, captain, ready, start, hiddenGoal: chooseHiddenGoal, hiddenGoalGuess: guessHiddenGoal, hiddenGoalJudge: judgeHiddenGoalGuess, captainHint: startHint, call, scan, skip, reset, undo, rerollPrizes,
+const handlers = { winnerReward: selectWinnerReward, settings, board, team, captain, ready, start, hiddenGoal: chooseHiddenGoal, hiddenGoalGuess: guessHiddenGoal, hiddenGoalJudge: judgeHiddenGoalGuess, captainHint: startHint, endHint, call, scan, skip, reset, undo, rerollPrizes,
   cardUse: useCard, cardCancel: cancelCard, cardAnswer: answerCard, cardJudge: judgeCard, cardNextQuestion: nextQuestion, cardFinish: finishCard };
 function applyGameAction(room, player, data, presence, now = Date.now()) {
   if (data.kind === 'introduction') {
@@ -142,7 +142,7 @@ function applyGameAction(room, player, data, presence, now = Date.now()) {
   if (room.introduction?.open && data.kind !== 'reset') fail('房主正在介紹遊戲，請等待介紹結束。', 409);
   if (!Object.hasOwn(handlers, data.kind)) fail('不支援的團隊賓果操作。');
   if (room.hiddenGoalGuess && !['hiddenGoalJudge', 'reset'].includes(data.kind)) fail('等待房主判定猜測結果，遊戲暫停。', 409);
-  if (room.hint && data.kind !== 'reset') fail('隊長提示中，請等待倒數結束。', 409);
+  if (room.hint && !['reset', 'endHint'].includes(data.kind)) fail('隊長提示中，請等待倒數結束。', 409);
   if (room.phase === 'choosing-goal' && !['hiddenGoal', 'reset'].includes(data.kind)) fail('請等待所有隊長選擇隱藏勝利條件。', 409);
   if (room.activeCard && !['cardCancel', 'cardAnswer', 'cardJudge', 'cardNextQuestion', 'cardFinish', 'winnerReward'].includes(data.kind)) fail('卡牌作答期間暫停遊戲。', 409);
   const before = REVERSIBLE_ACTIONS.has(data.kind) && room.phase === 'playing' ? captureGameState(room) : null;

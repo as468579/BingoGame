@@ -13,12 +13,14 @@ import { HiddenGoalView } from './views/hidden-goal-view.js';
 import { CaptainHintView } from './views/captain-hint-view.js';
 import { HiddenGuessView } from './views/hidden-guess-view.js';
 import { GoalProgressView } from './views/goal-progress-view.js';
+import { RoundEndView } from './views/round-end-view.js';
 
 export class TeamBingoView {
   constructor(actions, address, notify, getState) {
     this.introduction = new TeamIntroductionView(actions);
     this.players = new PlayersView(actions);
     this.goalProgress = new GoalProgressView();
+    this.roundEnd = new RoundEndView();
     this.board = new BoardView(actions);
     this.hostControls = new HostControlsView(actions);
     this.invitation = new InvitationView(address, notify, getState, $);
@@ -59,6 +61,7 @@ export class TeamBingoView {
     this.hiddenGoal.render(state);
     this.captainHint.render(state);
     this.introduction.render(introductionState);
+    this.roundEnd.render(introductionState);
     $('winner').textContent = room.endReason === 'board-full-draw' ? '盤面已滿，無隊伍達成勝利條件，本局和局。'
       : room.endReason === 'time-exhausted' ? '所有隊伍行動時間已用完，本局無勝者。' : room.winners.length
       ? `✳ ${room.teams.filter(team => room.winners.includes(team.id)).map(team => team.name).join('、')}${room.winners.length > 1 ? ' 並列獲勝' : ' 獲勝'}！` : '';
@@ -68,6 +71,7 @@ export class TeamBingoView {
     this.introduction.hide();
     this.players.hide();
     this.goalProgress.hide();
+    this.roundEnd.hide();
     this.board.hide();
     $('root').hidden = true;
     $('game').hidden = true;

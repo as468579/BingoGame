@@ -9,12 +9,19 @@ function requiredCount(room) { return room.hiddenGoals?.requiredCount ?? 1; }
 function selectionComplete(room, teamId) { return selectedIds(room, teamId).length === requiredCount(room); }
 
 function migrateGoalAliases(room) {
-  // Only pre-versioned saves used 88 as the former name of 66.
-  if (room.hiddenGoals?.catalogVersion >= 2) return;
-  const rename = id => id === 'round-88' ? 'round-66' : id;
+  if (!room.hiddenGoals || room.hiddenGoals.catalogVersion >= 3) return;
+  const version = room.hiddenGoals.catalogVersion || 1;
+  const aliases = { 'round-66': 'round-44', 'round-77': 'round-55', 'round-88': 'round-66' };
+  const rename = id => {
+    // Pre-versioned saves had only the original 88, later renamed to 66.
+    if (version < 2 && id === 'round-88') id = 'round-66';
+    return aliases[id] || id;
+  };
   const completed = groups => {
-    for (const goals of Object.values(groups || {})) if (Object.hasOwn(goals, 'round-88')) {
-      goals['round-66'] = Boolean(goals['round-66'] || goals['round-88']); delete goals['round-88'];
+    for (const [teamId, goals] of Object.entries(groups || {})) {
+      const renamed = {};
+      for (const [id, done] of Object.entries(goals)) renamed[rename(id)] = Boolean(renamed[rename(id)] || done);
+      groups[teamId] = renamed;
     }
   };
   if (room.hiddenGoals) {
@@ -25,7 +32,7 @@ function migrateGoalAliases(room) {
     completed(room.hiddenGoals.completed);
   }
   for (const state of room.history || []) completed(state.hiddenGoalProgress?.completed);
-  if (room.hiddenGoals) room.hiddenGoals.catalogVersion = 2;
+  room.hiddenGoals.catalogVersion = 3;
 }
 
 module.exports = { selectedIds, requiredCount, selectionComplete, migrateGoalAliases, DEFAULT_GOAL_COUNT };

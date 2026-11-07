@@ -124,7 +124,7 @@ test('more than four correct answers qualifies only if sage was selected and oth
 
 test('a high answer count cannot win through sage when that condition was not selected', t => {
   const f = fixture(t); f.room.teamCorrectAnswers['team-1'] = 10; f.coverCorners();
-  f.room.hiddenGoals.choices['team-1'] = ['round-66', 'four-corners', 'quick-finish'];
+  f.room.hiddenGoals.choices['team-1'] = ['round-44', 'four-corners', 'quick-finish'];
   assert.equal(settleVictory(f.room), false); assert.deepEqual(f.room.winners, []);
   assert.ok(f.snapshot('c1').hiddenGoal.selections.every(card => card.id !== 'sage'));
 });

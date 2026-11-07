@@ -37,4 +37,12 @@ function expireHint(room, now = Date.now()) {
   return true;
 }
 
-module.exports = { HINT_TIME_MS, INITIAL_HINT_USES, hintUses, addHintUses, startHint, expireHint };
+function endHint(room, player, data, presence, now = Date.now()) {
+  if (room.phase !== 'playing' || !room.hint || room.hint.id !== data.hintId) fail('這次提示已結束，請查看最新狀態。', 409);
+  if (player.id !== room.host && (player.id !== room.hint.captainId || !isCaptain(room, player.id))) fail('只有發起提示的隊長或房主可以提早結束。', 403);
+  const endedAt = Math.min(now, room.hint.endsAt);
+  room.hint = null;
+  syncTeamClock(room, endedAt);
+}
+
+module.exports = { HINT_TIME_MS, INITIAL_HINT_USES, hintUses, addHintUses, startHint, expireHint, endHint };

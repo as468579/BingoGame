@@ -8,6 +8,42 @@ const { hintUses, addHintUses } = require('../src/games/teambingo/captain-hint')
 const { drawForNumber } = require('../src/games/teambingo/card-actions');
 const { advanceTurn } = require('../src/games/teambingo/turns');
 
+for (const actor of ['captain', 'host']) test(`${actor} ends a hint early without advancing the turn or refunding its use`, t => {
+  const f = fixture(t); f.time(10000); f.act('captainHint');
+  const hintId = f.room.hint.id, turn = f.room.turn, history = f.room.history.length;
+  f.time(20000); f.act('endHint', actor === 'host' ? f.room.host : 'captain-a', { hintId });
+  assert.equal(f.room.hint, null); assert.equal(f.room.turn, turn);
+  assert.equal(hintUses(f.room, 'team-1'), 2); assert.equal(f.room.history.length, history);
+  assert.equal(remainingTime(f.room, 'team-1'), 470000);
+  for (const viewer of ['a', 'b', 'captain-b', f.room.host]) assert.equal(f.snapshot(viewer).hint, null);
+  f.time(21000); assert.equal(remainingTime(f.room, 'team-1'), 469000);
+});
+test('members, opposing captains and stale or duplicate end-hint requests cannot end a hint', t => {
+  const f = fixture(t); f.act('captainHint'); const hintId = f.room.hint.id;
+  for (const actor of ['a', 'b', 'captain-b']) {
+    const before = structuredClone(f.room);
+    assert.throws(() => f.act('endHint', actor, { hintId }), /發起提示的隊長或房主/);
+    assert.deepEqual(f.room, before);
+  }
+  assert.throws(() => f.act('endHint', 'captain-a', { hintId: 'old' }), /提示已結束/);
+  f.act('endHint', 'captain-a', { hintId });
+  assert.throws(() => f.act('endHint', 'captain-a', { hintId }), /提示已結束/);
+  f.act('captainHint'); const next = f.room.hint.id;
+  assert.notEqual(next, hintId);
+  assert.throws(() => f.act('endHint', 'captain-a', { hintId }), /提示已結束/);
+  assert.equal(f.room.hint.id, next); assert.equal(hintUses(f.room, 'team-1'), 1);
+});
+test('ending a hint early resumes the unused fraction of a three-second overtime turn', t => {
+  const f = fixture(t);
+  const { syncTeamClock, overtimeState } = require('../src/games/teambingo/team-clock');
+  f.room.teamClock.remaining['team-1'] = 0; syncTeamClock(f.room, 0);
+  f.time(1000); f.act('captainHint'); const hintId = f.room.hint.id;
+  assert.equal(overtimeState(f.room).remainingMs, 2000);
+  f.time(10000); f.act('endHint', 'captain-a', { hintId });
+  assert.equal(overtimeState(f.room).remainingMs, 2000);
+  f.time(11000); assert.equal(overtimeState(f.room).remainingMs, 1000);
+});
+
 function fixture(t, start = true) {
   let now = 0; t.mock.method(Date, 'now', () => now);
   const room = { ...game.initializeRoom(), code: 'HINT', gameType: 'teambingo', phase: 'lobby', host: 'captain-a', revision: 0,

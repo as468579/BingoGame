@@ -40,7 +40,7 @@ function roomSnapshot(room, presence, viewerId) {
     bonusRewards: room.phase === 'finished' ? [...Object.entries(room.teamBonusRewards?.[t.id] || {}).map(([item, quantity]) => ({ item, quantity })), ...hiddenGoalRewards(room, t.id), ...(winnerReward(room, t.id, viewerId)?.selected ? [winnerReward(room, t.id, viewerId).selected] : [])] : [] }));
   return { ...publicRoom(room, presence), size: room.size, boardVersion: room.boardVersion, goal: winningLineGoal(room.size),
     hiddenGoalCount: room.hiddenGoalCount ?? room.hiddenGoals?.requiredCount ?? 2, hiddenGoalMaxCount: maxGoalCount(room.size), teamCount: room.teamCount, playersPerTeam: room.playersPerTeam, teamTimeMinutes: room.teamTimeMinutes ?? DEFAULT_TEAM_MINUTES, teams: scores, board: room.board, cells: room.cells,
-    turn: room.turn, overtime, introduction: publicIntroduction(room), roundNumber: room.roundNumber || 1, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
+    roundEnd: room.lastRoundEnd || null, turn: room.turn, overtime, introduction: publicIntroduction(room), roundNumber: room.roundNumber || 1, called: room.called, winners: room.winners, endReason: room.endReason || null, linePrizes: room.linePrizes, pending: null,
     hiddenGoalGuess: room.hiddenGoalGuess ? { ...room.hiddenGoalGuess,
       teamName: scores.find(team => team.id === room.hiddenGoalGuess.teamId)?.name || '隊伍',
       captainName: room.players.find(player => player.id === room.hiddenGoalGuess.captainId)?.name || '隊長' } : null,

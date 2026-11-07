@@ -9,7 +9,7 @@ function fixture() {
   const room = { ...game.initializeRoom(), code: 'REPORT', host: 'host', phase: 'playing', revision: 0,
     players: ['a', 'b', 'c'].map((id, i) => ({ id, name: id, teamId: i === 1 ? 'team-2' : 'team-1', hand: [] })),
     roundNumber: 1, roundActedIds: [], turn: 'a' };
-  room.hiddenGoals = { requiredCount: 2, choices: { 'team-1': ['mathematician', 'sage'], 'team-2': ['four-corners', 'round-66'] }, completed: {}, offers: {} };
+  room.hiddenGoals = { requiredCount: 2, choices: { 'team-1': ['mathematician', 'sage'], 'team-2': ['four-corners', 'round-44'] }, completed: {}, offers: {} };
   publishGoalProgress(room); room.hiddenGoals.publicProgressRound = 0;
   return room;
 }
@@ -31,10 +31,10 @@ test('anonymous reports stay frozen until all participants finish, including une
 test('round sums publish before resetting the round and completed conditions remain completed', () => {
   const room = fixture();
   Object.assign(room.cells[0], { isCovered: true, teamId: 'team-2', number: 30, claimedRound: 1 });
-  Object.assign(room.cells[1], { isCovered: true, teamId: 'team-2', number: 36, claimedRound: 1 });
+  Object.assign(room.cells[1], { isCovered: true, teamId: 'team-2', number: 14, claimedRound: 1 });
   room.roundActedIds = ['a', 'b']; room.turn = 'c'; completeTurn(room);
   assert.deepEqual(publicGoalProgress(room, 'team-2').conditions[1], { percentage: 100, reward: { item: '超級藥水', quantity: 1000 } });
-  room.hiddenGoals.completed['team-2'] = { 'round-66': true };
+  room.hiddenGoals.completed['team-2'] = { 'round-44': true };
   publishGoalProgress(room);
   assert.equal(publicGoalProgress(room, 'team-2').conditions[1].percentage, 100);
 });
@@ -68,9 +68,9 @@ test('public reports show integer percentages only and reserve 100 percent for c
   room.hiddenGoals.publicProgress['team-1'][1].completed = true;
   assert.equal(publicGoalProgress(room, 'team-1').conditions[1].percentage, 100);
 });
-test('66, 77 and 88 use zero-of-one progress and old reports cannot reveal partial sums or live completions', () => {
+test('44, 55 and 66 use zero-of-one progress and old reports cannot reveal partial sums or live completions', () => {
   const { goalProgress } = require('../src/games/teambingo/goal-progress');
-  for (const target of [66, 77, 88]) {
+  for (const target of [44, 55, 66]) {
     const room = fixture(), id = `round-${target}`;
     room.hiddenGoals.choices['team-2'] = [id];
     Object.assign(room.cells[0], { isCovered: true, teamId: 'team-2', number: 11, claimedRound: 1 });

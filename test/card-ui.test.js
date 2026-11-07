@@ -24,12 +24,14 @@ function mount(t) {
     }
     click() { if (!this.disabled) this.emit('click'); }
     showModal() { this.open = true; }
+    showPopover() { this.popoverOpen = true; }
+    hidePopover() { this.popoverOpen = false; }
     close() { this.open = false; this.emit('close'); }
     getBoundingClientRect() { return { left: 20, right: 400, top: 100, bottom: 500 }; }
     focus() { this.focused = true; }
   }
   const ids = [
-    'goalProgressPanel', 'goalProgressList', 'hiddenGoalCount', 'winnerRewardInfo',
+    'roundEndNotice', 'roundEndTitle', 'roundEndMessage', 'goalProgressPanel', 'goalProgressList', 'hiddenGoalCount', 'winnerRewardInfo',
     'introduction', 'introductionDialog', 'introductionContent', 'introductionPrevious', 'introductionNext', 'introductionPage', 'closeIntroduction',
     'handCount', 'handEmpty', 'handList', 'handPanel', 'openHand', 'closeHand', 'handDock',
     'cardPreviewDialog', 'closePreviewCard', 'previewCardsEmpty', 'previewCardList',
@@ -46,7 +48,7 @@ function mount(t) {
     'drawnCardDialog', 'drawnCardTitle', 'drawnCardContent', 'closeDrawnCard',
     'hiddenGoalDialog', 'hiddenGoalTitle', 'hiddenGoalHint', 'hiddenGoalCards', 'viewHiddenGoal', 'closeHiddenGoal',
     'guessDialog', 'guessTitle', 'guessMessage', 'guessReference', 'guessCorrect', 'guessWrong',
-    'captainHint', 'hintDialog', 'hintTitle', 'hintDescription', 'hintProgress', 'hintCount',
+    'endHint', 'captainHint', 'hintDialog', 'hintTitle', 'hintDescription', 'hintProgress', 'hintCount',
     'bridgeGame', 'bridgeRoomCode', 'bridgeCopyCode', 'welcome', 'game', 'leave', 'switchPlayer',
     'bridgeIntroduction', 'bridgeIntroductionDialog', 'bridgeIntroductionContent', 'bridgeCloseIntroduction',
     'bridgeIntroductionPrevious', 'bridgeIntroductionNext', 'bridgeIntroductionPage',
@@ -266,7 +268,7 @@ for (const symbol of ['pocket-watch', 'light-bulb', 'gift']) test(`Team Bingo re
   shared.close(); drawn.hide();
 });
 
-for (const symbol of ['math-symbols', 'thinking', 'abacus', 'near-line', 'flag', 'question-mark', 'double-six', 'double-seven', 'double-eight', 'running', 'book', 'book-cross', 'ordered-numbers']) test(`hidden goal ${symbol} uses the same black line SVG for captain and host cards`, async t => {
+for (const symbol of ['math-symbols', 'thinking', 'abacus', 'near-line', 'flag', 'question-mark', 'double-four', 'double-five', 'double-six', 'running', 'book', 'book-cross', 'ordered-numbers']) test(`hidden goal ${symbol} uses the same black line SVG for captain and host cards`, async t => {
   const nodes = mount(t);
   const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
   const catalog = require('../src/games/teambingo/hidden-goal-catalog');
@@ -2156,6 +2158,60 @@ for (const goalCount of [2, 3]) test(`${goalCount}-goal selection confirms each 
   assert.equal(nodes['next-hiddenGoalCards'].children.length, goalCount);
   assert.match(nodes['next-hiddenGoalCards'].textContent, new RegExp(cards.map(card => card.name).join('.*')));
 });
+test('only the hint initiator and host see early-end controls and they submit the current hint ID', async t => {
+  const nodes = mount(t), calls = [];
+  t.mock.method(Date, 'now', () => 0);
+  const { CaptainHintView } = await import('../public/js/games/teambingo/views/captain-hint-view.js');
+  const view = new CaptainHintView({ endHint: id => calls.push(id) }); t.after(() => view.hide());
+  const state = { connected: true, me: { id: 'captain', teamId: 't1', spectating: true },
+    room: { code: 'HINT', phase: 'playing', host: 'host', teams: [{ id: 't1', hintUsesRemaining: 2 }],
+      hint: { id: 'hint-1', captainId: 'captain', teamName: '隊伍 1', remainingMs: 30000 } } };
+  view.render(state); assert.equal(nodes['next-endHint'].hidden, false);
+  nodes['next-endHint'].click(); assert.deepEqual(calls, ['hint-1']);
+  state.busy = true; view.render(state); assert.equal(nodes['next-endHint'].disabled, true);
+  nodes['next-endHint'].click(); assert.deepEqual(calls, ['hint-1']);
+  state.busy = false; state.connected = false; view.render(state); assert.equal(nodes['next-endHint'].disabled, true);
+  state.connected = true;
+  for (const id of ['member', 'opposing-captain']) { state.me.id = id; view.render(state); assert.equal(nodes['next-endHint'].hidden, true); }
+  state.me.id = 'host'; view.render(state); assert.equal(nodes['next-endHint'].hidden, false);
+  state.room.hint = null; view.render(state); assert.equal(nodes['next-hintDialog'].open, false);
+  nodes['next-endHint'].click(); assert.deepEqual(calls, ['hint-1']);
+});
+
+test('round end notice is nonblocking, closes after three seconds and ignores repeated snapshots', async t => {
+  const nodes = mount(t); t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { RoundEndView } = await import('../public/js/games/teambingo/views/round-end-view.js');
+  const view = new RoundEndView(); t.after(() => view.hide());
+  const state = { playerId: 'a', room: { code: 'ROUND', boardVersion: 1, phase: 'playing', roundNumber: 1 } };
+  view.render(state);
+  state.room.roundNumber = 2; state.room.roundEnd = { id: 'first', round: 1, nextRound: 2 };
+  const before = structuredClone(state); view.render(state);
+  assert.deepEqual(state, before);
+  assert.equal(nodes['next-roundEndNotice'].popoverOpen, true);
+  assert.equal(nodes['next-roundEndNotice'].open, false, 'Must not open a blocking modal');
+  assert.equal(nodes['next-roundEndTitle'].textContent, '第 1 回合結束');
+  assert.equal(nodes['next-roundEndMessage'].textContent, '進入第 2 回合');
+  t.mock.timers.tick(2000); view.render(state); t.mock.timers.tick(999);
+  assert.equal(nodes['next-roundEndNotice'].popoverOpen, true);
+  t.mock.timers.tick(1); assert.equal(nodes['next-roundEndNotice'].popoverOpen, false);
+  view.render(state); assert.equal(nodes['next-roundEndNotice'].popoverOpen, false);
+});
+test('round notices suppress old reconnect events, undo and game-over, but announce new round events', async t => {
+  const nodes = mount(t); t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { RoundEndView } = await import('../public/js/games/teambingo/views/round-end-view.js');
+  const view = new RoundEndView(); t.after(() => view.hide());
+  const state = { playerId: 'host', room: { code: 'ROUND', phase: 'playing', roundNumber: 2, roundEnd: { id: 'old', round: 1, nextRound: 2 } } };
+  view.render(state); assert.equal(view.visible, false);
+  state.room.roundNumber = 3; state.room.roundEnd = { id: 'new', round: 2, nextRound: 3 }; view.render(state);
+  assert.equal(view.visible, true);
+  state.room.roundNumber = 2; state.room.roundEnd = { id: 'old', round: 1, nextRound: 2 }; view.render(state);
+  assert.equal(view.visible, false);
+  state.room.roundNumber = 3; state.room.roundEnd = { id: 'replayed', round: 2, nextRound: 3 }; view.render(state);
+  assert.equal(view.visible, true);
+  state.room.phase = 'finished'; view.render(state); assert.equal(view.visible, false);
+  t.mock.timers.tick(3000); assert.equal(nodes['next-roundEndNotice'].popoverOpen, false);
+});
+
 test('winner reward explanation matches server options and uses existing item images without selection controls', async t => {
   mount(t);
   const { winnerRewardInfo } = await import('../public/js/games/teambingo/views/winner-reward-info.js');
@@ -2234,7 +2290,7 @@ test('winning captain chooses a settlement reward once and other viewers only se
 test('captain sees hidden-condition rewards on option, confirmation and selected cards', async t => {
   const nodes = mount(t);
   const { HiddenGoalView } = await import('../public/js/games/teambingo/views/hidden-goal-view.js');
-  const card = { id: 'round-66', name: '66', symbol: 'double-six', effect: '同隊數字總和恰好為66。', reward: { item: '超級藥水', quantity: 1000 } };
+  const card = { id: 'round-44', name: '66', symbol: 'double-six', effect: '同隊數字總和恰好為66。', reward: { item: '超級藥水', quantity: 1000 } };
   const goal = { selected: null, selections: [], options: [card, { ...card, id: 'pending', name: '未設定', reward: null }], requiredCount: 1 };
   const state = { playerId: 'captain', connected: true, room: { code: 'REWARD', host: 'host', phase: 'choosing-goal', hiddenGoal: goal } };
   const view = new HiddenGoalView({ chooseHiddenGoal() {} });
