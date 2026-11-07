@@ -66,13 +66,13 @@ test('wrong guesses resume the same player and cannot be repeated until everyone
   f.act('hiddenGoalGuess', {}, 'c1'); assert.equal(f.room.hiddenGoalGuess.round, 2);
 });
 
-test('three-versus-two rounds wait for all five members despite independently repeating smaller teams', t => {
+test('three-versus-two rounds require three actions from both teams, including the repeated smaller-team member', t => {
   const f = fixture(t, [3, 2]); f.act('hiddenGoalGuess', {}, 'c1'); f.wrong();
   const order = [];
-  for (let i = 0; i < 4; i++) { order.push(f.room.turn); f.play(); assert.equal(f.room.roundNumber, 1); }
+  for (let i = 0; i < 5; i++) { order.push(f.room.turn); f.play(); assert.equal(f.room.roundNumber, 1); }
   order.push(f.room.turn); f.play();
-  assert.deepEqual(order, ['a1', 'b1', 'a2', 'b2', 'a3']);
-  assert.equal(f.room.roundNumber, 2); assert.equal(f.room.turn, 'b1');
+  assert.deepEqual(order, ['a1', 'b1', 'a2', 'b2', 'a3', 'b1']);
+  assert.equal(f.room.roundNumber, 2); assert.equal(f.room.turn, 'a1');
   assert.deepEqual(f.room.roundActedIds, []); assert.equal(f.snapshot('c1').hiddenGoal.canGuess, true);
 });
 
@@ -137,7 +137,8 @@ test('overtime teams still count toward rounds and their captain can guess durin
   f.play(); assert.equal(f.room.turn, 'b1'); assert.equal(f.room.roundNumber, 1);
   f.act('hiddenGoalGuess', {}, 'c2'); f.wrong();
   f.play(); assert.equal(f.room.turn, 'a2'); assert.equal(f.room.roundNumber, 1);
-  f.play(); assert.equal(f.room.roundNumber, 2); assert.equal(f.room.turn, 'b1');
+  f.play(); assert.equal(f.room.roundNumber, 1); assert.equal(f.room.turn, 'b1');
+  f.play(); assert.equal(f.room.roundNumber, 2); assert.equal(f.room.turn, 'a1');
 });
 
 test('save restoration retains an active guess, its paused clock and the already spent allowance', t => {

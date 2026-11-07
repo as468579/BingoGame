@@ -21,7 +21,7 @@ module.exports = {
     const teamTimeMinutes = validateTeamMinutes(options.teamTimeMinutes === undefined ? DEFAULT_TEAM_MINUTES : options.teamTimeMinutes);
     const size = 6, board = createBoard(size);
     return { size, hiddenGoalCount: validateGoalCount(options.hiddenGoalCount ?? 2, size), boardVersion: 0, board, cells: createSpecialCells(board), teamCount: 2, playersPerTeam: 2, teamTimeMinutes,
-      winnerRewards: {}, winnerRewardSessionId: null, called: [], turn: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, usedQuestionIds: [], winners: [], pending: null, lastDecision: null, history: [], teamHands: {}, captains: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(size) };
+      winnerRewards: {}, winnerRewardSessionId: null, called: [], turn: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], roundActionCounts: {}, hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, usedQuestionIds: [], winners: [], pending: null, lastDecision: null, history: [], teamHands: {}, captains: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(size) };
   },
   createPlayer: (room, name, token) => ({ ...createIdentity(name, token), teamId: null, hand: [], usedDemoCards: [], ready: false }),
   capacity: room => room.teamCount * room.playersPerTeam,

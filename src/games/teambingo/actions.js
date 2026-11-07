@@ -119,7 +119,7 @@ function skip(room, player, data, presence) {
 }
 function resetProgress(room) {
   Object.assign(room, { cells: createSpecialCells(room.board), called: [], turn: null, winners: [], pending: null, lastDecision: null,
-    activeCard: null, lastRoundEnd: null, winnerRewards: {}, winnerRewardSessionId: null, introduction: null, hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, history: [], roundStart: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], usedQuestionIds: [], teamHands: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(room.size) });
+    activeCard: null, lastRoundEnd: null, winnerRewards: {}, winnerRewardSessionId: null, introduction: null, hint: null, hintUsesRemaining: {}, hintBonuses: {}, teamCorrectAnswers: {}, teamWrongAnswers: {}, teamBonusRewards: {}, cardDrawCounts: {}, history: [], roundStart: null, turnCursors: {}, hiddenGoals: null, hiddenGoalGuess: null, roundNumber: 1, roundActedIds: [], roundActionCounts: {}, usedQuestionIds: [], teamHands: {}, teamClock: null, endReason: null, linePrizes: createLinePrizes(room.size) });
   room.players.forEach(p => { p.usedDemoCards = []; });
 }
 function reset(room, player) {

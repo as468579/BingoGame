@@ -11,7 +11,7 @@ function teamMembers(room) {
 function startTurn(room) {
   room.turnCursors = {};
   room.turn = null;
-  room.roundNumber = 1; room.roundActedIds = [];
+  room.roundNumber = 1; room.roundActedIds = []; room.roundActionCounts = {};
   advanceTurn(room);
 }
 

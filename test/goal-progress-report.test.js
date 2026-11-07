@@ -13,15 +13,15 @@ function fixture() {
   publishGoalProgress(room); room.hiddenGoals.publicProgressRound = 0;
   return room;
 }
-test('anonymous reports stay frozen until all participants finish, including unequal teams', () => {
+test('anonymous reports stay frozen until every team reaches the largest-team action count', () => {
   const room = fixture(), before = publicGoalProgress(room, 'team-1');
   room.cells.find(cell => cell.number === 2).isCovered = true;
   room.cells.find(cell => cell.number === 2).teamId = 'team-1';
   completeTurn(room);
   room.turn = 'b'; completeTurn(room);
-  room.turn = 'a'; completeTurn(room);
-  assert.deepEqual(publicGoalProgress(room, 'team-1'), before);
   room.turn = 'c'; completeTurn(room);
+  assert.deepEqual(publicGoalProgress(room, 'team-1'), before);
+  room.turn = 'b'; completeTurn(room);
   assert.equal(room.roundNumber, 2);
   assert.equal(publicGoalProgress(room, 'team-1').round, 1);
   assert.equal(publicGoalProgress(room, 'team-1').conditions[0].percentage, 20);
@@ -32,7 +32,8 @@ test('round sums publish before resetting the round and completed conditions rem
   const room = fixture();
   Object.assign(room.cells[0], { isCovered: true, teamId: 'team-2', number: 30, claimedRound: 1 });
   Object.assign(room.cells[1], { isCovered: true, teamId: 'team-2', number: 14, claimedRound: 1 });
-  room.roundActedIds = ['a', 'b']; room.turn = 'c'; completeTurn(room);
+  room.roundActedIds = ['a', 'b']; room.roundActionCounts = { 'team-1': 1, 'team-2': 1 };
+  room.turn = 'c'; completeTurn(room); room.turn = 'b'; completeTurn(room);
   assert.deepEqual(publicGoalProgress(room, 'team-2').conditions[1], { percentage: 100, reward: { item: '超級藥水', quantity: 1000 } });
   room.hiddenGoals.completed['team-2'] = { 'round-44': true };
   publishGoalProgress(room);

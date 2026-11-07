@@ -31,11 +31,11 @@ test('round end broadcasts one event to every viewer and the next team clock kee
   f.act('call', { number: 2 }, 'b', 2000); assert.notEqual(f.room.lastRoundEnd.id, event.id);
   f.act('reset'); assert.equal(f.room.lastRoundEnd, null);
 });
-test('unequal team sizes and captains never end the round before every active member acts', () => {
+test('unequal teams must each complete three actions before the round notice is published', () => {
   const f = fixture();
   f.room.players.push({ id: 'a2', teamId: 'team-1' }, { id: 'a3', teamId: 'team-1' }, { id: 'b2', teamId: 'team-2' });
-  for (const id of ['a', 'b', 'a2', 'b2', 'a']) { f.room.turn = id; completeTurn(f.room); assert.equal(f.room.lastRoundEnd, undefined); }
-  f.room.turn = 'a3'; completeTurn(f.room);
+  for (const id of ['a', 'b', 'a2', 'b2', 'a3']) { f.room.turn = id; completeTurn(f.room); assert.equal(f.room.lastRoundEnd, undefined); }
+  f.room.turn = 'b'; completeTurn(f.room);
   assert.equal(f.room.lastRoundEnd.round, 1); assert.equal(f.room.roundNumber, 2);
 });
 test('winning on the final member action prioritizes game settlement over round notifications', () => {
